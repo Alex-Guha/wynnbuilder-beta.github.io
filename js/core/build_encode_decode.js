@@ -82,7 +82,7 @@ async function loadOlderVersion() {
  */
 async function _load_old_atree_data(version_str) {
     let getUrl = window.location;
-    let baseUrl = `${getUrl.protocol}//${getUrl.host}${SITE_BASE}/`;
+    let baseUrl = `${getUrl.protocol}//${getUrl.host}${SITE_BASE}`;
     let url = `${baseUrl}/data/${version_str}/atree.json`;
     _old_ATREES = await (await fetch(url)).json();
 }

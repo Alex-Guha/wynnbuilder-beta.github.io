@@ -79,7 +79,7 @@ let current_type = "wand";
 let baseline_x = [];
 let baseline_y = [];
 
-let baseUrl = getUrl.protocol + "//" + getUrl.host + SITE_BASE + "/";// + getUrl.pathname.split('/')[1];
+let baseUrl = getUrl.protocol + "//" + getUrl.host + SITE_BASE;// + getUrl.pathname.split('/')[1];
 wynn_version_id = 0;
 
 async function plotData() {
