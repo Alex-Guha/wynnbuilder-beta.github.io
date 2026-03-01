@@ -1,20 +1,4 @@
-let player_build;
-let build_powders;
-
-function getItemNameFromID(id) { 
-    return idMap.get(id); 
-}
-
-function getTomeNameFromID(id) {
-    let res = tomeIDMap.get(id);
-    if (res === undefined) { console.log('WARN: Deleting unrecognized tome, id='+id); return ""; }
-    return res;
-}
-
-let atree_data = null;
-// Temporary storage for old-version ATREES during cross-version upgrade.
-// Set by loadOlderVersion(), consumed by decodeHash().
-let _old_ATREES = null;
+// ── Data loading ─────────────────────────────────────────────────────────────
 
 /**
  * Load the latest version of hte data.
@@ -24,7 +8,7 @@ let _old_ATREES = null;
 async function loadLatestVersion() {
     const latestVerName = wynn_version_names[WYNN_VERSION_LATEST];
 
-    const loadPromises = [ 
+    const loadPromises = [
         load_atree_data(latestVerName),
         load_major_id_data(latestVerName),
         item_loader.load_init(),
@@ -49,363 +33,35 @@ async function loadOlderVersion() {
     // Upgrade the build to the latest version
     if (confirm(updateMsg)) {
         wynn_version_id = WYNN_VERSION_LATEST;
-    }
 
-    const versionName = wynn_version_names[wynn_version_id];
-    const decodingVersionName = wynn_version_names[decodingVersion];
-    const isUpgrading = (wynn_version_id !== decodingVersion);
-    assert(decodingVersion <= wynn_version_id, "decoding version cannot be larger than the encoding version.");
-    const loadPromises = [
-        load_atree_data(versionName),
-        load_major_id_data(versionName),
-        item_loader.load_old_version(versionName),
-        ingredient_loader.load_old_version(versionName),
-        tome_loader.load_old_version(versionName),
-        aspect_loader.load_old_version(versionName),
-        load_encoding_constants(versionName, decodingVersionName)
-    ];
-    // When upgrading to a newer version, also fetch the old atree data so we
-    // can decode the encoded ability tree against the old structure and then
-    // map active node IDs onto the new tree.
-    if (isUpgrading) {
-        loadPromises.push(
-            _load_old_atree_data(decodingVersionName)
-        );
+        // Load old atree data from the build's version so we can migrate active
+        // nodes to the new tree structure later (in decodeHash / decodeHashLegacy).
+        _load_old_atree_data(wynn_version_names[decodingVersion]);
+
+        await loadLatestVersion();
+    } else {
+        const verName = wynn_version_names[wynn_version_id];
+
+        await Promise.all([
+            load_atree_data(verName),
+            load_major_id_data(verName),
+            item_loader.load_init(verName),
+            ingredient_loader.load_init(verName),
+            tome_loader.load_init(verName),
+            aspect_loader.load_init(verName),
+            load_encoding_constants(verName)
+        ]);
     }
-    console.log("Loading old version data...", versionName)
-    await Promise.all(loadPromises);
 }
 
-/**
- * Fetch atree JSON for an older version into _old_ATREES (does not touch the
- * global ATREES used by the live ability tree).
- */
 async function _load_old_atree_data(version_str) {
-    let getUrl = window.location;
-    let baseUrl = `${getUrl.protocol}//${getUrl.host}${SITE_BASE}`;
+    const getUrl = window.location;
+    let baseUrl = `${getUrl.protocol}//${getUrl.host}${SITE_BASE}/`;
     let url = `${baseUrl}/data/${version_str}/atree.json`;
     _old_ATREES = await (await fetch(url)).json();
 }
 
-/**
- * Encode the build's tomes and return the resulting vector.
- * @param {Tome[]} tomes 
- */
-function encodeTomes(tomes) {
-    const tomesVec = new EncodingBitVector(0, 0);
-    if (tomes.every(t => t.statMap.has("NONE"))) {
-        tomesVec.appendFlag("TOMES_FLAG", "NO_TOMES");
-    } else {
-        tomesVec.appendFlag("TOMES_FLAG", "HAS_TOMES");
-        for (const tome of tomes) {
-            if (tome.statMap.get("NONE")) {
-                tomesVec.appendFlag("TOME_SLOT_FLAG", "UNUSED")
-            } else {
-                tomesVec.appendFlag("TOME_SLOT_FLAG", "USED")
-                tomesVec.append(tome.statMap.get("id"), ENC.TOME_ID_BITLEN);
-            }
-        }
-    }
-    return tomesVec;
-}
-
-/**
- * Collect identical powder elements, keeping their original order in place.
- * @WARN(orgold, in-game vers' 2.1.6): Do not change tier order; This affects powder specials.
- *
- * - T6 E6 T6 E6       => T6 T6 E6 E6
- * - T6 T4 T6 T4       => T6 T4 T6 T4 (Preserves tier order)
- * - F6 A6 F6 T6 T6 A6 => F6 F6 A6 A6 T6 T6
- *
- * @param {number[]} powders - An array of powder IDs for a given item.
- */
-function collectPowders(powders) {
-    let powderChunks = ENC.POWDER_ELEMENTS.map(e => []);
-    let order = ENC.POWDER_ELEMENTS.map(e => -1);
-    let currOrder = 0;
-    for (const powder of powders) {
-        const elementIdx = Math.floor(powder / ENC.POWDER_TIERS);
-        if (order[elementIdx] < 0) {
-            powderChunks[currOrder].push(powder);
-            order[elementIdx] = currOrder;
-            currOrder += 1;
-        } else {
-            powderChunks[order[elementIdx]].push(powder);
-        }
-    }
-    return powderChunks;
-}
-
-/**
- * Encode the powders for a given equipment piece and return the resulting vector.
- * Powder encoding is detailed in `ENCODING.md`.
- *
- * @param {number[]} powderset - an array of powders IDs for a given item.
- * @param {number} version - The data version.
- */
-function encodePowders(powderset, version) {
-    const powdersVec = new EncodingBitVector(0, 0);
-
-    if (powderset.length === 0) {
-        powdersVec.appendFlag("EQUIPMENT_POWDERS_FLAG", "NO_POWDERS");
-        return powdersVec;
-    }
-
-    const collectedPowders = collectPowders(powderset); // Collect repeating powders
-
-    powdersVec.appendFlag("EQUIPMENT_POWDERS_FLAG", "HAS_POWDERS");
-
-    let previousPowder = -1;
-    for (let powderChunk of collectedPowders) {
-        let i = 0;
-        let powder = undefined;
-        while (i < powderChunk.length) {
-            powder = powderChunk[i];
-            if (previousPowder >= 0) {
-                powdersVec.appendFlag("POWDER_REPEAT_OP", "NO_REPEAT");
-                if (powder % ENC.POWDER_TIERS === previousPowder % ENC.POWDER_TIERS) {
-                    powdersVec.appendFlag("POWDER_REPEAT_TIER_OP", "REPEAT_TIER");
-                    const numElements = ENC.POWDER_ELEMENTS.length;
-                    const elementWrapper = mod((powder - previousPowder) / ENC.POWDER_TIERS, numElements) - 1;
-                    powdersVec.append(elementWrapper, ENC.POWDER_WRAPPER_BITLEN);
-                } else {
-                    powdersVec.appendFlag("POWDER_REPEAT_TIER_OP", "CHANGE_POWDER");
-                    powdersVec.appendFlag("POWDER_CHANGE_OP", "NEW_POWDER");
-                    powdersVec.append(encodePowderIdx(powder, ENC.POWDER_TIERS), ENC.POWDER_ID_BITLEN);
-                }
-            } else {
-                powdersVec.append(encodePowderIdx(powder, ENC.POWDER_TIERS), ENC.POWDER_ID_BITLEN);
-            }
-            while (++i < powderChunk.length && powderChunk[i] == powder) {
-                powdersVec.appendFlag("POWDER_REPEAT_OP", "REPEAT")
-            }
-            previousPowder = powder;
-        }
-    }
-    powdersVec.appendFlag("POWDER_REPEAT_OP", "NO_REPEAT");
-    powdersVec.appendFlag("POWDER_REPEAT_TIER_OP", "CHANGE_POWDER");
-    powdersVec.appendFlag("POWDER_CHANGE_OP", "NEW_ITEM")
-
-    return powdersVec;
-}
-
-/**
- * Return the appropriate equipment flag given an item.
- * @param {Item | Craft | Custom} eq 
- * @returns number
- */
-function getEquipmentKind(eq) {
-    if (eq.statMap.get("custom")) {
-        return ENC.EQUIPMENT_KIND.CUSTOM;
-    } else if (eq.statMap.get("crafted")) {
-        return ENC.EQUIPMENT_KIND.CRAFTED;
-    } else {
-        return ENC.EQUIPMENT_KIND.NORMAL;
-    }
-}
-
-/**
- * A map of the indexes of the powderable items in the equipment array
- * and their corresponding index in the build powders array.
- */
-const powderables = new Map([0, 1, 2, 3, 8].map((x, i) => [x, i]));
-
-/** Length, in chars, of the custom binary string */
-const CUSTOM_STR_LENGTH_BITLEN = 12; 
-
-/**
- * Encode all wearable equipment and return the resulting vector.
- * 
- * @param {Array<Item | Craft | Custom>} equipment - An array of the equipment to encode 
- * @param {number[]} powders - An array of powder ids for each powderable item 
- * @param {number} version - encoding version 
- * @returns {EncodingBitVector}
- */
-function encodeEquipment(equipment, powders, version) {
-    const equipmentVec = new EncodingBitVector(0, 0);
-
-    for (const [idx, eq] of equipment.entries()) {
-        const equipmentKind = getEquipmentKind(eq);
-        equipmentVec.append(equipmentKind, ENC.EQUIPMENT_KIND.BITLEN);
-        switch (equipmentKind) {
-            case ENC.EQUIPMENT_KIND.NORMAL: {
-                let eqID = 0;
-                if (eq.statMap.get("NONE") !== true) {
-                    eqID = eq.statMap.get("id") + 1;
-                }
-                equipmentVec.append(eqID, ENC.ITEM_ID_BITLEN);
-                break;
-            }
-            case ENC.EQUIPMENT_KIND.CRAFTED: {
-                const craftedHash = eq.statMap.get("hash").substring(3);
-                // Legacy versions start with their first bit set
-                if (Base64.toInt(craftedHash[0]) & 0x1 === 1) {
-                    equipmentVec.merge([encodeCraft(eq)]);
-                } else {
-                    equipmentVec.appendB64(craftedHash);
-                }
-                break;
-            }
-            case ENC.EQUIPMENT_KIND.CUSTOM: {
-                const customHash = eq.statMap.get("hash").substring(3);
-                // Legacy versions start with their first bit set
-                if (Base64.toInt(customHash[0]) & 0x1 === 1) {
-                    const newCustom = encodeCustom(eq, true);
-                    equipmentVec.append(newCustom.length / 6, CUSTOM_STR_LENGTH_BITLEN);
-                    equipmentVec.merge([newCustom]);
-                } else {
-                    equipmentVec.append(customHash.length, CUSTOM_STR_LENGTH_BITLEN);
-                    equipmentVec.appendB64(customHash);
-                }
-                break;
-            }
-        }
-
-        // Encode powders
-        if (powderables.has(idx)) {
-            equipmentVec.merge([encodePowders(powders[powderables.get(idx)], version)]);
-        }
-    }
-    return equipmentVec;
-}
-
-/**
- * Encode skillpoints.
- * The term "manual assignment" refers to skillpoints manually assigned in **Wynnbuilder** and not in **Wynncraft**.
- *
- * Assigned skillpoints are in the range [-2**ENC.MAX_SP_BITLEN, 2**ENC.MAX_SP_BITLEN).
- * @param {number[]} finalSp - Array of skillpoints after manual assignment from the user in `etwfa` order.
- * @param {number[]} originalSp - Array of skillpoints before manual assignment from the user in `etwfa` order. 
- * @param {number} version - Encoding version
- * @returns {EncodingBitVector}
- */
-function encodeSp(finalSp, originalSp, version) {
-    const spDeltas = zip2(finalSp, originalSp).map(([x, y]) => x - y);
-    const spBitvec = new EncodingBitVector(0, 0);
-
-    if (spDeltas.every(x => x === 0)) {
-        // No manually assigned skillpoints, let the builder handle the rest.
-        spBitvec.appendFlag("SP_FLAG", "AUTOMATIC")
-    } else {
-        // We have manually assigned skillpoints
-        spBitvec.appendFlag("SP_FLAG", "ASSIGNED");
-        for (const [i, sp] of finalSp.entries()) {
-            if (spDeltas[i] === 0) {
-                // The specific element has no manually assigned skillpoints
-                spBitvec.appendFlag("SP_ELEMENT_FLAG", "ELEMENT_UNASSIGNED");
-            } else {
-                // The specific element has manually assigned skillpoints
-                spBitvec.appendFlag("SP_ELEMENT_FLAG", "ELEMENT_ASSIGNED");
-                // Truncate to fit within the specified range.
-                const truncSp = sp & ((1 << ENC.MAX_SP_BITLEN) - 1)
-                spBitvec.append(truncSp, ENC.MAX_SP_BITLEN);
-            }
-        }
-    }
-
-    return spBitvec;
-}
-
-/**
- * Encode the build's level.
- * Encoding:
- * - Max level - encode a LEVEL_FLAG.MAX flag.
- * - Any other level - encode a LEVEL_FLAG.OTHER flag, then endcode the level in LEVEL_BITLEN bits.
- *
- * @param {number} level - The build's level.
- * @param {version} version - The data verison.
- */
-function encodeLevel(level, version) {
-    const levelVec = new EncodingBitVector(0, 0);
-    if (level === ENC.MAX_LEVEL) {
-        levelVec.appendFlag("LEVEL_FLAG", "MAX");
-    } else {
-        levelVec.appendFlag("LEVEL_FLAG", "OTHER");
-        levelVec.append(level, ENC.LEVEL_BITLEN)
-    }
-    return levelVec;
-}
-
-/**
- * Encode aspects.
- * @param {AspectSpec[]} aspects - an array of aspects.
- * @param {number} version - the data version.
- */
-function encodeAspects(aspects, version) {
-    const aspectsVec = new EncodingBitVector(0, 0);
-
-    if (aspects.every(([aspect, _]) => aspect.NONE === true)) {
-        aspectsVec.appendFlag("ASPECTS_FLAG", "NO_ASPECTS");
-    } else {
-        aspectsVec.appendFlag("ASPECTS_FLAG", "HAS_ASPECTS");
-        for (const [aspect, tier] of aspects) {
-            if (aspect.NONE === true) {
-                aspectsVec.appendFlag("ASPECT_SLOT_FLAG", "UNUSED");
-            } else {
-                aspectsVec.appendFlag("ASPECT_SLOT_FLAG", "USED");
-                aspectsVec.append(aspect.id, ENC.ASPECT_ID_BITLEN);
-                aspectsVec.append(tier - 1, ENC.ASPECT_TIER_BITLEN);
-            }
-        }
-    }
-
-    return aspectsVec;
-}
-
-/** An indication tha the vector is in binary format. */
-const VECTOR_FLAG = 0xC;
-
-/** The length, in bits, of the version field of the header. */
-const VERSION_BITLEN = 10;
-
-/**
- * Encode a header with metadata about the build.
- * The flag and the version length are hardcoded because
- * they are decoded before any data loading.
- *
- * @param {number} encoding_version - The version to encode.
- */
-function encodeHeader(encoding_version) {
-    const headerVec = new EncodingBitVector(0, 0);
-
-    // Legacy versions used versions 0..11 in decimal to encode.
-    // In order to differentiate with minimal sacrifice, encode
-    // the first character to be > 11.
-    headerVec.append(VECTOR_FLAG, 6);
-    headerVec.append(encoding_version, VERSION_BITLEN);
-    return headerVec;
-}
-
-/**
- * Encodes the build according to the spec in `ENCODING.md` and returns the resulting BitVector.
- *
- * @param {Build} build - The calculated player build.
- * @param {Array<Array<number>>} powders - An array of powdersets for each item.
- * @param {number[]} skillpoints - An array of the skillpoint values to encode.
- * @param {Object} atree - An object representation of the ability tree.
- * @param {Object} atree_state - An object representation of the ability tree state.
- * @param {AspectSpec[]} aspects - An array of aspects.
- * @returns {EncodingBitVector}
- */
-function encodeBuild(build, powders, skillpoints, atree, atree_state, aspects) {
-    if (!build) return;
-
-    const finalVec = new EncodingBitVector(0, 0);
-
-    const vecs = [
-        encodeHeader(wynn_version_id),
-        encodeEquipment([...build.equipment, build.weapon], powders, wynn_version_id),
-        encodeTomes(build.tomes, powders, wynn_version_id),
-        encodeSp(skillpoints, build.total_skillpoints, wynn_version_id),
-        encodeLevel(build.level, wynn_version_id),
-        encodeAspects(aspects, wynn_version_id),
-        encodeAtree(atree, atree_state, wynn_version_id),
-    ]
-
-    finalVec.merge(vecs)
-
-    return finalVec;
-}
+// ── Decoding functions ───────────────────────────────────────────────────────
 
 /**
  * Decode the header portion of an encoded build.
@@ -496,7 +152,7 @@ function decodeEquipment(cursor) {
             }
             case DEC.EQUIPMENT_KIND.CRAFTED: {
                 let craft = decodeCraft({cursor: cursor});
-                equipments.push(craft.hash); 
+                equipments.push(craft.hash);
                 break;
             }
             case DEC.EQUIPMENT_KIND.CUSTOM: {
@@ -563,7 +219,7 @@ function decodeSp(cursor) {
                         break;
                     }
                     case DEC.SP_ELEMENT_FLAG.ELEMENT_UNASSIGNED: {
-                        skillpoints.push(null); 
+                        skillpoints.push(null);
                         break;
                     }
                 }
@@ -581,7 +237,7 @@ function decodeLevel(cursor) {
     switch (flag) {
         case DEC.LEVEL_FLAG.MAX: return DEC.MAX_LEVEL;
         case DEC.LEVEL_FLAG.OTHER: return cursor.advanceBy(DEC.LEVEL_BITLEN);
-        default: 
+        default:
             throw new Error(`Encountered unknown flag when parsing level!`)
     }
 }
@@ -595,7 +251,7 @@ function decodeAspects(cursor, cls) {
             for (let i = 0; i < DEC.NUM_ASPECTS; ++i) {
                 switch (cursor.advanceBy(DEC.ASPECT_SLOT_FLAG.BITLEN)) {
                     case DEC.ASPECT_SLOT_FLAG.UNUSED: {
-                        aspects.push(null); 
+                        aspects.push(null);
                         break;
                     }
                     case DEC.ASPECT_SLOT_FLAG.USED: {
@@ -617,6 +273,8 @@ function decodeAspects(cursor, cls) {
     return aspects;
 }
 
+// ── Main decoder ─────────────────────────────────────────────────────────────
+
 async function handleLegacyHash(urlTag) {
     // Legacy versioning using search query "?v=XX" in the URL itself.
     // Grab the version of the data from the search parameter "?v=" in the URL
@@ -630,7 +288,14 @@ async function handleLegacyHash(urlTag) {
  * Decode the URL and populate all item fields.
  */
 async function decodeHash() {
-    const urlTag = window.location.hash.slice(1);
+    let urlTag = window.location.hash.slice(1);
+
+    // Strip solver params section if present (appended after SOLVER_HASH_SEP).
+    // This keeps the builder backwards-compatible with solver URLs.
+    const sep = urlTag.indexOf(SOLVER_HASH_SEP);
+    if (sep >= 0) {
+        urlTag = urlTag.substring(0, sep);
+    }
 
     if (!urlTag) {
         await loadLatestVersion();
@@ -714,6 +379,8 @@ async function decodeHash() {
 
     return skillpoints;
 }
+
+// ── Legacy decoding ──────────────────────────────────────────────────────────
 
 /**
  * Get the data version from the search parameters of the URL.
@@ -807,7 +474,7 @@ async function decodeHashLegacy(url_tag) {
         }
         data_str = equipments.slice(27);
     }
-    else if (version_number == 4) { 
+    else if (version_number == 4) {
         let info_str = data_str;
         let start_idx = 0;
         for (let i = 0; i < 9; ++i ) {
@@ -927,7 +594,7 @@ async function decodeHashLegacy(url_tag) {
             if (aspect_id !== none_aspect.id) {
                 setValue(aspectTierInputs[i], aspect_tier);
                 setValue(aspectInputs[i], class_aspects_by_id.get(aspect_id).displayName);
-            } 
+            }
         }
         data_str = data_str.slice(num_aspects*3);
     }
@@ -966,164 +633,68 @@ async function decodeHashLegacy(url_tag) {
     return skillpoints;
 }
 
-/**  
- *  Stores the entire build in a string using B64 encoding.
- *  Here only for documentation purposes.
- */
-function encodeBuildLegacy(build, powders, skillpoints, atree, atree_state, aspects) {
-
-    if (build) {
-        let build_string;
-        
-        //V6 encoding - Tomes
-        //V7 encoding - ATree
-        //V8 encoding - wynn version
-        //V9 encoding - lootrun tome
-        //V10 encoding - marathon, mysticism, and expertise tomes
-        //V11 encoding - Aspects
-        build_version = 11;
-        build_string = "";
-        tome_string = "";
-
-        for (const item of build.items) {
-            if (item.statMap.get("custom")) {
-                let custom = "CI-"+encodeCustom(item, true);
-                build_string += Base64.fromIntN(custom.length, 3) + custom;
-                //build_version = Math.max(build_version, 5);
-            } else if (item.statMap.get("crafted")) {
-                build_string += "CR-"+encodeCraftLegacy(item);
-            } else if (item.statMap.get("category") === "tome") {
-                let tome_id = item.statMap.get("id");
-                //if (tome_id <= 60) {
-                    // valid normal tome. ID 61-63 is for NONE tomes.
-                    //build_version = Math.max(build_version, 6);
-                //}
-                tome_string += Base64.fromIntN(tome_id, 2);
-            } else {
-                build_string += Base64.fromIntN(item.statMap.get("id"), 3);
-            }
-        }
-
-        for (const skp of skillpoints) {
-            build_string += Base64.fromIntN(skp, 2); // Maximum skillpoints: 2048
-        }
-        build_string += Base64.fromIntN(build.level, 2);
-        for (const _powderset of powders) {
-            let n_bits = Math.ceil(_powderset.length / 6);
-            build_string += Base64.fromIntN(n_bits, 1); // Hard cap of 378 powders.
-            // Slice copy.
-            let powderset = _powderset.slice();
-            while (powderset.length != 0) {
-                let firstSix = powderset.slice(0,6).reverse();
-                let powder_hash = 0;
-                for (const powder of firstSix) {
-                    powder_hash = (powder_hash << 5) + 1 + powder; // LSB will be extracted first.
-                }
-                build_string += Base64.fromIntN(powder_hash, 5);
-                powderset = powderset.slice(6);
-            }
-        }
-        build_string += tome_string;
-
-        for (const [aspect, tier] of aspects) {
-            build_string += Base64.fromIntN(aspect.id, 2);
-            build_string += Base64.fromIntN(tier, 1);
-        }
-
-        if (atree.length > 0 && atree_state.get(atree[0].ability.id).active) {
-            //build_version = Math.max(build_version, 7);
-            const bitvec = encodeAtree(atree, atree_state);
-            build_string += bitvec.toB64();
-        }
-
-        return build_version.toString() + "_" + build_string;
-    }
-}
-
-function getFullURL() {
-    return window.location.href;
-}
-
-function useCopyButton(id, text, default_text) {
-    copyTextToClipboard(text);
-    setText(id, "Copied!");
-    setTimeout(() => setText(id, default_text), 1000);
-}
-
-function copyBuild() {
-    useCopyButton("copy-button", getFullURL(), "Copy short");
-}
-
-function shareBuild(build) {
-    if (!build) return;
-
-    let lines = [
-        getFullURL(),
-        "> Wynnbuilder build:",
-        ...build.equipment.map(x => `> ${x.statMap.get("displayName")}`),
-        `> ${build.weapon.statMap.get("displayName")} [${build_powders[4].map(x => powderNames.get(x)).join("")}]`
-    ];
-
-    if (!build.tomes.every(tome => tome.statMap.has("NONE"))) {
-        lines.push("> (Has Tomes)")
-    }
-
-    const text = lines.join('\n');
-    useCopyButton("share-button", text, "Copy for sharing");
-}
+// ── Solver params decoding ───────────────────────────────────────────────────
 
 /**
- * Ability tree encode and decode functions
+ * Decode solver-specific parameters from a Base64 string
+ * (the portion of the URL hash after SOLVER_HASH_SEP).
  *
- * Based on a traversal, basically only uses bits to represent the nodes that are on (and "dark" outgoing edges).
- * credit: SockMower
+ * Mirror of encodeSolverParams(). See that function for the binary layout.
+ *
+ * @param {string} b64_str - Base64-encoded solver params
+ * @returns {Promise<Object|null>} Decoded params, or null on failure
  */
+async function decodeSolverParams(b64_str) {
+    if (!b64_str) return null;
 
-/**
- * Return: BitVector
- */
-function encodeAtree(atree, atree_state) {
-    let retVec = new BitVector(0, 0);
+    try {
+        const bv = new BitVector(b64_str, b64_str.length * 6);
+        const cursor = new BitVectorCursor(bv, 0);
 
-    function traverse(head, atree_state, visited, ret) {
-        for (const child of head.children) {
-            if (visited.has(child.ability.id)) { continue; }
-            visited.set(child.ability.id, true);
-            if (atree_state.get(child.ability.id).active) {
-                ret.append(1, 1);
-                traverse(child, atree_state, visited, ret);
-            }
-            else {
-                ret.append(0, 1);
+        // Fixed fields (43 bits)
+        const roll_vals = ['max', '75pct', 'avg', 'min'];
+        const roll = roll_vals[cursor.advanceBy(2)] || 'max';
+        const sfree = cursor.advanceBy(8);
+        const dir_enabled = cursor.advanceBy(5);
+        const lvl_min = cursor.advanceBy(7) + 1;
+        const lvl_max = cursor.advanceBy(7) + 1;
+        const nomaj = cursor.advanceBy(1) === 1;
+        const gtome = cursor.advanceBy(2);
+        const dtime = cursor.advanceBy(1) === 1;
+        const ctime = cursor.advanceBy(10);
+
+        // Restrictions text (uncompressed UTF-8)
+        const restr_len = cursor.advanceBy(12);
+        let restrictions_text = '';
+        if (restr_len > 0) {
+            const restr_bytes = new Uint8Array(restr_len);
+            for (let i = 0; i < restr_len; i++) restr_bytes[i] = cursor.advanceBy(8);
+            restrictions_text = new TextDecoder().decode(restr_bytes);
+        }
+
+        // Combo (deflate-compressed)
+        const combo_len = cursor.advanceBy(16);
+        let combo_text = '';
+        if (combo_len > 0) {
+            const combo_bytes = new Uint8Array(combo_len);
+            for (let i = 0; i < combo_len; i++) combo_bytes[i] = cursor.advanceBy(8);
+            try {
+                const ds = new DecompressionStream('deflate-raw');
+                const writer = ds.writable.getWriter();
+                writer.write(combo_bytes);
+                writer.close();
+                const decompressed = await _read_stream_bytes(ds.readable);
+                combo_text = new TextDecoder().decode(decompressed);
+            } catch (_) {
+                // Fallback: try interpreting as uncompressed
+                combo_text = new TextDecoder().decode(combo_bytes);
             }
         }
-    }
 
-    traverse(atree[0], atree_state, new Map(), retVec);
-    return retVec;
-}
-
-/**
- * Return: List of active nodes
- */
-function decodeAtree(atree, bits) {
-    let i = 0;
-    let ret = [];
-    ret.push(atree[0]);
-    function traverse(head, visited, ret) {
-        for (const child of head.children) {
-            if (visited.has(child.ability.id)) { continue; }
-            visited.set(child.ability.id, true);
-            if (bits.readBit(i)) {
-                i += 1;
-                ret.push(child);
-                traverse(child, visited, ret);
-            }
-            else {
-                i += 1;
-            }
-        }
+        return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
+                 restrictions_text, combo_text };
+    } catch (e) {
+        console.warn('[decode] decodeSolverParams failed:', e);
+        return null;
     }
-    traverse(atree[0], new Map(), ret);
-    return ret;
 }

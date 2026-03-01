@@ -11,7 +11,7 @@ function toggle_build_dir(sp) {
     // no longer controls this direction.
     _auto_disabled_dirs.delete(sp);
     _dir_user_overrides.add(sp);
-    _schedule_restrictions_url_update();
+    _schedule_solver_hash_update();
 }
 
 // ── Auto build-direction ─────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ function auto_update_build_directions() {
         }
     }
 
-    if (changed) _schedule_restrictions_url_update();
+    if (changed) _schedule_solver_hash_update();
 }
 
 /**
@@ -114,7 +114,7 @@ function auto_update_build_directions() {
 function toggle_no_major_id() {
     const btn = document.getElementById('restr-no-major-id');
     if (btn) btn.classList.toggle('toggleOn');
-    _schedule_restrictions_url_update();
+    _schedule_solver_hash_update();
 }
 
 let _restriction_row_counter = 0;
@@ -148,8 +148,8 @@ function restriction_add_row() {
     _init_restriction_stat_autocomplete('restr-stat-' + idx);
     // Wire all inputs for URL persistence
     for (const inp of row.querySelectorAll('input, select')) {
-        inp.addEventListener('change', _schedule_restrictions_url_update);
-        inp.addEventListener('input',  _schedule_restrictions_url_update);
+        inp.addEventListener('change', _schedule_solver_hash_update);
+        inp.addEventListener('input',  _schedule_solver_hash_update);
     }
     return row;
 }
@@ -160,7 +160,7 @@ function restriction_add_row() {
 function restriction_remove_row(btn) {
     const row = btn.closest('[id^="restr-row-"]');
     if (row) row.remove();
-    _schedule_restrictions_url_update();
+    _schedule_solver_hash_update();
 }
 
 /**
@@ -258,91 +258,5 @@ function get_restrictions() {
     return { build_dir, lvl_min, lvl_max, no_major_id, guild_tome, stat_thresholds };
 }
 
-// ── Restrictions URL persistence ──────────────────────────────────────────────
-
-let _restrictions_url_timer = null;
-
-/** Debounced: schedules a restriction URL update 300 ms from now. */
-function _schedule_restrictions_url_update() {
-    clearTimeout(_restrictions_url_timer);
-    _restrictions_url_timer = setTimeout(_do_restrictions_url_update, 300);
-}
-
-/**
- * Encodes the current restriction panel state into URL query params and calls
- * replaceState so the browser URL reflects the full solver configuration.
- *
- * Encoding:
- *   dir    = comma-separated disabled SP types  (omitted when all enabled)
- *   lvlmin = min item level                     (omitted when 1 / empty)
- *   lvlmax = max item level                     (omitted when MAX_PLAYER_LEVEL / empty)
- *   nomaj  = '1' when No-Major-ID is active     (omitted otherwise)
- *   gtome  = '1' or '2'                         (omitted when Off / 0)
- *   restr  = pipe-separated key:op:value rows   (omitted when none)
- */
-function _do_restrictions_url_update() {
-    const url = new URL(window.location.href);
-
-    // Build direction — store only disabled types
-    const disabled_dirs = [];
-    for (const sp of ['str', 'dex', 'int', 'def', 'agi']) {
-        const btn = document.getElementById('dir-' + sp);
-        if (btn && !btn.classList.contains('toggleOn')) disabled_dirs.push(sp);
-    }
-    if (disabled_dirs.length > 0) {
-        url.searchParams.set('dir', disabled_dirs.join(','));
-    } else {
-        url.searchParams.delete('dir');
-    }
-
-    // Level range
-    const lvl_min_raw = document.getElementById('restr-lvl-min')?.value?.trim() ?? '';
-    const lvl_max_raw = document.getElementById('restr-lvl-max')?.value?.trim() ?? '';
-    if (lvl_min_raw && lvl_min_raw !== '1') {
-        url.searchParams.set('lvlmin', lvl_min_raw);
-    } else {
-        url.searchParams.delete('lvlmin');
-    }
-    if (lvl_max_raw && lvl_max_raw !== String(MAX_PLAYER_LEVEL)) {
-        url.searchParams.set('lvlmax', lvl_max_raw);
-    } else {
-        url.searchParams.delete('lvlmax');
-    }
-
-    // No Major ID toggle
-    const no_maj = document.getElementById('restr-no-major-id')?.classList.contains('toggleOn') ?? false;
-    if (no_maj) {
-        url.searchParams.set('nomaj', '1');
-    } else {
-        url.searchParams.delete('nomaj');
-    }
-
-    // Guild tome
-    const gtome_val = document.getElementById('restr-guild-tome')?.value ?? '0';
-    if (gtome_val !== '0') {
-        url.searchParams.set('gtome', gtome_val);
-    } else {
-        url.searchParams.delete('gtome');
-    }
-
-    // Stat threshold rows
-    const entries = [];
-    for (const row of (document.getElementById('restriction-rows')?.children ?? [])) {
-        if (!row.id?.startsWith('restr-row-')) continue;
-        const stat_input = row.querySelector('.restr-stat-input');
-        const op_select  = row.querySelector('select');
-        const val_input  = row.querySelector('input[type="number"]');
-        if (!stat_input || !op_select || !val_input) continue;
-        const stat_key = stat_input.dataset?.statKey;
-        const value    = val_input.value.trim();
-        if (!stat_key || !value) continue;
-        entries.push(stat_key + ':' + op_select.value + ':' + value);
-    }
-    if (entries.length > 0) {
-        url.searchParams.set('restr', entries.join('|'));
-    } else {
-        url.searchParams.delete('restr');
-    }
-
-    window.history.replaceState(null, '', url.toString());
-}
+// Restriction URL persistence is now handled by the unified solver hash updater
+// in solver_graph_build.js (_schedule_solver_hash_update / _do_solver_hash_update).

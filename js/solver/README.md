@@ -55,7 +55,7 @@ The solver uses the same push-based reactive DAG as WynnBuilder (`ComputeNode` i
 
 **`solver_combo_ui.js`** — DOM construction helpers for combo selection rows. `_build_selection_row()` creates a full row element (quantity, spell picker, boost popup, mana/damage toggle dots, damage/heal display). Also provides the global helpers `combo_add_row()`, `combo_remove_row()`, `set_combo_mode()`, and `combo_toggle_downtime()`.
 
-**`solver_combo_codec.js`** — combo serialization. `combo_data_to_text()` / `combo_text_to_data()` convert between the row data model and the multi-line text format. `combo_encode_for_url()` / `combo_decode_from_url()` handle deflate-compressed URL persistence. `combo_export()` / `combo_import()` copy/paste via the clipboard API.
+**`solver_combo_codec.js`** — combo serialization. `combo_data_to_text()` / `combo_text_to_data()` convert between the row data model and the multi-line text format. `combo_export()` / `combo_import()` copy/paste via the clipboard API. URL persistence is handled by the unified solver hash updater in `solver_graph_build.js`.
 
 **`solver_combo_boost.js`** — the boost logic that operates per combo row:
 - `build_combo_boost_registry(atree_merged, build)` — scans the active ability tree for raw-stat toggle nodes and stat-scaling slider nodes; appends weapon powder boost toggles (Curse, Courage, Wind Prison) and armor powder buff sliders (Rage, Kill Streak, Concentration, Endurance, Dodge).

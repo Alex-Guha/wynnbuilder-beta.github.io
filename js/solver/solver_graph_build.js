@@ -143,10 +143,11 @@ class SolverBuildEncodeNode extends ComputeNode {
 }
 
 /**
- * Pushes the encoded build to the browser history.
- * Roll mode is stored as a query param (?roll=X) since it is solver-specific.
- * The combo= param is written asynchronously by SolverComboTotalNode and
- * preserved here via the URL API.
+ * Pushes the encoded build + solver params to the browser URL hash.
+ * Format: #<build_b64>_<solver_b64>
+ *
+ * When the build changes, caches the build b64 and fires an async hash update
+ * that encodes all solver params alongside the build hash.
  *
  * Signature: SolverURLUpdateNode(build-str: EncodingBitVector | null) => null
  */
@@ -156,19 +157,114 @@ class SolverURLUpdateNode extends ComputeNode {
     compute_func(input_map) {
         const build_str = input_map.get('build-str');
         if (!build_str) {
+            _last_build_b64 = '';
             window.history.replaceState(null, '', location.pathname);
             return null;
         }
-        // Use the URL API so we can preserve any combo= param already in the URL.
-        const url = new URL(window.location.href);
-        if (current_roll_mode !== ROLL_MODES.MAX) {
-            url.searchParams.set('roll', current_roll_mode);
-        } else {
-            url.searchParams.delete('roll');
-        }
-        // Replace path+query+hash while keeping any existing combo= entry.
-        url.hash = build_str.toB64();
-        window.history.replaceState(null, '', url.toString());
+        _last_build_b64 = build_str.toB64();
+        // Fire-and-forget async: encodes solver params + writes full hash.
+        _do_solver_hash_update();
         return null;
     }
+}
+
+// ── Unified solver URL hash updater ──────────────────────────────────────────
+
+/** Cached build Base64 string, set by SolverURLUpdateNode. */
+let _last_build_b64 = '';
+
+/** Debounce timer for non-build solver hash updates. */
+let _solver_hash_timer = null;
+
+/**
+ * Debounced: schedules a solver hash update 300 ms from now.
+ * Called by restriction, combo, sfree, and roll-mode change handlers.
+ */
+function _schedule_solver_hash_update() {
+    clearTimeout(_solver_hash_timer);
+    _solver_hash_timer = setTimeout(_do_solver_hash_update, 300);
+}
+
+/**
+ * Reads ALL solver state from the DOM, encodes it via encodeSolverParams(),
+ * and writes the full URL hash: #<build_b64>_<solver_b64>.
+ * Replaces the separate _do_restrictions_url_update, _do_combo_url_update,
+ * _write_sfree_url, and roll-mode query-param logic.
+ */
+async function _do_solver_hash_update() {
+    const build_b64 = _last_build_b64;
+    if (!build_b64) return;
+
+    const params = _collect_solver_params();
+
+    try {
+        const solver_b64 = await encodeSolverParams(params);
+        const full_hash = build_b64 + SOLVER_HASH_SEP + solver_b64;
+        window.history.replaceState(null, '', location.pathname + '#' + full_hash);
+    } catch (e) {
+        console.warn('[solver] hash update failed:', e);
+        // Fallback: write build hash only
+        window.history.replaceState(null, '', location.pathname + '#' + build_b64);
+    }
+}
+
+/**
+ * Collects all solver-specific state from the DOM into a params object
+ * suitable for encodeSolverParams().
+ */
+function _collect_solver_params() {
+    // Roll mode
+    const roll = current_roll_mode;
+
+    // sfree mask
+    const sfree = typeof _solver_free_mask !== 'undefined' ? _solver_free_mask : 0;
+
+    // Build direction (enabled bitmask: bit0=str, bit1=dex, ..., bit4=agi)
+    const sp_keys = ['str', 'dex', 'int', 'def', 'agi'];
+    let dir_enabled = 0;
+    for (let i = 0; i < 5; i++) {
+        const btn = document.getElementById('dir-' + sp_keys[i]);
+        if (btn && btn.classList.contains('toggleOn')) dir_enabled |= (1 << i);
+    }
+
+    // Level range
+    const lvl_min = parseInt(document.getElementById('restr-lvl-min')?.value) || 1;
+    const lvl_max = parseInt(document.getElementById('restr-lvl-max')?.value) || MAX_PLAYER_LEVEL;
+
+    // No Major ID
+    const nomaj = document.getElementById('restr-no-major-id')?.classList.contains('toggleOn') ?? false;
+
+    // Guild tome
+    const gtome = parseInt(document.getElementById('restr-guild-tome')?.value) || 0;
+
+    // Combo time
+    const ctime = parseInt(document.getElementById('combo-time')?.value) || 0;
+
+    // Allow Downtime
+    const dtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
+
+    // Restrictions text (pipe-separated key:op:value)
+    const entries = [];
+    for (const row of (document.getElementById('restriction-rows')?.children ?? [])) {
+        if (!row.id?.startsWith('restr-row-')) continue;
+        const stat_input = row.querySelector('.restr-stat-input');
+        const op_select  = row.querySelector('select');
+        const val_input  = row.querySelector('input[type="number"]');
+        if (!stat_input || !op_select || !val_input) continue;
+        const stat_key = stat_input.dataset?.statKey;
+        const value    = val_input.value.trim();
+        if (!stat_key || !value) continue;
+        entries.push(stat_key + ':' + op_select.value + ':' + value);
+    }
+    const restrictions_text = entries.join('|');
+
+    // Combo text
+    let combo_text = '';
+    if (typeof solver_combo_total_node !== 'undefined' && solver_combo_total_node) {
+        const data = solver_combo_total_node._read_rows_as_data();
+        if (data.length > 0) combo_text = combo_data_to_text(data);
+    }
+
+    return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
+             restrictions_text, combo_text };
 }

@@ -554,15 +554,8 @@ function _update_solver_progress_ui() {
     }
 }
 
-function _write_sfree_url() {
-    const url = new URL(window.location.href);
-    if (_solver_free_mask !== 0) {
-        url.searchParams.set('sfree', _solver_free_mask);
-    } else {
-        url.searchParams.delete('sfree');
-    }
-    window.history.replaceState(null, '', url.toString());
-}
+// sfree URL persistence is now handled by the unified solver hash updater
+// in solver_graph_build.js (_schedule_solver_hash_update / _do_solver_hash_update).
 
 function _fill_build_into_ui(result) {
     // Store solver SP data so SolverSKPNode can show "Assign: X (+Y)" format
@@ -593,7 +586,7 @@ function _fill_build_into_ui(result) {
         }
     }
     _solver_filling_ui = false;
-    _write_sfree_url();
+    _schedule_solver_hash_update();
 
     // When the SP override changed but no items changed, the graph won't
     // recompute on its own (no change events were dispatched).  Force a

@@ -16,7 +16,11 @@ function copy_build_to_wynnbuilder() {
         }
         return;
     }
-    const builder_url = window.location.origin + SITE_BASE + '/builder/' + hash;
+    // Strip solver section after '_' separator — builder doesn't need it.
+    let build_hash = hash;
+    const sep = hash.indexOf(SOLVER_HASH_SEP);
+    if (sep >= 0) build_hash = hash.substring(0, sep);
+    const builder_url = window.location.origin + SITE_BASE + '/builder/' + build_hash;
     navigator.clipboard.writeText(builder_url)
         .then(() => {
             const btn = document.getElementById('copy-to-builder-btn');
@@ -68,6 +72,7 @@ function setRollMode(mode) {
             node.mark_dirty().update();
         }
     }
+    _schedule_solver_hash_update();
 }
 
 // ── Exclusive panel toggle (Tomes / Ability Tree / Aspects) ──────────────────
@@ -148,7 +153,7 @@ function toggleSlotLock(i) {
         input.dataset.solverFilled = 'true';
         _solver_free_mask |= (1 << i);
     }
-    _write_sfree_url();
+    _schedule_solver_hash_update();
 
     // Update visuals on the slot row
     const dropdown = document.getElementById(eq + '-dropdown');
@@ -220,9 +225,6 @@ function resetSolverFields() {
     const restr_container = document.getElementById('restriction-rows');
     if (restr_container) restr_container.innerHTML = '';
 
-    // Flush restriction URL params immediately (synchronous, no debounce)
-    _do_restrictions_url_update();
-
     location.hash = "";
 }
 
@@ -254,99 +256,106 @@ async function init() {
         return;
     }
 
-    // Restore roll mode and combo from URL query params (solver-specific; not in the binary hash).
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlRoll = urlParams.get('roll');
-    if (urlRoll && Object.values(ROLL_MODES).includes(urlRoll)) {
-        current_roll_mode = urlRoll;
-        const sel = document.getElementById('roll-mode-select');
-        if (sel) sel.value = urlRoll;
-    }
-
-    // ── Restore restriction panel state from URL params ───────────────────────
-
-    // Build direction: re-disable any SP types listed in 'dir'
-    const urlDir = urlParams.get('dir');
-    if (urlDir) {
-        for (const sp of urlDir.split(',')) {
-            const trimmed = sp.trim();
-            const btn = document.getElementById('dir-' + trimmed);
-            if (btn) btn.classList.remove('toggleOn');
-            _dir_user_overrides.add(trimmed); // treat URL-persisted as user choice
+    // ── Restore solver params from URL hash ─────────────────────────────────────
+    // All solver state is encoded in the hash after the '_' separator:
+    //   #<build_b64>_<solver_b64>
+    const full_hash = window.location.hash.slice(1);
+    const sep_idx = full_hash.indexOf(SOLVER_HASH_SEP);
+    let solver_params = null;
+    if (sep_idx >= 0) {
+        try {
+            solver_params = await decodeSolverParams(full_hash.substring(sep_idx + 1));
+        } catch (e) {
+            console.warn('[solver] decodeSolverParams failed:', e);
         }
     }
 
-    // Level range
-    const urlLvlMin = urlParams.get('lvlmin');
-    if (urlLvlMin) {
-        const inp = document.getElementById('restr-lvl-min');
-        if (inp) inp.value = urlLvlMin;
-    }
-    const urlLvlMax = urlParams.get('lvlmax');
-    if (urlLvlMax) {
-        const inp = document.getElementById('restr-lvl-max');
-        if (inp) inp.value = urlLvlMax;
-    }
+    if (solver_params) {
+        // Roll mode
+        if (solver_params.roll && Object.values(ROLL_MODES).includes(solver_params.roll)) {
+            current_roll_mode = solver_params.roll;
+            const sel = document.getElementById('roll-mode-select');
+            if (sel) sel.value = solver_params.roll;
+        }
 
-    // No Major ID
-    if (urlParams.get('nomaj') === '1') {
-        const btn = document.getElementById('restr-no-major-id');
-        if (btn) btn.classList.add('toggleOn');
-    }
-
-    // Guild tome
-    const urlGtome = urlParams.get('gtome');
-    if (urlGtome) {
-        const sel = document.getElementById('restr-guild-tome');
-        if (sel) sel.value = urlGtome;
-    }
-
-    // Stat threshold rows
-    const urlRestr = urlParams.get('restr');
-    if (urlRestr) {
-        for (const entry of urlRestr.split('|')) {
-            const parts = entry.split(':');
-            if (parts.length < 3) continue;
-            const stat_key = parts[0];
-            const op = parts[1];
-            const value = parts.slice(2).join(':');
-            const stat_obj = RESTRICTION_STATS.find(s => s.key === stat_key);
-            if (!stat_obj) continue;
-            const row = restriction_add_row();
-            if (!row) continue;
-            const stat_input = row.querySelector('.restr-stat-input');
-            const op_select = row.querySelector('select');
-            const val_input = row.querySelector('input[type="number"]');
-            if (stat_input) {
-                stat_input.value = stat_obj.label;
-                stat_input.dataset.statKey = stat_key;
+        // Build direction: disable any SP types not set in the bitmask
+        const sp_keys = ['str', 'dex', 'int', 'def', 'agi'];
+        const dir = solver_params.dir_enabled;
+        if (dir !== undefined) {
+            for (let i = 0; i < 5; i++) {
+                if (!(dir & (1 << i))) {
+                    const btn = document.getElementById('dir-' + sp_keys[i]);
+                    if (btn) btn.classList.remove('toggleOn');
+                    _dir_user_overrides.add(sp_keys[i]);
+                }
             }
-            if (op_select && (op === 'ge' || op === 'le')) op_select.value = op;
-            if (val_input) val_input.value = value;
+        }
+
+        // Level range
+        if (solver_params.lvl_min && solver_params.lvl_min !== 1) {
+            const inp = document.getElementById('restr-lvl-min');
+            if (inp) inp.value = solver_params.lvl_min;
+        }
+        if (solver_params.lvl_max && solver_params.lvl_max !== MAX_PLAYER_LEVEL) {
+            const inp = document.getElementById('restr-lvl-max');
+            if (inp) inp.value = solver_params.lvl_max;
+        }
+
+        // No Major ID
+        if (solver_params.nomaj) {
+            const btn = document.getElementById('restr-no-major-id');
+            if (btn) btn.classList.add('toggleOn');
+        }
+
+        // Guild tome
+        if (solver_params.gtome) {
+            const sel = document.getElementById('restr-guild-tome');
+            if (sel) sel.value = String(solver_params.gtome);
+        }
+
+        // Stat threshold rows
+        if (solver_params.restrictions_text) {
+            for (const entry of solver_params.restrictions_text.split('|')) {
+                const parts = entry.split(':');
+                if (parts.length < 3) continue;
+                const stat_key = parts[0];
+                const op = parts[1];
+                const value = parts.slice(2).join(':');
+                const stat_obj = RESTRICTION_STATS.find(s => s.key === stat_key);
+                if (!stat_obj) continue;
+                const row = restriction_add_row();
+                if (!row) continue;
+                const stat_input = row.querySelector('.restr-stat-input');
+                const op_select = row.querySelector('select');
+                const val_input = row.querySelector('input[type="number"]');
+                if (stat_input) {
+                    stat_input.value = stat_obj.label;
+                    stat_input.dataset.statKey = stat_key;
+                }
+                if (op_select && (op === 'ge' || op === 'le')) op_select.value = op;
+                if (val_input) val_input.value = value;
+            }
+        }
+
+        // Solver-free slot mask
+        if (solver_params.sfree) {
+            _solver_free_mask = solver_params.sfree;
+            for (let i = 0; i < 8; i++) {
+                if (solver_params.sfree & (1 << i)) {
+                    const input = document.getElementById(equipment_fields[i] + '-choice');
+                    if (input) input.dataset.solverFilled = 'true';
+                }
+            }
         }
     }
 
     // Wire static restriction inputs so URL stays in sync as user edits them
     const restr_lvl_min = document.getElementById('restr-lvl-min');
-    if (restr_lvl_min) restr_lvl_min.addEventListener('input', _schedule_restrictions_url_update);
+    if (restr_lvl_min) restr_lvl_min.addEventListener('input', _schedule_solver_hash_update);
     const restr_lvl_max = document.getElementById('restr-lvl-max');
-    if (restr_lvl_max) restr_lvl_max.addEventListener('input', _schedule_restrictions_url_update);
+    if (restr_lvl_max) restr_lvl_max.addEventListener('input', _schedule_solver_hash_update);
     const restr_guild_tome = document.getElementById('restr-guild-tome');
-    if (restr_guild_tome) restr_guild_tome.addEventListener('change', _schedule_restrictions_url_update);
-
-    // Restore solver-free slot mask from ?sfree=N param.
-    // This lets a reloaded page know which slots were filled by the solver (free targets)
-    // vs manually entered (locked) when the URL was shared or bookmarked.
-    const urlSfree = parseInt(urlParams.get('sfree') ?? '0', 10);
-    if (urlSfree) {
-        _solver_free_mask = urlSfree;
-        for (let i = 0; i < 8; i++) {
-            if (urlSfree & (1 << i)) {
-                const input = document.getElementById(equipment_fields[i] + '-choice');
-                if (input) input.dataset.solverFilled = 'true';
-            }
-        }
-    }
+    if (restr_guild_tome) restr_guild_tome.addEventListener('change', _schedule_solver_hash_update);
 
     // When the user manually edits an equipment slot, revert it to locked.
     // This handles both solver-filled and user-toggled-free slots.
@@ -358,7 +367,7 @@ async function init() {
             _solver_sp_override = null;       // manual edit — revert to normal SP display
             input.dataset.solverFilled = 'false';
             _solver_free_mask &= ~(1 << i);
-            _write_sfree_url();
+            _schedule_solver_hash_update();
             _schedule_auto_dir_update(true);
         });
     }
@@ -452,30 +461,27 @@ async function init() {
         }
     }
 
-    // Restore combo time field from URL (must be before combo node update so mana display is correct).
-    const urlCtime = urlParams.get('ctime');
-    if (urlCtime) {
-        const time_inp = document.getElementById('combo-time');
-        if (time_inp) time_inp.value = urlCtime;
-    }
+    // Restore combo time, downtime toggle, and combo rows from solver params.
+    if (solver_params) {
+        if (solver_params.ctime) {
+            const time_inp = document.getElementById('combo-time');
+            if (time_inp) time_inp.value = solver_params.ctime;
+        }
 
-    // Restore Allow Downtime toggle.
-    if (urlParams.get('dtime') === '1') {
-        const btn = document.getElementById('combo-downtime-btn');
-        if (btn) btn.classList.add('toggleOn');
-    }
+        if (solver_params.dtime) {
+            const btn = document.getElementById('combo-downtime-btn');
+            if (btn) btn.classList.add('toggleOn');
+        }
 
-    // Restore combo rows from URL query param (async: may be compressed).
-    const urlCombo = urlParams.get('combo');
-    if (urlCombo && typeof combo_decode_from_url !== 'undefined' && solver_combo_total_node) {
-        try {
-            const text = await combo_decode_from_url(urlCombo);
-            const data = combo_text_to_data(text);
-            if (data.length > 0) {
-                solver_combo_total_node._write_rows_from_data(data);
-                solver_combo_total_node.mark_dirty().update();
-            }
-        } catch (e) { console.warn('[solver] combo URL restore failed:', e); }
+        if (solver_params.combo_text && solver_combo_total_node) {
+            try {
+                const data = combo_text_to_data(solver_params.combo_text);
+                if (data.length > 0) {
+                    solver_combo_total_node._write_rows_from_data(data);
+                    solver_combo_total_node.mark_dirty().update();
+                }
+            } catch (e) { console.warn('[solver] combo restore failed:', e); }
+        }
     }
 }
 

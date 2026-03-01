@@ -5,43 +5,6 @@ class SolverComboTotalNode extends ComputeNode {
         this._last_registry_sig  = '';
         this._spell_map_cache    = null;
         this._registry_cache     = null;
-        this._url_update_timer   = null;
-    }
-
-    /** Schedule an async URL update (debounced 400 ms). */
-    _schedule_combo_url_update() {
-        if (this._url_update_timer) clearTimeout(this._url_update_timer);
-        this._url_update_timer = setTimeout(() => this._do_combo_url_update(), 400);
-    }
-
-    /** Async: compress combo rows and write the combo= query param. */
-    async _do_combo_url_update() {
-        const data = this._read_rows_as_data();
-        const combo_param = data.length > 0
-            ? await combo_encode_for_url(combo_data_to_text(data))
-            : '';
-        const url = new URL(window.location.href);
-        if (combo_param) {
-            // combo_param is 'combo=VALUE' — extract just the value
-            url.searchParams.set('combo', combo_param.slice('combo='.length));
-        } else {
-            url.searchParams.delete('combo');
-        }
-        // Also persist the combo time field.
-        const time_val = document.getElementById('combo-time')?.value?.trim() ?? '';
-        if (time_val) {
-            url.searchParams.set('ctime', time_val);
-        } else {
-            url.searchParams.delete('ctime');
-        }
-        // Also persist the Allow Downtime toggle.
-        const downtime_on = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
-        if (downtime_on) {
-            url.searchParams.set('dtime', '1');
-        } else {
-            url.searchParams.delete('dtime');
-        }
-        window.history.replaceState(null, '', url.toString());
     }
 
     compute_func(input_map) {
@@ -182,8 +145,8 @@ class SolverComboTotalNode extends ComputeNode {
         // Mana display.
         this._update_mana_display(base_stats, mana_cost, spell_costs, has_transcendence);
 
-        // Schedule an async URL update; decoupled from the sync graph pipeline.
-        this._schedule_combo_url_update();
+        // Schedule a hash update; combo data is encoded into the URL hash.
+        _schedule_solver_hash_update();
         return null;
     }
 

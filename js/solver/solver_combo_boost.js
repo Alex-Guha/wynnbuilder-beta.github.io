@@ -322,7 +322,7 @@ function parse_combo_boost_tokens(boost_str) {
  *
  * Inputs: build, base-stats (StatMap without potion boosts),
  *         spells (Map[id,Spell]), atree-merged (Map[id,Ability]).
- * Output: null (always). URL is updated asynchronously via _schedule_combo_url_update.
+ * Output: null (always). URL is updated asynchronously via _schedule_solver_hash_update.
  * Also updates #combo-total-avg DOM element directly.
  *
  * Also manages selection-mode row UI (spell dropdowns + boost controls).
