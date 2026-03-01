@@ -233,7 +233,7 @@ function get_restrictions() {
     }
 
     const lvl_min    = parseInt(document.getElementById('restr-lvl-min')?.value) || 1;
-    const lvl_max    = parseInt(document.getElementById('restr-lvl-max')?.value) || 106;
+    const lvl_max    = parseInt(document.getElementById('restr-lvl-max')?.value) || MAX_PLAYER_LEVEL;
     const no_major_id = document.getElementById('restr-no-major-id')?.classList.contains('toggleOn') ?? false;
     const guild_tome  = parseInt(document.getElementById('restr-guild-tome')?.value) || 0;
 
@@ -275,7 +275,7 @@ function _schedule_restrictions_url_update() {
  * Encoding:
  *   dir    = comma-separated disabled SP types  (omitted when all enabled)
  *   lvlmin = min item level                     (omitted when 1 / empty)
- *   lvlmax = max item level                     (omitted when 106 / empty)
+ *   lvlmax = max item level                     (omitted when MAX_PLAYER_LEVEL / empty)
  *   nomaj  = '1' when No-Major-ID is active     (omitted otherwise)
  *   gtome  = '1' or '2'                         (omitted when Off / 0)
  *   restr  = pipe-separated key:op:value rows   (omitted when none)
@@ -303,7 +303,7 @@ function _do_restrictions_url_update() {
     } else {
         url.searchParams.delete('lvlmin');
     }
-    if (lvl_max_raw && lvl_max_raw !== '106') {
+    if (lvl_max_raw && lvl_max_raw !== String(MAX_PLAYER_LEVEL)) {
         url.searchParams.set('lvlmax', lvl_max_raw);
     } else {
         url.searchParams.delete('lvlmax');

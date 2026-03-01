@@ -162,10 +162,10 @@ For EHP constraints, an optimistic upper bound is computed: `totalHp / ehp_divis
 Both checks use only precomputed constants + a single Map lookup per constraint, making them essentially free compared to the gates that follow.
 
 ### Gate 1: Quick SP pre-filter (`_sp_prefilter`)
-An O(1) sanity check (no `calculate_skillpoints` call yet). For each attribute, computes `max_req − sum_prov` across all 9 items. If any attribute's net deficit > 100 or the total > `sp_budget`, reject immediately.
+An O(1) sanity check before the full `calculate_skillpoints` call. For each attribute, computes `max_req − sum_prov` across all 9 items. If any attribute's net deficit > 100 or the total > `sp_budget`, reject immediately.
 
 ### Gate 2: Full SP feasibility (`calculate_skillpoints`)
-Calls the recursive backtracking solver that respects Wynncraft's SP assignment rules. Returns `[base_sp, total_sp, assigned_sp, activeSetCounts]`. If `assigned_sp > sp_budget`, reject.
+Computes the minimum SP assignment needed to meet all items' requirements. For each attribute, determines the max effective requirement (accounting for items' own SP bonuses) and subtracts provided bonus SP. Returns `[assign, final_sp, total_assigned, set_counts]`. If `total_assigned > sp_budget`, reject.
 
 ### Stat assembly (`_finalize_leaf_statmap`)
 Finalises the running statMap by:
@@ -225,7 +225,7 @@ Each of the top-5 results is shown as a clickable row. Clicking calls `_fill_bui
 | Level-based enumeration | `_run_level_enum` | Evaluates the globally best build (L=0) first; each subsequent level is one rank-step further from optimal, so strong builds surface in interim results early |
 | Item priority scoring | `_prioritize_pools` + `_build_dmg_weights` | Pools pre-sorted by damage/constraint relevance before search; top of each pool is the highest-priority item |
 | Incremental statMap | `_init_running_statmap` + `_incr_add/remove_item` | Avoids full stat rebuild at every leaf |
-| Leaf SP pre-filter | `_sp_prefilter` before `calculate_skillpoints` | Rejects infeasible combos before expensive solver call |
+| Leaf SP pre-filter | `_sp_prefilter` before `calculate_skillpoints` | Rejects infeasible combos before full SP calculation |
 | Pool sort (smallest first) | `free_armor_slots.sort(...)` | Visits slots with fewer choices first |
 | Work-stealing partitions | 4× worker count | Keeps all cores busy even when partition sizes are unequal |
 | Illegal-set tracker | `_make_illegal_tracker()` | O(1) check per item for set-conflict rejection |
@@ -241,7 +241,7 @@ Each of the top-5 results is shown as a clickable row. Clicking calls `_fill_bui
 The level-based enumeration visits combinations in order of sum-of-rank-offsets (best-first within each level), but it has no branch-and-bound pruning based on the current best score. Every combination at every level is fully evaluated — there is no early exit when remaining levels cannot possibly produce a better result. This means the search remains exhaustive, just with a better visitation order. Interim results are much stronger than before (L=0 is evaluated first), but the total work is unchanged.
 
 ### `calculate_skillpoints` called at every feasible leaf
-Even when the running incremental SP state already shows `sum_prov[i] ≥ max_req[i]` for every attribute — meaning no manual SP assignment is needed — the full recursive backtracking solver is still invoked. This is the most expensive single call per leaf. A fast-path that skips it when provably unnecessary was designed but deferred because `sum_prov ≥ max_req` is necessary but not sufficient for zero-assignment (Wynncraft's equipping order adds further constraints).
+Even when the running incremental SP state already shows `sum_prov[i] ≥ max_req[i]` for every attribute — meaning no manual SP assignment is needed — `calculate_skillpoints` is still invoked. With the simplified SP system (no equip order), this is now an O(n) linear scan rather than a recursive backtracking solver, so the per-leaf cost is low. A fast-path that skips it when provably unnecessary could still save the function-call overhead.
 
 ### Ring slots are special-cased throughout
 Because both rings draw from the same pool and the pair is unordered, rings are handled with a separate double-loop outside the generic `dfs()` function. This creates three code paths (both free, one free, both locked) and complicates partitioning. Armor slots benefit from the generic slot-ordering optimisation; rings cannot be trivially slotted into it.
@@ -261,9 +261,6 @@ Develop a testing suite for `_build_dmg_weights` in `solver_search.js`.
 
 ## Potential Improvements
 
-### Fruma skillpoint changes are goated
-Period.
-
 ### Integrate rings into generic slot ordering
 Move ring iteration into the main `enumerate()` loop (treating rings as a single "ring pair" slot with a pool of `(i, j)` pairs). This would unify the three ring-case code paths, allow rings to participate in the smallest-first slot ordering and level-based enumeration, and simplify partitioning. The `i ≤ j` constraint and pool-level duplicate filtering would need to be encoded in the pair pool.
 
@@ -274,4 +271,4 @@ Replace the single combo-damage score with a weighted sum of multiple objectives
 Tomes are currently fixed inputs (user-specified). Including tomes in the search space would require expanding the pool to ~7 additional slots (each with their own item pool), multiplying the search space significantly. A separate inner loop or a post-pass heuristic (swap tomes given a fixed armor build) would be more tractable than a full joint search.
 
 ### GPU parallelisation
-Each leaf evaluation is independent and the scoring function (combo damage calc) is a fixed arithmetic pipeline. This is structurally suited to GPU compute (WebGPU). The main blocker is that the SP feasibility check (`calculate_skillpoints`) is a recursive backtracking solver that is hard to vectorise; it would need to be replaced with a parallel-friendly formulation (e.g., an LP relaxation or a lookup table) before GPU acceleration is practical.
+Each leaf evaluation is independent and the scoring function (combo damage calc) is a fixed arithmetic pipeline. This is structurally suited to GPU compute (WebGPU). With the simplified SP system (O(n) linear scan instead of recursive backtracking), SP feasibility is no longer a blocker for vectorisation. The remaining challenge is porting the atree scaling and combo boost logic to GPU-friendly data structures.

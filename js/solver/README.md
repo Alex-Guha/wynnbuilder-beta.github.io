@@ -89,7 +89,7 @@ The solver uses the same push-based reactive DAG as WynnBuilder (`ComputeNode` i
 - Maintains an incremental running `statMap` that is updated/reverted as items are placed/backtracked, avoiding a full rebuild at every leaf.
 - Level-based enumeration: items in each pool are pre-sorted by priority score; the outer loop iterates `L = 0..L_max` where L is the sum of per-slot rank offsets. L=0 evaluates the globally best combination first; each subsequent level steps one rank further from optimal. This ensures strong builds surface early in interim results.
 - Handles rings in a separate double-loop (same pool, unordered pairs) with partition slicing on the outer index.
-- Multi-gate leaf evaluation: fast constraint precheck → SP pre-filter → full `calculate_skillpoints` → stat finalization (set bonuses, multiplier maps) → greedy SP allocation → restriction threshold check → mana check → combo damage scoring → top-5 heap update.
+- Multi-gate leaf evaluation: fast constraint precheck → SP pre-filter → `calculate_skillpoints` (O(n) linear scan) → stat finalization (set bonuses, multiplier maps) → greedy SP allocation → restriction threshold check → mana check → combo damage scoring → top-5 heap update.
 
 **`solver_worker_shims.js`** — DOM-free copies of functions the worker needs but that normally read/write the DOM:
 - `worker_init_build_stats()` — replaces the `Build` constructor's stat initialization.

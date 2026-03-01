@@ -12,4 +12,4 @@ const SP_PERCENTAGE_RATE = 0.9908;  // Geometric series rate for SP→% conversi
 const SP_PERCENTAGE_INPUT_CAP = 150;// SP input cap for percentage conversion
 
 // ── Player Stats ──────────────────────────────────────────────────────────────
-const MAX_PLAYER_LEVEL = 106;
+const MAX_PLAYER_LEVEL = 121;

@@ -866,7 +866,15 @@ function builder_graph_init(skillpoints) {
         const atree_state = atree_state_node.value;
         if (atree_data.length > 0) {
             try {
-                const active_nodes = decodeAtree(atree_node.value, atree_data);
+                let active_nodes;
+                if (Array.isArray(atree_data)) {
+                    // Cross-version upgrade: atree_data is an array of node IDs
+                    const id_set = new Set(atree_data);
+                    active_nodes = atree_node.value.filter(n => id_set.has(n.ability.id));
+                } else {
+                    // Same version: positional BitVector decode
+                    active_nodes = decodeAtree(atree_node.value, atree_data);
+                }
                 for (const node of active_nodes) {
                     atree_set_state(atree_state.get(node.ability.id), true);
                 }

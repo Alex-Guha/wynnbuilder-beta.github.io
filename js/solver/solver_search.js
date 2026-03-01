@@ -412,7 +412,7 @@ function _serialize_atree_interactive(atree_interactive_val) {
 
 function _build_solver_snapshot(restrictions) {
     const weapon = solver_item_final_nodes[8]?.value;
-    const level = parseInt(document.getElementById('level-choice').value) || 106;
+    const level = parseInt(document.getElementById('level-choice').value) || MAX_PLAYER_LEVEL;
     const tomes = solver_item_final_nodes.slice(9).map(n => n?.value).filter(Boolean);
     const atree_raw = atree_raw_stats.value ?? new Map();
     const atree_interactive_val = atree_make_interactives.value;

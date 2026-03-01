@@ -20,7 +20,7 @@ importScripts(
 
 // ── Globals set during init ─────────────────────────────────────────────────
 
-let sets = new Map();   // needed by calculate_skillpoints → apply_skillpoints
+let sets = new Map();   // needed by calculate_skillpoints (set bonus tracking)
 let _cfg = null;        // full config from init message
 let _cancelled = false;
 
@@ -34,7 +34,7 @@ let _cancelled = false;
 //
 // Stats excluded from simple precheck:
 //   - 'ehp': derived from HP + def% + agi% + classDef + defMult (has special handling)
-//   - 'str','dex','int','def','agi': overwritten by total_sp from calculate_skillpoints
+//   - 'str','dex','int','def','agi': overwritten by total_sp from SP assignment
 const _PRECHECK_EXCLUDED = new Set(['ehp', 'str', 'dex', 'int', 'def', 'agi']);
 let _constraint_prechecks = [];  // [{stat, adjusted_threshold}]
 let _ehp_precheck = null;        // {threshold, fixed_hp, ehp_divisor} or null
@@ -373,7 +373,7 @@ function _run_level_enum() {
 
     // ── Greedy extra-SP allocator ───────────────────────────────────────────
     //
-    // After calculate_skillpoints assigns the minimum SP to equip items, any
+    // After the minimum SP is assigned to meet item requirements, any
     // remaining budget is greedily distributed to maximise the scoring target.
     // Uses geometric step-down (20 → 4 → 1) for O(50-95) trials worst case.
 
@@ -454,31 +454,23 @@ function _run_level_enum() {
             partial.bracelet.statMap, partial.necklace.statMap,
         ];
 
-        // Leaf-level SP pre-filter (quick reject before full solver)
+        // Leaf-level SP pre-filter (quick reject before full SP calculation)
         if (!_sp_prefilter(equip_8_sms, weapon_sm, sp_budget)) {
             _maybe_progress();
             return;
         }
 
         // Full SP feasibility via calculate_skillpoints
-        const wynn_order_sms = [
-            partial.boots.statMap, partial.leggings.statMap,
-            partial.chestplate.statMap, partial.helmet.statMap,
-            partial.ring1.statMap, partial.ring2.statMap,
-            partial.bracelet.statMap, partial.necklace.statMap,
-            guild_tome_sm,
-        ];
-        const result = calculate_skillpoints(wynn_order_sms, weapon_sm);
-        const assigned_sp = result[3];
+        const result = calculate_skillpoints([...equip_8_sms, guild_tome_sm], weapon_sm);
+        const base_sp = result[0];
+        const total_sp = result[1];
+        const assigned_sp = result[2];
+        const activeSetCounts = result[3];
         if (assigned_sp > sp_budget) {
             _maybe_progress();
             return;
         }
         _feasible++;
-
-        const total_sp = result[2];
-        const base_sp = result[1];
-        const activeSetCounts = result[4];
 
         // Build stat assembly from running statMap (incremental accumulation)
         const all_equip_sms = [...equip_8_sms, ...tome_sms, weapon_sm];

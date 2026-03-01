@@ -189,7 +189,7 @@ function resetSolverFields() {
     const downtime_btn = document.getElementById('combo-downtime-btn');
     if (downtime_btn) downtime_btn.classList.remove('toggleOn');
 
-    setValue("level-choice", "106");
+    setValue("level-choice", String(MAX_PLAYER_LEVEL));
     setRollMode(ROLL_MODES.MAX);
 
     // Re-propagate graph to clear displays
@@ -212,7 +212,7 @@ function resetSolverFields() {
     const lvl_min_inp = document.getElementById('restr-lvl-min');
     if (lvl_min_inp) lvl_min_inp.value = '';
     const lvl_max_inp = document.getElementById('restr-lvl-max');
-    if (lvl_max_inp) lvl_max_inp.value = '106';
+    if (lvl_max_inp) lvl_max_inp.value = String(MAX_PLAYER_LEVEL);
     const no_maj_btn = document.getElementById('restr-no-major-id');
     if (no_maj_btn) no_maj_btn.classList.remove('toggleOn');
     const guild_sel = document.getElementById('restr-guild-tome');
@@ -402,10 +402,21 @@ async function init() {
     // Restore ability tree from URL hash (mirrors builder_graph.js post-decode logic).
     // atree_data is set by decodeHash(); atree_node.value is set once the weapon populates
     // the class, which happens synchronously during solver_graph_init()'s update() cascade.
+    //
+    // atree_data is either a BitVector (same-version) or an Array of node IDs
+    // (cross-version upgrade — decodeHash decoded bits against old tree structure).
     if (atree_data !== null && atree_node.value !== null) {
         if (atree_data.length > 0) {
             try {
-                const active_nodes = decodeAtree(atree_node.value, atree_data);
+                let active_nodes;
+                if (Array.isArray(atree_data)) {
+                    // Cross-version: match by ability ID
+                    const id_set = new Set(atree_data);
+                    active_nodes = atree_node.value.filter(n => id_set.has(n.ability.id));
+                } else {
+                    // Same version: positional BitVector decode
+                    active_nodes = decodeAtree(atree_node.value, atree_data);
+                }
                 const state = atree_state_node.value;
                 for (const node of active_nodes) {
                     atree_set_state(state.get(node.ability.id), true);

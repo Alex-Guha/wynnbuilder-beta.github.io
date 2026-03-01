@@ -98,7 +98,7 @@ class BuildAssembleNode extends ComputeNode {
         const weapon = input_map.get('weapon');
 
         let level = parseInt(input_map.get('level-input'));
-        if (isNaN(level)) level = 106;
+        if (isNaN(level)) level = MAX_PLAYER_LEVEL;
 
         const all_none = equipments.concat([...tomes, weapon]).every(x => x.statMap.has('NONE'));
         if (all_none && !location.hash) return null;

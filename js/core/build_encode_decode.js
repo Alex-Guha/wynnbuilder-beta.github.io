@@ -12,6 +12,9 @@ function getTomeNameFromID(id) {
 }
 
 let atree_data = null;
+// Temporary storage for old-version ATREES during cross-version upgrade.
+// Set by loadOlderVersion(), consumed by decodeHash().
+let _old_ATREES = null;
 
 /**
  * Load the latest version of hte data.
@@ -50,8 +53,9 @@ async function loadOlderVersion() {
 
     const versionName = wynn_version_names[wynn_version_id];
     const decodingVersionName = wynn_version_names[decodingVersion];
+    const isUpgrading = (wynn_version_id !== decodingVersion);
     assert(decodingVersion <= wynn_version_id, "decoding version cannot be larger than the encoding version.");
-    const loadPromises = [ 
+    const loadPromises = [
         load_atree_data(versionName),
         load_major_id_data(versionName),
         item_loader.load_old_version(versionName),
@@ -60,8 +64,27 @@ async function loadOlderVersion() {
         aspect_loader.load_old_version(versionName),
         load_encoding_constants(versionName, decodingVersionName)
     ];
+    // When upgrading to a newer version, also fetch the old atree data so we
+    // can decode the encoded ability tree against the old structure and then
+    // map active node IDs onto the new tree.
+    if (isUpgrading) {
+        loadPromises.push(
+            _load_old_atree_data(decodingVersionName)
+        );
+    }
     console.log("Loading old version data...", versionName)
     await Promise.all(loadPromises);
+}
+
+/**
+ * Fetch atree JSON for an older version into _old_ATREES (does not touch the
+ * global ATREES used by the live ability tree).
+ */
+async function _load_old_atree_data(version_str) {
+    let getUrl = window.location;
+    let baseUrl = `${getUrl.protocol}//${getUrl.host}${SITE_BASE}/`;
+    let url = `${baseUrl}/data/${version_str}/atree.json`;
+    _old_ATREES = await (await fetch(url)).json();
 }
 
 /**
@@ -654,7 +677,25 @@ async function decodeHash() {
 
     // This provides the data for atree population, no other explicit step
     // needed in the decoder
-    atree_data = cursor.consume(); 
+    atree_data = cursor.consume();
+
+    // Cross-version atree migration: if we loaded old ATREES during a version
+    // upgrade, decode the bits against the OLD tree structure to recover the
+    // correct active node IDs, then store them as an array.  Downstream
+    // consumers (solver.js, builder_graph.js) will detect the array and
+    // activate nodes by ID rather than positional decoding.
+    if (_old_ATREES !== null && atree_data.length > 0) {
+        try {
+            const old_atree = get_sorted_class_atree(_old_ATREES, playerClass);
+            const active_nodes = decodeAtree(old_atree, atree_data);
+            atree_data = active_nodes.map(n => n.ability.id);
+            console.log("[decode] Cross-version atree: recovered", atree_data.length, "active node IDs");
+        } catch (e) {
+            console.warn("[decode] Cross-version atree decode failed, clearing atree:", e);
+            atree_data = [];
+        }
+        _old_ATREES = null;
+    }
 
     // Populate all input fields apart from skillpoints, which need to be populated after build calculation
     for (const [i, eq] of equipment.entries()) { setValue(equipment_inputs[i], eq); } // Equipment
@@ -894,6 +935,25 @@ async function decodeHashLegacy(url_tag) {
     if (version_number >= 7) {
         // ugly af. only works since its the last thing. will be fixed with binary decode
         atree_data = new BitVector(data_str);
+
+        // Cross-version atree migration (same logic as decodeHash)
+        if (_old_ATREES !== null && atree_data.length > 0) {
+            try {
+                let item_type;
+                if (equipment[8].slice(0, 3) == "CI-") { item_type = getCustomFromHash(equipment[8]).statMap.get("type"); }
+                else if (equipment[8].slice(0, 3) == "CR-") { item_type = getCraftFromHash(equipment[8]).statMap.get("type"); }
+                else { item_type = itemMap.get(equipment[8]).type; }
+                const pClass = wep_to_class.get(item_type);
+                const old_atree = get_sorted_class_atree(_old_ATREES, pClass);
+                const active_nodes = decodeAtree(old_atree, atree_data);
+                atree_data = active_nodes.map(n => n.ability.id);
+                console.log("[decode-legacy] Cross-version atree: recovered", atree_data.length, "active node IDs");
+            } catch (e) {
+                console.warn("[decode-legacy] Cross-version atree decode failed, clearing atree:", e);
+                atree_data = [];
+            }
+            _old_ATREES = null;
+        }
     }
     else {
         atree_data = null;
