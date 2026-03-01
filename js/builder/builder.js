@@ -2,61 +2,6 @@
  * File containing utility functions relevant to the builder page, as well as the setup code (at the very bottom).
  */
 
-function populateBuildList() {
-    const buildList = document.getElementById("build-choice");
-    const savedBuilds = window.localStorage.getItem("builds") === null ? {} : JSON.parse(window.localStorage.getItem("builds"));
-
-    for (const buildName of Object.keys(savedBuilds).sort()) {
-        const buildOption = document.createElement("option");
-        buildOption.setAttribute("value", buildName);
-        buildList.appendChild(buildOption);
-    }
-}
-
-function saveBuild() {
-    if (player_build) {
-        const savedBuilds = window.localStorage.getItem("builds") === null ? {} : JSON.parse(window.localStorage.getItem("builds"));
-        const saveName = document.getElementById("build-name").value;
-        const encodedBuild = encodeBuildLegacy(player_build);
-        if ((!Object.keys(savedBuilds).includes(saveName)
-                || document.getElementById("saved-error").textContent !== "") && encodedBuild !== "") {
-            savedBuilds[saveName] = encodedBuild.replace("#", "");
-            window.localStorage.setItem("builds", JSON.stringify(savedBuilds));
-
-            document.getElementById("saved-error").textContent = "";
-            document.getElementById("saved-build").textContent = "Build saved locally";
-            
-            const buildList = document.getElementById("build-choice");
-            const buildOption = document.createElement("option");
-            buildOption.setAttribute("value", saveName);
-            buildList.appendChild(buildOption);
-        } else {
-            document.getElementById("saved-build").textContent = "";
-            if (encodedBuild === "") {
-                document.getElementById("saved-error").textContent = "Empty build";
-            }
-            else {
-                document.getElementById("saved-error").textContent = "Exists. Overwrite?";
-            }
-        }
-    }
-}
-
-function loadBuild() {
-    let savedBuilds = window.localStorage.getItem("builds") === null ? {} : JSON.parse(window.localStorage.getItem("builds"));
-    let saveName = document.getElementById("build-name").value;
-
-    if (Object.keys(savedBuilds).includes(saveName)) { 
-        // NOTE: this is broken since decodeBuild is async func.
-        // Doubly broken because of versioning... lets just kill this for now
-        decodeBuild(savedBuilds[saveName])
-        document.getElementById("loaded-error").textContent = "";
-        document.getElementById("loaded-build").textContent = "Build loaded";
-    } else {
-        document.getElementById("loaded-build").textContent = "";
-        document.getElementById("loaded-error").textContent = "Build doesn't exist";
-    }
-}
 
 function resetFields(){
     for (const i of powder_inputs) {
@@ -74,7 +19,7 @@ function resetFields(){
     setValue("def-skp", "0");
     setValue("agi-skp", "0");
     for (const special_name of specialNames) {
-        for (let i = 1; i < 6; i++) { //toggle all pressed buttons of the same powder special off
+        for (let i = 1; i < 8; i++) { //toggle all pressed buttons of the same powder special off
             //name is same, power is i
             let elem = document.getElementById(special_name.replace(" ", "_")+'-'+i);
             if (elem.classList.contains("toggleOn")) {
@@ -103,21 +48,8 @@ function resetFields(){
         node.update();
     }
 
-    setValue("level-choice", "121");
+    setValue("level-choice", String(MAX_PLAYER_LEVEL));
     location.hash = "";
-}
-
-function toggleID() {
-    let button = document.getElementById("show-id-button");
-    let targetDiv = document.getElementById("id-edit");
-    if (button.classList.contains("toggleOn")) { //toggle the pressed button off
-        targetDiv.style.display = "none";
-        button.classList.remove("toggleOn");
-    }
-    else {
-        targetDiv.style.display = "block";
-        button.classList.add("toggleOn");
-    }
 }
 
 // toggleButton is defined in js/core/utils.js

@@ -163,10 +163,10 @@ function encodePowders(powderset, version) {
             powder = powderChunk[i];
             if (previousPowder >= 0) {
                 powdersVec.appendFlag("POWDER_REPEAT_OP", "NO_REPEAT");
-                if (powder % POWDER_TIERS === previousPowder % POWDER_TIERS) {
+                if (powder % ENC.POWDER_TIERS === previousPowder % ENC.POWDER_TIERS) {
                     powdersVec.appendFlag("POWDER_REPEAT_TIER_OP", "REPEAT_TIER");
                     const numElements = ENC.POWDER_ELEMENTS.length;
-                    const elementWrapper = mod((powder - previousPowder) / POWDER_TIERS, numElements) - 1; 
+                    const elementWrapper = mod((powder - previousPowder) / ENC.POWDER_TIERS, numElements) - 1;
                     powdersVec.append(elementWrapper, ENC.POWDER_WRAPPER_BITLEN);
                 } else {
                     powdersVec.appendFlag("POWDER_REPEAT_TIER_OP", "CHANGE_POWDER");
@@ -442,10 +442,10 @@ function decodePowders(cursor) {
                     // Decode a new powder
                     case DEC.POWDER_REPEAT_TIER_OP.REPEAT_TIER: {
                         const powderWrap = cursor.advanceBy(DEC.POWDER_WRAPPER_BITLEN);
-                        const prevPowderElem = Math.floor(prevPowder / POWDER_TIERS); 
-                        const prevPowderTier = prevPowder % POWDER_TIERS;
+                        const prevPowderElem = Math.floor(prevPowder / DEC.POWDER_TIERS);
+                        const prevPowderTier = prevPowder % DEC.POWDER_TIERS;
                         const newPowderElem = (prevPowderElem + powderWrap + 1) % DEC.POWDER_ELEMENTS.length;
-                        const newPowder = newPowderElem * POWDER_TIERS + prevPowderTier;
+                        const newPowder = newPowderElem * DEC.POWDER_TIERS + prevPowderTier;
                         powders.push(newPowder);
                         break repeat;
                     };
@@ -527,7 +527,7 @@ function decodeEquipment(cursor) {
  * @returns {Tome[]}
  */
 function decodeTomes(cursor) {
-    tomes = [];
+    let tomes = [];
     switch (cursor.advanceBy(DEC.TOMES_FLAG.BITLEN)) {
         case DEC.TOMES_FLAG.NO_TOMES: break;
         case DEC.TOMES_FLAG.HAS_TOMES: {

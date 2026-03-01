@@ -127,86 +127,7 @@ function worker_atree_scaling(atree_merged, pre_scale_stats, button_states, slid
 
 // ── Build stat assembly (replaces Build.initBuildStats without DOM) ─────────
 
-/**
- * Worker-safe version of Build.initBuildStats().
- * Assembles a statMap from equipment, tomes, and weapon statMaps.
- *
- * @param {number} level
- * @param {Map[]} equip_8_sms   - 8 equipment statMaps (helm…neck)
- * @param {Map[]} tome_sms      - tome statMaps
- * @param {Map}   weapon_sm     - weapon statMap
- * @param {number[]} total_skillpoints - [5] from calculate_skillpoints
- * @param {Map} activeSetCounts - from calculate_skillpoints
- * @param {Map} sets_map        - global sets data
- * @returns {Map} statMap
- */
-function worker_init_build_stats(level, equip_8_sms, tome_sms, weapon_sm, total_skillpoints, activeSetCounts, sets_map) {
-    const staticIDs = ["hp", "eDef", "tDef", "wDef", "fDef", "aDef", "str", "dex", "int", "def", "agi", "damMobs", "defMobs"];
-    const must_ids = [
-        "eMdPct","eMdRaw","eSdPct","eSdRaw","eDamPct","eDamRaw","eDamAddMin","eDamAddMax",
-        "tMdPct","tMdRaw","tSdPct","tSdRaw","tDamPct","tDamRaw","tDamAddMin","tDamAddMax",
-        "wMdPct","wMdRaw","wSdPct","wSdRaw","wDamPct","wDamRaw","wDamAddMin","wDamAddMax",
-        "fMdPct","fMdRaw","fSdPct","fSdRaw","fDamPct","fDamRaw","fDamAddMin","fDamAddMax",
-        "aMdPct","aMdRaw","aSdPct","aSdRaw","aDamPct","aDamRaw","aDamAddMin","aDamAddMax",
-        "nMdPct","nMdRaw","nSdPct","nSdRaw","nDamPct","nDamRaw","nDamAddMin","nDamAddMax",
-        "mdPct","mdRaw","sdPct","sdRaw","damPct","damRaw","damAddMin","damAddMax",
-        "rMdPct","rMdRaw","rSdPct","rSdRaw","rDamPct","rDamRaw","rDamAddMin","rDamAddMax",
-        "healPct","critDamPct"
-    ];
-
-    const statMap = new Map();
-    for (const id of staticIDs) statMap.set(id, 0);
-    for (const id of must_ids) statMap.set(id, 0);
-    statMap.set("hp", levelToHPBase(level));
-    statMap.set("agiDef", 90);
-
-    const all_item_sms = [...equip_8_sms, ...tome_sms, weapon_sm];
-    const major_ids = new Set();
-
-    for (const item_stats of all_item_sms) {
-        const maxRolls = item_stats.get("maxRolls");
-        if (maxRolls) {
-            for (let [id, value] of maxRolls) {
-                if (staticIDs.includes(id)) continue;
-                statMap.set(id, (statMap.get(id) || 0) + value);
-            }
-        }
-        for (const staticID of staticIDs) {
-            if (item_stats.get(staticID)) {
-                statMap.set(staticID, statMap.get(staticID) + item_stats.get(staticID));
-            }
-        }
-        if (item_stats.get("majorIds")) {
-            for (const major_id of item_stats.get("majorIds")) major_ids.add(major_id);
-        }
-    }
-
-    statMap.set('damMult', new Map());
-    statMap.set('defMult', new Map());
-    statMap.get('damMult').set('tome', statMap.get('damMobs'));
-    statMap.get('defMult').set('tome', statMap.get('defMobs'));
-    statMap.set("activeMajorIDs", major_ids);
-
-    for (const [setName, count] of activeSetCounts) {
-        const setData = sets_map.get(setName);
-        if (!setData) continue;
-        const bonus = setData.bonuses[count - 1];
-        if (!bonus) continue;
-        for (const id in bonus) {
-            if (skp_order.includes(id)) continue;
-            statMap.set(id, (statMap.get(id) || 0) + bonus[id]);
-        }
-    }
-
-    statMap.set("poisonPct", 0);
-    statMap.set("healMult", new Map());
-    statMap.get('healMult').set('item', statMap.get('healPct'));
-    statMap.set("atkSpd", weapon_sm.get("atkSpd"));
-
-    return statMap;
-}
-
-// ── Incremental stat accumulation helpers (Phase 7.5) ───────────────────────
+// ── Incremental stat accumulation helpers ────────────────────────────────────
 
 const _INCR_STATIC_IDS = ["hp", "eDef", "tDef", "wDef", "fDef", "aDef", "str", "dex", "int", "def", "agi", "damMobs", "defMobs"];
 const _INCR_STATIC_ID_SET = new Set(_INCR_STATIC_IDS);
@@ -280,7 +201,7 @@ function _init_running_statmap(level, fixed_item_sms) {
 /**
  * Finalize a leaf statMap from the running accumulated stats.
  * Applies set bonuses, sets up damMult/defMult/healMult/majorIDs.
- * Replaces worker_init_build_stats at the leaf.
+ * Finalizes all stats at the leaf level of the search tree.
  */
 function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map, all_equip_sms) {
     const sm = new Map(running_sm);

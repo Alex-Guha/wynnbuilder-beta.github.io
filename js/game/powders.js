@@ -1,7 +1,7 @@
 let powderIDs = new Map();
 let powderNames = new Map();
 let _powderID = 0;
-let POWDER_TIERS = 7;
+const POWDER_TIERS = 7;
 
 for (const x of skp_elements) {
     for (let i = 1; i <= POWDER_TIERS; ++i) {

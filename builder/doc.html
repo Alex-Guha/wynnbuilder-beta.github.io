@@ -472,8 +472,14 @@
                                 Active boosts
                             </div>
                             <div class="col">
-                                <button class="button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id="radiance-boost" onclick="update_radiance()">
-                                    Radiance
+                                <button class="button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id="radiance-boost" onclick="update_radiance('radiance')">
+                                    Radiance (+20%)
+                                </button>
+                                <button class="button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id="divinehonor-boost" onclick="update_radiance('divinehonor')">
+                                    Divine Honor (+10%)
+                                </button>
+                                <button class="button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id="shine-boost" onclick="update_radiance('shine')">
+                                    Shine (+10%)
                                 </button>
                                 <button class="button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id="warscream-boost" onclick="update_boosts('warscream-boost')">
                                     War Scream
@@ -486,6 +492,12 @@
                                 </button>
                                 <button class="button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id="fortitude-boost" onclick="update_boosts('fortitude-boost')">
                                     Fortitude (+40%)
+                                </button>
+                                <button class="button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id="eldritchcall-boost" onclick="update_boosts('eldritchcall-boost')">
+                                    Eldritch Call (+15%)
+                                </button>
+                                <button class="button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id="judgement-boost" onclick="update_boosts('judgement-boost');radiance_node.mark_dirty().update()">
+                                    Judgement
                                 </button>
                             </div>
                             <div class="col" id="boost-toggles">
@@ -535,6 +547,12 @@
                                     <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Quake-5" onclick = "updatePowderSpecials('Quake-5')">
                                         Lv.5
                                     </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Quake-6" onclick = "updatePowderSpecials('Quake-6')">
+                                        Lv.6
+                                    </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Quake-7" onclick = "updatePowderSpecials('Quake-7')">
+                                        Lv.7
+                                    </button>
                                 </div>
                                 <div class="col eDam">
                                     Rage (Passive)
@@ -559,6 +577,12 @@
                                     </button>
                                     <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Chain_Lightning-5" onclick = "updatePowderSpecials('Chain_Lightning-5')">
                                         Lv.5
+                                    </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Chain_Lightning-6" onclick = "updatePowderSpecials('Chain_Lightning-6')">
+                                        Lv.6
+                                    </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Chain_Lightning-7" onclick = "updatePowderSpecials('Chain_Lightning-7')">
+                                        Lv.7
                                     </button>
                                 </div>
                                 <div class="col tDam">
@@ -585,6 +609,12 @@
                                     <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Curse-5" onclick = "updatePowderSpecials('Curse-5')">
                                         Lv.5
                                     </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Curse-6" onclick = "updatePowderSpecials('Curse-6')">
+                                        Lv.6
+                                    </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Curse-7" onclick = "updatePowderSpecials('Curse-7')">
+                                        Lv.7
+                                    </button>
                                 </div>
                                 <div class="col wDam">
                                     Concentration (Passive)
@@ -610,6 +640,12 @@
                                     <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Courage-5" onclick = "updatePowderSpecials('Courage-5')">
                                         Lv.5
                                     </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Courage-6" onclick = "updatePowderSpecials('Courage-6')">
+                                        Lv.6
+                                    </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Courage-7" onclick = "updatePowderSpecials('Courage-7')">
+                                        Lv.7
+                                    </button>
                                 </div>
                                 <div class="col fDam">
                                     Endurance (Passive)
@@ -634,6 +670,12 @@
                                     </button>
                                     <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Wind_Prison-5" onclick = "updatePowderSpecials('Wind_Prison-5')">
                                         Lv.5
+                                    </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Wind_Prison-6" onclick = "updatePowderSpecials('Wind_Prison-6')">
+                                        Lv.6
+                                    </button>
+                                    <button class = "button-boost m-1 border-0 text-white dark-8u dark-shadow-sm" id = "Wind_Prison-7" onclick = "updatePowderSpecials('Wind_Prison-7')">
+                                        Lv.7
                                     </button>
                                 </div>
                                 <div class="col aDam">
@@ -671,7 +713,7 @@
                                                 </button>
                                             </div>
                                             <div class = "col-3 py-2">
-                                                <button class = "button rounded scaled-font fw-bold text-light dark-5" id = "edit-ID-button" onclick = "resetEditableIDs();">
+                                                <button class = "button rounded scaled-font fw-bold text-light dark-5" id = "reset-edit-ID-button" onclick = "resetEditableIDs();">
                                                     Reset IDs
                                                 </button>
                                             </div>

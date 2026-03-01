@@ -87,7 +87,7 @@ function renderSpellPopupHTML(full, crit_chance, spell_cost) {
  * element_idx: 0=earth, 1=thunder, 2=water, 3=fire, 4=air  (same as powderSpecialStats order).
  */
 function get_element_powder_tier(powders, element_idx) {
-    const count = powders.filter(pid => ((pid / 6) | 0) === element_idx).length;
+    const count = powders.filter(pid => ((pid / POWDER_TIERS) | 0) === element_idx).length;
     return count > 0 ? Math.min(count, 5) : 0;
 }
 
@@ -259,7 +259,7 @@ function build_combo_boost_registry(atree_merged, build = null) {
         for (let i = 0; i < 4; i++) {
             const armor_powders = build.equipment[i]?.statMap?.get('powders') ?? [];
             for (const pid of armor_powders) {
-                const elem = (pid / 6) | 0;
+                const elem = (pid / POWDER_TIERS) | 0;
                 if (elem < 5) armor_elem_counts[elem]++;
             }
         }

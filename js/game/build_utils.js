@@ -43,9 +43,9 @@ function levelToSkillPoints(level){
 */
 function levelToHPBase(level){
     if(level < 1){ //bad level
-        return this.levelToHPBase(1);
+        return levelToHPBase(1);
     }else if (level > MAX_PLAYER_LEVEL){ //also bad level
-        return this.levelToHPBase(MAX_PLAYER_LEVEL);
+        return levelToHPBase(MAX_PLAYER_LEVEL);
     }else{ //good level
         return 5*level + 5;
     }
@@ -64,6 +64,7 @@ const tome_types = ['weaponTome', 'armorTome', 'guildTome', 'lootrunTome', 'gath
 const tome_type_map = new Map([["weaponTome", "Weapon Tome"],
                                ["armorTome", "Armor Tome"],
                                ["guildTome", "Guild Tome"],
+                               ["lootrunTome", "Lootrun Tome"],
                                ["gatherXpTome", "Gather XP Tome"],
                                ["dungeonXpTome", "Dungeon XP Tome"],
                                ["mobXpTome", "Slaying XP Tome"],
@@ -307,7 +308,7 @@ function expandRecipe(recipe) {
 * @param id
 */
 function idRound(id){
-    rounded = Math.round(id);
+    let rounded = Math.round(id);
     if(rounded == 0){
         return Math.sign(id); //this is a hack, will need changing along w/ rest of ID system if anything changes
     }else{
@@ -319,7 +320,7 @@ function idRound(id){
  * stupid stupid multiplicative stats
  */
 function merge_stat(stats, name, value) {
-    const [start, end] = name.split('.', limit=2);
+    const [start, end] = name.split('.', 2);
     if (start === 'damMult' || start === 'defMult' || start === 'healMult') {
         if (!stats.has(start)) {
             stats.set(start, new Map());

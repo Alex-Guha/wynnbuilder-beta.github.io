@@ -92,9 +92,8 @@ The solver uses the same push-based reactive DAG as WynnBuilder (`ComputeNode` i
 - Multi-gate leaf evaluation: fast constraint precheck → SP pre-filter → `calculate_skillpoints` (O(n) linear scan) → stat finalization (set bonuses, multiplier maps) → greedy SP allocation → restriction threshold check → mana check → combo damage scoring → top-5 heap update.
 
 **`solver_worker_shims.js`** — DOM-free copies of functions the worker needs but that normally read/write the DOM:
-- `worker_init_build_stats()` — replaces the `Build` constructor's stat initialization.
 - `worker_atree_scaling()` — replaces the DOM-reading atree scaling node using serialized button/slider states.
-- `_init_running_statmap()` / `_incr_add_item()` / `_incr_remove_item()` / `_finalize_leaf_statmap()` — incremental stat accumulation functions for the DFS, avoiding full rebuilds at every leaf.
+- `_init_running_statmap()` / `_incr_add_item()` / `_incr_remove_item()` / `_finalize_leaf_statmap()` — incremental stat accumulation functions for the search, avoiding full rebuilds at every leaf.
 
 ---
 

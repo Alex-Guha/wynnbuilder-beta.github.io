@@ -247,10 +247,6 @@ class Base64 {
     }
 }
 
-// THe length, in bits of the version (one in data/*) to be used in binary encoding.
-// TODO:(@orgold) - move this.
-const VERISON_BITLEN = 10
-
 /** A class used to represent an arbitrary length bit vector. Very useful for encoding and decoding.
  *
  */
@@ -932,7 +928,7 @@ class BootstringEncoder {
     pct: -1.20, output = -20
 */
 function rawToPct(raw, pct){
-    final = 0;
+    let final = 0;
     if (raw < 0){
         final = (Math.min(0, raw - (raw * pct) ));
     }else if(raw > 0){
@@ -946,7 +942,7 @@ function rawToPct(raw, pct){
     Turns a raw stat and a % stat into a final stat on the basis that - raw and >= 100% becomes positive and + raw and <=-100% becomes negative.
 */
 function rawToPctUncapped(raw, pct){
-    final = 0;
+    let final = 0;
     if (raw < 0){
         final = raw - (raw * pct);
     }else if(raw > 0){

@@ -25,14 +25,15 @@ class Build {
 
         if (level < 1) { //Should these be constants?
             this.level = 1;
-        } else if (level > 121) {
-            this.level = 121;
-        } else if (level <= 121 && level >= 1) {
+        } else if (level > MAX_PLAYER_LEVEL) {
+            this.level = MAX_PLAYER_LEVEL;
+        } else if (level <= MAX_PLAYER_LEVEL && level >= 1) {
             this.level = level;
         } else if (typeof level === "string") {
             this.level = level;
         } else {
-            errors.push("Level is not a string or number.");
+            console.warn("Build: unexpected level value", level);
+            this.level = 1;
         }
         document.getElementById("level-choice").value = this.level;
 

@@ -463,12 +463,12 @@ function displayExpandedItem(item, parent_id){
         let element;
         let power_index;
         for (let i = 0; i < powders.length; i++) {
-            const firstPowderType = skp_elements[Math.floor(powders[i]/6)];
-            const powder1_power = powders[i] % 6;
+            const firstPowderType = skp_elements[Math.floor(powders[i]/POWDER_TIERS)];
+            const powder1_power = powders[i] % POWDER_TIERS;
             if (powder1_power > 2) { //t4+
                 for (let j = i+1; j < powders.length; j++) {
-                    const currentPowderType = skp_elements[Math.floor(powders[j]/6)]
-                    const powder2_power = powders[j] % 6;
+                    const currentPowderType = skp_elements[Math.floor(powders[j]/POWDER_TIERS)]
+                    const powder2_power = powders[j] % POWDER_TIERS;
                     if (powder2_power > 2 && firstPowderType === currentPowderType) {
                         element = currentPowderType;
                         power_index = powder1_power + powder2_power - 6;
@@ -991,22 +991,22 @@ function displayNextCosts(_stats, spell, spellIdx) {
     let row = document.createElement("div");
     row.classList.add("spellcost-tooltip");
     let init_cost = document.createElement("b");
-    init_cost.textContent = getSpellCost(stats, spellIdx, spell.cost);
+    init_cost.textContent = getSpellCost(stats, spell);
     init_cost.classList.add("Mana");
     let arrow = document.createElement("b");
     arrow.textContent = "\u279C";
     let next_cost = document.createElement("b");
-    next_cost.textContent = (init_cost.textContent === "1" ? 1 : getSpellCost(stats, spellIdx, spell.cost) - 1);
+    next_cost.textContent = (init_cost.textContent === "1" ? 1 : getSpellCost(stats, spell) - 1);
     next_cost.classList.add("Mana");
     let int_needed = document.createElement("b");
     if (init_cost.textContent === "1") {
         int_needed.textContent = ": n/a (+0)";
     } else { //do math
-        let target = getSpellCost(stats, spellIdx, spell.cost) - 1;
+        let target = getSpellCost(stats, spell) - 1;
         let needed = intel;
         let noUpdate = false;
         //forgive me... I couldn't inverse ceil, floor, and max.
-        while (getSpellCost(stats, spellIdx, spell.cost) > target) {
+        while (getSpellCost(stats, spell) > target) {
             if(needed > 150) {
                 noUpdate = true;
                 break;
@@ -1017,9 +1017,9 @@ function displayNextCosts(_stats, spell, spellIdx) {
         let missing = needed - intel;  
         //in rare circumstances, the next spell cost can jump.
         if (noUpdate) {
-            next_cost.textContent = (init_cost.textContent === "1" ? 1 : getSpellCost(stats, spellIdx, spell.cost)-1); 
+            next_cost.textContent = (init_cost.textContent === "1" ? 1 : getSpellCost(stats, spell)-1); 
         }else {
-            next_cost.textContent = (init_cost.textContent === "1" ? 1 : getSpellCost(stats, spellIdx, spell.cost)); 
+            next_cost.textContent = (init_cost.textContent === "1" ? 1 : getSpellCost(stats, spell)); 
         }
         
         
@@ -1366,7 +1366,7 @@ function displayPowderSpecials(parent_elem, powderSpecials, stats, weapon) {
     parent_elem.append(make_elem("b", [], { textContent: "Powder Specials" }));
     let specials = powderSpecials.slice();
     //each entry of powderSpecials is [ps, power]
-    for (special of specials) {
+    for (const special of specials) {
         //iterate through the special and display its effects.
         let powder_special_elem = make_elem("p", ["pt-3"]);
         let specialSuffixes = new Map([ ["Duration", " sec"], ["Radius", " blocks"], ["Chains", ""], ["Damage", "%"], ["Damage Boost", "%"], ["Knockback", " blocks"] ]);
