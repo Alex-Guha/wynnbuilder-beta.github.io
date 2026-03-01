@@ -161,11 +161,8 @@ For EHP constraints, an optimistic upper bound is computed: `totalHp / ehp_divis
 
 Both checks use only precomputed constants + a single Map lookup per constraint, making them essentially free compared to the gates that follow.
 
-### Gate 1: Quick SP pre-filter (`_sp_prefilter`)
-An O(1) sanity check before the full `calculate_skillpoints` call. For each attribute, computes `max_req − sum_prov` across all 9 items. If any attribute's net deficit > 100 or the total > `sp_budget`, reject immediately.
-
-### Gate 2: Full SP feasibility (`calculate_skillpoints`)
-Computes the minimum SP assignment needed to meet all items' requirements. For each attribute, determines the max effective requirement (accounting for items' own SP bonuses) and subtracts provided bonus SP. Returns `[assign, final_sp, total_assigned, set_counts]`. If `total_assigned > sp_budget`, reject.
+### Gate 1: Combined SP feasibility (`_solver_sp_calc`)
+A single-pass SP check that replaces the former two-step `_sp_prefilter` + `calculate_skillpoints` pair. Computes the minimum SP assignment needed to meet all items' requirements using effective requirements (`req + own skillpoints` for non-crafted equipment, raw `req` for weapon/crafted), excludes weapon provisions from the bonus pool (matching the game mechanic where weapon SP doesn't reduce required assignment), and applies set bonuses to final SP. Includes early budget rejection mid-loop: if any single attribute's deficit exceeds 100 or the running total exceeds `sp_budget`, it returns `null` immediately without computing final SP or set counts. Returns `[assign, final_sp, total_assigned, set_counts]` on success.
 
 ### Stat assembly (`_finalize_leaf_statmap`)
 Finalises the running statMap by:
@@ -180,10 +177,10 @@ Then `_assemble_combo_stats` layers on top:
 4. Run `worker_atree_scaling` to apply conditional/slider-driven atree bonuses.
 5. Merge atree-scaling stats and static boosts (for threshold checking).
 
-### Gate 3: Stat thresholds (full)
+### Gate 2: Stat thresholds (full)
 If the user set any restrictions (e.g. "EHP ≥ 50000", "hprRaw ≥ 200"), the fully assembled stats are checked. EHP is computed via `getDefenseStats`. Any violation rejects the candidate. (Gate 0 is a cheap pre-filter; this gate is the authoritative check using final stat values including radiance, atree scaling, set bonuses, and actual skill points.)
 
-### Gate 4: Mana constraint (`_eval_combo_mana_check`)
+### Gate 3: Mana constraint (`_eval_combo_mana_check`)
 Only active when `combo_time > 0`. Computes starting mana (100 + item mana + Int bonus), total spell cost (sum of `getSpellCost × qty` for rows not marked `mana_excl`), and mana regen over the combo time. If `allow_downtime` is false, the build is rejected when `start_mana − end_mana > 5` (mana deficit too high for sustainability). If `allow_downtime` is true, the build is rejected only if `end_mana ≤ 0`.
 
 ### Scoring (`_eval_score`)
@@ -225,7 +222,7 @@ Each of the top-5 results is shown as a clickable row. Clicking calls `_fill_bui
 | Level-based enumeration | `_run_level_enum` | Evaluates the globally best build (L=0) first; each subsequent level is one rank-step further from optimal, so strong builds surface in interim results early |
 | Item priority scoring | `_prioritize_pools` + `_build_dmg_weights` | Pools pre-sorted by damage/constraint relevance before search; top of each pool is the highest-priority item |
 | Incremental statMap | `_init_running_statmap` + `_incr_add/remove_item` | Avoids full stat rebuild at every leaf |
-| Leaf SP pre-filter | `_sp_prefilter` before `calculate_skillpoints` | Rejects infeasible combos before full SP calculation |
+| Combined SP calc | `_solver_sp_calc` (single pass) | Replaces the former two-step `_sp_prefilter` + `calculate_skillpoints` with a single pass using effective requirements and proper weapon exclusion; tighter rejection and less per-candidate work |
 | Pool sort (smallest first) | `free_armor_slots.sort(...)` | Visits slots with fewer choices first |
 | Work-stealing partitions | 4× worker count | Keeps all cores busy even when partition sizes are unequal |
 | Illegal-set tracker | `_make_illegal_tracker()` | O(1) check per item for set-conflict rejection |
@@ -240,8 +237,8 @@ Each of the top-5 results is shown as a clickable row. Clicking calls `_fill_bui
 ### Score-blind enumeration
 The level-based enumeration visits combinations in order of sum-of-rank-offsets (best-first within each level), but it has no branch-and-bound pruning based on the current best score. Every combination at every level is fully evaluated — there is no early exit when remaining levels cannot possibly produce a better result. This means the search remains exhaustive, just with a better visitation order. Interim results are much stronger than before (L=0 is evaluated first), but the total work is unchanged.
 
-### `calculate_skillpoints` called at every feasible leaf
-Even when the running incremental SP state already shows `sum_prov[i] ≥ max_req[i]` for every attribute — meaning no manual SP assignment is needed — `calculate_skillpoints` is still invoked. With the simplified SP system (no equip order), this is now an O(n) linear scan rather than a recursive backtracking solver, so the per-leaf cost is low. A fast-path that skips it when provably unnecessary could still save the function-call overhead.
+### SP checked only at the leaf
+The simplified SP system (no equip order) enables incremental tracking of `max_eff_req[i]` and `sum_prov[i]` during enumeration, which would allow mid-tree pruning of subtrees that can never meet the SP budget. Currently `_solver_sp_calc` is only called at the leaf.
 
 ### Ring slots are special-cased throughout
 Because both rings draw from the same pool and the pair is unordered, rings are handled with a separate double-loop outside the generic `dfs()` function. This creates three code paths (both free, one free, both locked) and complicates partitioning. Armor slots benefit from the generic slot-ordering optimisation; rings cannot be trivially slotted into it.

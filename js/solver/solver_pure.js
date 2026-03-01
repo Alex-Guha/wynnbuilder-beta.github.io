@@ -426,19 +426,104 @@ function _apply_radiance_scale(statMap, boost) {
     return ret;
 }
 
-function _sp_prefilter(items_8_sms, wep_sm, sp_budget) {
-    const all = [...items_8_sms, wep_sm];
-    let total_net = 0;
-    for (let i = 0; i < 5; i++) {
-        let max_req = 0, sum_prov = 0;
-        for (const sm of all) {
-            const req = sm.get('reqs')?.[i] ?? 0;
-            if (req > max_req) max_req = req;
-            sum_prov += sm.get('skillpoints')?.[i] ?? 0;
+/**
+ * Combined SP feasibility check + full calculation for the solver.
+ * Replaces the separate _sp_prefilter() + calculate_skillpoints() pair
+ * with a single pass, eliminating redundant iteration and tightening the
+ * rejection logic.
+ *
+ * Key improvements over the old _sp_prefilter:
+ *  - Uses effective requirements (req + own skillpoints) for non-crafted
+ *    equipment, matching calculate_skillpoints' pull_req(apply_bonus=true).
+ *    The old prefilter used raw reqs, systematically underestimating the
+ *    required SP assignment.
+ *  - Excludes weapon provisions from the bonus pool (weapon SP doesn't
+ *    reduce the assignment in the real calculation).
+ *  - Includes an early budget reject mid-loop for fast failure.
+ *
+ * Returns null if total_assigned > sp_budget (reject).
+ * Returns [assign, final_skillpoints, total_assigned, set_counts] on success.
+ *
+ * @param {Map[]} equip_sms  - equipment statMaps (8 armor/acc + guild tome)
+ * @param {Map}   weapon_sm  - weapon statMap
+ * @param {number} sp_budget - max assignable SP (200/204/205)
+ */
+function _solver_sp_calc(equip_sms, weapon_sm, sp_budget) {
+    // Phase 1: Accumulate bonus skillpoints, effective requirements, and set counts.
+    // In the solver all equipment items are non-crafted, but we check the flag
+    // for correctness (crafted items' SP don't count toward bonus or effective reqs).
+    const bonus_sp = [0, 0, 0, 0, 0];
+    const max_eff_req = [0, 0, 0, 0, 0];
+    const set_counts = new Map();
+
+    for (const sm of equip_sms) {
+        const skp = sm.get('skillpoints');
+        const req = sm.get('reqs');
+        const is_crafted = sm.get('crafted');
+
+        if (!is_crafted) {
+            for (let i = 0; i < 5; i++) bonus_sp[i] += skp[i];
+            const set_name = sm.get('set');
+            if (set_name) set_counts.set(set_name, (set_counts.get(set_name) ?? 0) + 1);
+
+            // Effective requirement: req + own skillpoints (apply_bonus=true path)
+            for (let i = 0; i < 5; i++) {
+                if (req[i] === 0) continue;
+                const eff = req[i] + skp[i];
+                if (eff > max_eff_req[i]) max_eff_req[i] = eff;
+            }
+        } else {
+            // Crafted: raw requirement, no bonus application
+            for (let i = 0; i < 5; i++) {
+                if (req[i] > max_eff_req[i]) max_eff_req[i] = req[i];
+            }
         }
-        const net = max_req > 0 ? Math.max(0, max_req - sum_prov) : 0;
-        if (net > SP_PER_ATTR_CAP) return false;
-        total_net += net;
     }
-    return total_net <= sp_budget;
+
+    // Weapon: raw requirements only (apply_bonus=false), not added to bonus_sp
+    const wep_req = weapon_sm.get('reqs');
+    for (let i = 0; i < 5; i++) {
+        if (wep_req[i] > max_eff_req[i]) max_eff_req[i] = wep_req[i];
+    }
+
+    // Phase 2: Compute assignment with early budget check.
+    const assign = [0, 0, 0, 0, 0];
+    let total_assigned = 0;
+    for (let i = 0; i < 5; i++) {
+        if (max_eff_req[i] === 0) continue;
+        if (max_eff_req[i] > bonus_sp[i]) {
+            const delta = max_eff_req[i] - bonus_sp[i];
+            if (delta > SP_PER_ATTR_CAP) return null;
+            assign[i] = delta;
+            total_assigned += delta;
+            if (total_assigned > sp_budget) return null;
+        }
+    }
+
+    // Phase 3: Compute final skillpoints.
+    const final_sp = assign.slice();
+    for (let i = 0; i < 5; i++) final_sp[i] += bonus_sp[i];
+
+    // Add provisions from crafted items and weapon (excluded from bonus_sp)
+    for (const sm of equip_sms) {
+        if (sm.get('crafted')) {
+            const skp = sm.get('skillpoints');
+            for (let i = 0; i < 5; i++) final_sp[i] += skp[i];
+        }
+    }
+    const wep_skp = weapon_sm.get('skillpoints');
+    for (let i = 0; i < 5; i++) final_sp[i] += wep_skp[i];
+
+    // Add set bonuses to final skillpoints
+    for (const [set_name, count] of set_counts) {
+        const set_data = sets.get(set_name);
+        if (!set_data) continue;
+        const bonus = set_data.bonuses[count - 1];
+        if (!bonus) continue;
+        for (let i = 0; i < 5; i++) {
+            final_sp[i] += (bonus[skp_order[i]] || 0);
+        }
+    }
+
+    return [assign, final_sp, total_assigned, set_counts];
 }

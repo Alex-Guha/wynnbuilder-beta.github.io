@@ -83,13 +83,13 @@ The solver uses the same push-based reactive DAG as WynnBuilder (`ComputeNode` i
 
 ### Worker
 
-**`solver_pure.js`** — pure functions shared between the main thread and the Web Worker (loaded via `<script>` on the page and `importScripts` in the worker). Contains `computeSpellDisplayAvg()`, `computeSpellDisplayFull()`, `computeSpellHealingTotal()`, `apply_combo_row_boosts()`, `apply_spell_prop_overrides()`, `find_all_matching_boosts()`, `_apply_radiance_scale()`, and `_sp_prefilter()`. Zero DOM references.
+**`solver_pure.js`** — pure functions shared between the main thread and the Web Worker (loaded via `<script>` on the page and `importScripts` in the worker). Contains `computeSpellDisplayAvg()`, `computeSpellDisplayFull()`, `computeSpellHealingTotal()`, `apply_combo_row_boosts()`, `apply_spell_prop_overrides()`, `find_all_matching_boosts()`, `_apply_radiance_scale()`, and `_solver_sp_calc()`. Zero DOM references.
 
 **`solver_worker.js`** — the Web Worker that runs a synchronous level-based enumeration over its assigned partition. Key internals:
 - Maintains an incremental running `statMap` that is updated/reverted as items are placed/backtracked, avoiding a full rebuild at every leaf.
 - Level-based enumeration: items in each pool are pre-sorted by priority score; the outer loop iterates `L = 0..L_max` where L is the sum of per-slot rank offsets. L=0 evaluates the globally best combination first; each subsequent level steps one rank further from optimal. This ensures strong builds surface early in interim results.
 - Handles rings in a separate double-loop (same pool, unordered pairs) with partition slicing on the outer index.
-- Multi-gate leaf evaluation: fast constraint precheck → SP pre-filter → `calculate_skillpoints` (O(n) linear scan) → stat finalization (set bonuses, multiplier maps) → greedy SP allocation → restriction threshold check → mana check → combo damage scoring → top-5 heap update.
+- Multi-gate leaf evaluation: fast constraint precheck → `_solver_sp_calc` (combined SP feasibility + full calculation, single O(n) pass with early budget reject) → stat finalization (set bonuses, multiplier maps) → greedy SP allocation → restriction threshold check → mana check → combo damage scoring → top-5 heap update.
 
 **`solver_worker_shims.js`** — DOM-free copies of functions the worker needs but that normally read/write the DOM:
 - `worker_atree_scaling()` — replaces the DOM-reading atree scaling node using serialized button/slider states.

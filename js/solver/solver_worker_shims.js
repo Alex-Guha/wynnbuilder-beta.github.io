@@ -14,7 +14,7 @@
 //                     apply_combo_row_boosts,
 //                     apply_spell_prop_overrides, spell_has_heal,
 //                     computeSpellHealingTotal, _deep_clone_statmap, _merge_into,
-//                     _apply_radiance_scale, _sp_prefilter
+//                     _apply_radiance_scale, _solver_sp_calc
 // ══════════════════════════════════════════════════════════════════════════════
 
 // ── From game/build.js ───────────────────────────────────────────────────────

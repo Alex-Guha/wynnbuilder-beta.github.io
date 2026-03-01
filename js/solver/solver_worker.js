@@ -11,7 +11,6 @@ importScripts(
     '../game/game_rules.js',
     '../game/build_utils.js',
     '../game/powders.js',
-    '../game/skillpoints.js',
     '../game/damage_calc.js',
     '../game/shared_game_stats.js',
     './solver_pure.js',
@@ -20,7 +19,7 @@ importScripts(
 
 // ── Globals set during init ─────────────────────────────────────────────────
 
-let sets = new Map();   // needed by calculate_skillpoints (set bonus tracking)
+let sets = new Map();   // needed by _solver_sp_calc (set bonus tracking)
 let _cfg = null;        // full config from init message
 let _cancelled = false;
 
@@ -339,8 +338,43 @@ function _run_level_enum() {
         pools[partition.slot] = pools[partition.slot].slice(partition.start, partition.end);
     }
 
-    // ── Incremental stat accumulation ───────────────────────────────────────
     const N_free = free_armor_slots.length;
+
+    // ── Mid-tree SP pruning precomputation ─────────────────────────────────
+    //
+    // For each free armor slot's pool, the element-wise max provision across
+    // all items.  Used to compute an optimistic upper bound on bonus SP from
+    // remaining (unplaced) slots.
+
+    const _sp_max_pool_prov = [];  // _sp_max_pool_prov[depth_idx] = [5]
+    for (let d = 0; d < N_free; d++) {
+        const pool = pools[free_armor_slots[d]];
+        const maxp = [0, 0, 0, 0, 0];
+        if (pool) {
+            for (const item of pool) {
+                const skp = item.statMap.get('skillpoints');
+                for (let i = 0; i < 5; i++) {
+                    if (skp[i] > maxp[i]) maxp[i] = skp[i];
+                }
+            }
+        }
+        _sp_max_pool_prov.push(maxp);
+    }
+
+    // Suffix sums: _sp_suffix_max_prov[d][i] = sum of _sp_max_pool_prov[k][i]
+    // for k = d, d+1, ..., N_free-1.
+    // Index N_free = [0,0,0,0,0] (no remaining slots).
+    const _sp_suffix_max_prov = new Array(N_free + 1);
+    _sp_suffix_max_prov[N_free] = [0, 0, 0, 0, 0];
+    for (let d = N_free - 1; d >= 0; d--) {
+        _sp_suffix_max_prov[d] = [0, 0, 0, 0, 0];
+        for (let i = 0; i < 5; i++) {
+            _sp_suffix_max_prov[d][i] = _sp_suffix_max_prov[d + 1][i]
+                                      + _sp_max_pool_prov[d][i];
+        }
+    }
+
+    // ── Incremental stat accumulation ───────────────────────────────────────
     // Build base statMap from locked items + tomes + weapon. Free items are added/removed during search.
 
     const fixed_item_sms = [];
@@ -454,22 +488,18 @@ function _run_level_enum() {
             partial.bracelet.statMap, partial.necklace.statMap,
         ];
 
-        // Leaf-level SP pre-filter (quick reject before full SP calculation)
-        if (!_sp_prefilter(equip_8_sms, weapon_sm, sp_budget)) {
+        // Combined SP feasibility check + full calculation (single pass).
+        // Uses effective requirements and proper weapon exclusion for tighter
+        // rejection than the old two-step _sp_prefilter + calculate_skillpoints.
+        const sp_result = _solver_sp_calc([...equip_8_sms, guild_tome_sm], weapon_sm, sp_budget);
+        if (!sp_result) {
             _maybe_progress();
             return;
         }
-
-        // Full SP feasibility via calculate_skillpoints
-        const result = calculate_skillpoints([...equip_8_sms, guild_tome_sm], weapon_sm);
-        const base_sp = result[0];
-        const total_sp = result[1];
-        const assigned_sp = result[2];
-        const activeSetCounts = result[3];
-        if (assigned_sp > sp_budget) {
-            _maybe_progress();
-            return;
-        }
+        const base_sp = sp_result[0];
+        const total_sp = sp_result[1];
+        const assigned_sp = sp_result[2];
+        const activeSetCounts = sp_result[3];
         _feasible++;
 
         // Build stat assembly from running statMap (incremental accumulation)
@@ -527,6 +557,153 @@ function _run_level_enum() {
         if (p) L_max += p.length - 1;
     }
 
+    // ── Mid-tree SP pruning state & helpers ──────────────────────────────────
+    //
+    // Track running SP requirements and provisions as free armor items are
+    // placed/unplaced during enumerate().  An optimistic feasibility check
+    // prunes subtrees where SP assignment provably exceeds the budget.
+
+    // Fixed-item SP baseline (recomputed once per ring combination).
+    const _sp_fixed_max_eff_req = [0, 0, 0, 0, 0];
+    const _sp_fixed_sum_prov    = [0, 0, 0, 0, 0];
+
+    // Per-depth effective requirement from each placed free item.
+    const _sp_slot_eff_req = [];
+    for (let d = 0; d < N_free; d++) _sp_slot_eff_req.push([0, 0, 0, 0, 0]);
+
+    // Running max eff req (fixed + placed free) and running free provisions.
+    const _sp_running_max_eff_req = [0, 0, 0, 0, 0];
+    const _sp_running_free_prov   = [0, 0, 0, 0, 0];
+
+    /**
+     * Compute SP baseline from all fixed items (locked equips, placed rings,
+     * guild tome, weapon).  Called once per ring combination.
+     */
+    function _sp_compute_fixed_baseline() {
+        _sp_fixed_max_eff_req.fill(0);
+        _sp_fixed_sum_prov.fill(0);
+
+        const free_set = new Set(free_armor_slots);
+        for (const [slot, item] of Object.entries(partial)) {
+            if (free_set.has(slot)) continue;
+            if (!item || !item.statMap || item.statMap.has('NONE')) continue;
+            const sm = item.statMap;
+            const skp = sm.get('skillpoints');
+            const req = sm.get('reqs');
+            const is_crafted = sm.get('crafted');
+
+            if (!is_crafted) {
+                for (let i = 0; i < 5; i++) _sp_fixed_sum_prov[i] += skp[i];
+                for (let i = 0; i < 5; i++) {
+                    if (req[i] === 0) continue;
+                    const eff = req[i] + skp[i];
+                    if (eff > _sp_fixed_max_eff_req[i])
+                        _sp_fixed_max_eff_req[i] = eff;
+                }
+            } else {
+                for (let i = 0; i < 5; i++) {
+                    if (req[i] > _sp_fixed_max_eff_req[i])
+                        _sp_fixed_max_eff_req[i] = req[i];
+                }
+            }
+        }
+
+        // Guild tome (non-crafted, adds provisions + reqs)
+        if (guild_tome_sm && !guild_tome_sm.has('NONE')) {
+            const skp = guild_tome_sm.get('skillpoints');
+            const req = guild_tome_sm.get('reqs');
+            for (let i = 0; i < 5; i++) _sp_fixed_sum_prov[i] += skp[i];
+            for (let i = 0; i < 5; i++) {
+                if (req[i] === 0) continue;
+                const eff = req[i] + skp[i];
+                if (eff > _sp_fixed_max_eff_req[i])
+                    _sp_fixed_max_eff_req[i] = eff;
+            }
+        }
+
+        // Weapon: raw requirements only (apply_bonus=false), excluded from prov
+        const wep_req = weapon_sm.get('reqs');
+        for (let i = 0; i < 5; i++) {
+            if (wep_req[i] > _sp_fixed_max_eff_req[i])
+                _sp_fixed_max_eff_req[i] = wep_req[i];
+        }
+    }
+
+    /**
+     * Reset running SP state and compute fixed baseline.
+     * Called before each run_armor_levels().
+     */
+    function _sp_reset_for_armor_enum() {
+        _sp_compute_fixed_baseline();
+        _sp_running_free_prov.fill(0);
+        for (let i = 0; i < 5; i++)
+            _sp_running_max_eff_req[i] = _sp_fixed_max_eff_req[i];
+    }
+
+    /**
+     * Update running SP state when placing a free armor item at a given depth.
+     */
+    function _sp_place_free_item(sm, depth) {
+        const skp = sm.get('skillpoints');
+        const req = sm.get('reqs');
+        const is_crafted = sm.get('crafted');
+
+        if (!is_crafted) {
+            for (let i = 0; i < 5; i++) _sp_running_free_prov[i] += skp[i];
+        }
+
+        const eff = _sp_slot_eff_req[depth];
+        for (let i = 0; i < 5; i++) {
+            if (req[i] === 0) { eff[i] = 0; continue; }
+            eff[i] = (!is_crafted) ? req[i] + skp[i] : req[i];
+        }
+
+        for (let i = 0; i < 5; i++) {
+            if (eff[i] > _sp_running_max_eff_req[i])
+                _sp_running_max_eff_req[i] = eff[i];
+        }
+    }
+
+    /**
+     * Restore running SP state when unplacing a free armor item at a given depth.
+     */
+    function _sp_unplace_free_item(sm, depth) {
+        if (!sm.get('crafted')) {
+            const skp = sm.get('skillpoints');
+            for (let i = 0; i < 5; i++) _sp_running_free_prov[i] -= skp[i];
+        }
+
+        // Recompute running max from fixed baseline + slots 0..depth-1
+        for (let i = 0; i < 5; i++) _sp_running_max_eff_req[i] = _sp_fixed_max_eff_req[i];
+        for (let d = 0; d < depth; d++) {
+            for (let i = 0; i < 5; i++) {
+                if (_sp_slot_eff_req[d][i] > _sp_running_max_eff_req[i])
+                    _sp_running_max_eff_req[i] = _sp_slot_eff_req[d][i];
+            }
+        }
+    }
+
+    /**
+     * Returns true if the subtree rooted at next_depth might contain a
+     * feasible build (SP-wise).  Returns false to prune.
+     */
+    function _sp_mid_tree_feasible(next_depth) {
+        if (next_depth >= N_free) return true;
+
+        let total_deficit = 0;
+        for (let i = 0; i < 5; i++) {
+            const optimistic_prov = _sp_fixed_sum_prov[i]
+                + _sp_running_free_prov[i]
+                + _sp_suffix_max_prov[next_depth][i];
+            if (_sp_running_max_eff_req[i] <= optimistic_prov) continue;
+            const deficit = _sp_running_max_eff_req[i] - optimistic_prov;
+            if (deficit > SP_PER_ATTR_CAP) return false;
+            total_deficit += deficit;
+            if (total_deficit > sp_budget) return false;
+        }
+        return true;
+    }
+
     function enumerate(slot_idx, remaining_L) {
         if (_cancelled) return;
 
@@ -572,7 +749,13 @@ function _run_level_enum() {
 
             partial[slot] = item;
             _place_item(item.statMap);
-            enumerate(slot_idx + 1, remaining_L - offset);
+            _sp_place_free_item(item.statMap, slot_idx);
+
+            if (_sp_mid_tree_feasible(slot_idx + 1)) {
+                enumerate(slot_idx + 1, remaining_L - offset);
+            }
+
+            _sp_unplace_free_item(item.statMap, slot_idx);
             _unplace_item(item.statMap);
             if (is) tracker.remove(is, iname);
         }
@@ -593,6 +776,7 @@ function _run_level_enum() {
     // ── Ring iteration ────────────────────────────────────────────────────────
 
     if (!rings_free) {
+        _sp_reset_for_armor_enum();
         run_armor_levels();
     } else if (ring1_locked) {
         const rp = ring_pool;
@@ -606,6 +790,7 @@ function _run_level_enum() {
             if (is) tracker.add(is, r2._illegalSetName);
             partial.ring2 = r2;
             _place_item(r2.statMap);
+            _sp_reset_for_armor_enum();
             run_armor_levels();
             _unplace_item(r2.statMap);
             if (is) tracker.remove(is, r2._illegalSetName);
@@ -622,6 +807,7 @@ function _run_level_enum() {
             if (is) tracker.add(is, r1._illegalSetName);
             partial.ring1 = r1;
             _place_item(r1.statMap);
+            _sp_reset_for_armor_enum();
             run_armor_levels();
             _unplace_item(r1.statMap);
             if (is) tracker.remove(is, r1._illegalSetName);
@@ -647,6 +833,7 @@ function _run_level_enum() {
                 if (is2) tracker.add(is2, r2._illegalSetName);
                 partial.ring2 = r2;
                 _place_item(r2.statMap);
+                _sp_reset_for_armor_enum();
                 run_armor_levels();
                 _unplace_item(r2.statMap);
                 if (is2) tracker.remove(is2, r2._illegalSetName);
