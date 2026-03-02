@@ -692,6 +692,7 @@ function _run_level_enum() {
 
         let total_deficit = 0;
         for (let i = 0; i < 5; i++) {
+            if (_sp_running_max_eff_req[i] === 0) continue;
             const optimistic_prov = _sp_fixed_sum_prov[i]
                 + _sp_running_free_prov[i]
                 + _sp_suffix_max_prov[next_depth][i];
@@ -879,7 +880,6 @@ self.onmessage = function(e) {
         _cancelled = false;
 
         _run_level_enum();
-
         postMessage({
             type: 'done',
             worker_id: msg.worker_id,
