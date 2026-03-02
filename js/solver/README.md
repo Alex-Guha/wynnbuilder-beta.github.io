@@ -146,4 +146,11 @@ See SOLVER.md for details.
 
 ### Testing
 
+#### Archetypes/Combos
+
 The combo damage calculation has been tested against WynnBuilder output for some archetypes and bugs were found and fixed, but not all archetypes have been verified. Each archetype should be tested by loading the same build and buffs in both WynnSolver and WynnBuilder and comparing per-spell damage numbers. Archetypes that use prop-type sliders (e.g. Enkindled %), ability-name aliases (e.g. Mirror Image → Activate Clones), or powder special spells are the highest priority to verify.
+
+#### Combo Mana Calculation
+
+- Implicitly add MR/MS to priorities when "Allow Downtime" is not set.
+- Verify that the mana calc handles tier drop and that the solver looks at these when optimizing. I.e. if mana steal is present, then it may be more optimal to add tier drop than more MS.

@@ -2,16 +2,16 @@ class SolverComboTotalNode extends ComputeNode {
     constructor() {
         super('solver-combo-total');
         this.fail_cb = true;
-        this._last_registry_sig  = '';
-        this._spell_map_cache    = null;
-        this._registry_cache     = null;
+        this._last_registry_sig = '';
+        this._spell_map_cache = null;
+        this._registry_cache = null;
     }
 
     compute_func(input_map) {
-        const build      = input_map.get('build');
+        const build = input_map.get('build');
         const base_stats = input_map.get('base-stats');
-        const spell_map  = input_map.get('spells');
-        const atree_mg   = input_map.get('atree-merged');
+        const spell_map = input_map.get('spells');
+        const atree_mg = input_map.get('atree-merged');
         const total_elem = document.getElementById('combo-total-avg');
 
         // Refresh selection-mode spell dropdowns with the raw spell map initially.
@@ -28,7 +28,7 @@ class SolverComboTotalNode extends ComputeNode {
         // Augment spell map with damaging powder specials (Quake, Chain Lightning, Courage)
         // based on the weapon's element powder counts.
         const weapon_powders = weapon.get('powders') ?? [];
-        const aug_spell_map  = new Map(spell_map);
+        const aug_spell_map = new Map(spell_map);
         for (const ps_idx of [0, 1, 3]) {  // Quake(earth), Chain Lightning(thunder), Courage(fire)
             const tier = get_element_powder_tier(weapon_powders, ps_idx);
             if (tier === 0) continue;
@@ -45,19 +45,19 @@ class SolverComboTotalNode extends ComputeNode {
         const crit_chance = skillPointsToPercentage(base_stats.get('dex'));
 
         const rows = this._read_combo_rows(aug_spell_map);
-        let total      = 0;
+        let total = 0;
         let total_heal = 0;
-        let mana_cost  = 0;
+        let mana_cost = 0;
         let melee_hits = 0;
         const spell_costs = []; // [{name, qty, cost_per_cast}] for tooltip breakdown
         for (const { qty, spell, boost_tokens, dom_row } of rows) {
-            const dmg_wrap  = dom_row?.querySelector('.combo-row-damage-wrap');
-            const dmg_span  = dmg_wrap?.querySelector('.combo-row-damage')
-                           ?? dom_row?.querySelector('.combo-row-damage');
+            const dmg_wrap = dom_row?.querySelector('.combo-row-damage-wrap');
+            const dmg_span = dmg_wrap?.querySelector('.combo-row-damage')
+                ?? dom_row?.querySelector('.combo-row-damage');
             const dmg_popup = dmg_wrap?.querySelector('.combo-dmg-popup');
             const heal_span = dom_row?.querySelector('.combo-row-heal');
             if (qty <= 0 || !spell) {
-                if (dmg_span)  dmg_span.textContent  = '';
+                if (dmg_span) dmg_span.textContent = '';
                 if (dmg_popup) dmg_popup.textContent = '';
                 dmg_wrap?.classList.remove('has-popup', 'popup-locked');
                 if (heal_span) { heal_span.textContent = ''; }
@@ -70,7 +70,7 @@ class SolverComboTotalNode extends ComputeNode {
             const full = computeSpellDisplayFull(stats, weapon, mod_spell, crit_chance);
             const per_cast = full ? full.avg : 0;
             const dmg_excluded = dom_row?.querySelector('.combo-dmg-toggle')
-                                         ?.classList.contains('dmg-excluded') ?? false;
+                ?.classList.contains('dmg-excluded') ?? false;
             if (!dmg_excluded) total += per_cast * qty;
             if (dmg_span) dmg_span.textContent = Math.round(per_cast).toLocaleString();
             // Per-row healing output
@@ -78,9 +78,9 @@ class SolverComboTotalNode extends ComputeNode {
             total_heal += heal_per_cast * qty;
             if (heal_span) {
                 if (heal_per_cast > 0) {
-                    heal_span.textContent  = '+' + Math.round(heal_per_cast).toLocaleString();
+                    heal_span.textContent = '+' + Math.round(heal_per_cast).toLocaleString();
                 } else {
-                    heal_span.textContent  = '';
+                    heal_span.textContent = '';
                 }
             }
             // Populate the breakdown popup (shown on hover/click of the damage number).
@@ -97,7 +97,7 @@ class SolverComboTotalNode extends ComputeNode {
             // spell.cost may be null (e.g. Bamboozle) — skip those.
             // Skip if the row's mana toggle is excluded.
             const mana_excluded = dom_row?.querySelector('.combo-mana-toggle')
-                                         ?.classList.contains('mana-excluded') ?? false;
+                ?.classList.contains('mana-excluded') ?? false;
             if (!mana_excluded && spell.scaling === 'melee') melee_hits += qty;
             if (spell.cost != null && !mana_excluded) {
                 const cost_per = getSpellCost(base_stats, spell);
@@ -110,12 +110,12 @@ class SolverComboTotalNode extends ComputeNode {
         // column and apply that as min-width so all rows line up.
         const sel_rows_el = document.getElementById('combo-selection-rows');
         if (sel_rows_el) {
-            const dmg_spans  = sel_rows_el.querySelectorAll('.combo-row-damage');
+            const dmg_spans = sel_rows_el.querySelectorAll('.combo-row-damage');
             const heal_spans = sel_rows_el.querySelectorAll('.combo-row-heal');
             const any_has_heal = [...heal_spans].some(s => s.textContent !== '');
 
             // Reset min-width so we measure natural widths.
-            for (const ds of dmg_spans)  ds.style.minWidth = '';
+            for (const ds of dmg_spans) ds.style.minWidth = '';
             for (const hs of heal_spans) {
                 hs.style.minWidth = '';
                 hs.style.display = any_has_heal ? '' : 'none';
@@ -141,9 +141,9 @@ class SolverComboTotalNode extends ComputeNode {
         if (total_elem) total_elem.textContent = Math.round(total).toLocaleString();
 
         // XXX Hardcoded MajorID
-        // Transcendence (ARCANES major ID): 30% chance spell costs no mana → ×0.70 for expected value.
+        // Transcendence (ARCANES major ID): 25% chance spell costs no mana → ×0.75 for expected value.
         const has_transcendence = build.statMap.get('activeMajorIDs')?.has('ARCANES') ?? false;
-        if (has_transcendence) mana_cost *= 0.70;
+        if (has_transcendence) mana_cost *= 0.75;
 
         // Mana display.
         this._update_mana_display(base_stats, mana_cost, spell_costs, has_transcendence, melee_hits);
@@ -183,9 +183,9 @@ class SolverComboTotalNode extends ComputeNode {
     _read_selection_rows_as_data() {
         const result = [];
         for (const row of document.querySelectorAll('#combo-selection-rows .combo-row')) {
-            const qty      = parseInt(row.querySelector('.combo-row-qty')?.value) || 0;
+            const qty = parseInt(row.querySelector('.combo-row-qty')?.value) || 0;
             const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
-            const spell    = this._spell_map_cache?.get(spell_id);
+            const spell = this._spell_map_cache?.get(spell_id);
             const spell_name = spell?.name ?? '';
             const boost_parts = [];
             for (const btn of row.querySelectorAll('.combo-row-boost-toggle.toggleOn')) {
@@ -196,9 +196,9 @@ class SolverComboTotalNode extends ComputeNode {
                 if (val > 0) boost_parts.push(inp.dataset.boostName + ' ' + val);
             }
             const mana_excl = row.querySelector('.combo-mana-toggle')
-                                  ?.classList.contains('mana-excluded') ?? false;
-            const dmg_excl  = row.querySelector('.combo-dmg-toggle')
-                                  ?.classList.contains('dmg-excluded') ?? false;
+                ?.classList.contains('mana-excluded') ?? false;
+            const dmg_excl = row.querySelector('.combo-dmg-toggle')
+                ?.classList.contains('dmg-excluded') ?? false;
             result.push({ qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl });
         }
         return result;
@@ -285,7 +285,7 @@ class SolverComboTotalNode extends ComputeNode {
             .filter(([, s]) => spell_has_damage(s) || spell_has_heal(s) || s.cost != null);
         // Regular spells (positive IDs) sorted ascending; powder specials (negative IDs) last.
         const regular = all_selectable.filter(([id]) => id >= 0).sort((a, b) => a[0] - b[0]);
-        const powder  = all_selectable.filter(([id]) => id <  0).sort((a, b) => b[0] - a[0]);
+        const powder = all_selectable.filter(([id]) => id < 0).sort((a, b) => b[0] - a[0]);
         const selectable = [...regular, ...powder];
 
         for (const row of container.querySelectorAll('.combo-row')) {
@@ -295,7 +295,7 @@ class SolverComboTotalNode extends ComputeNode {
             sel.innerHTML = '<option value="">— Select Attack —</option>';
             for (const [id, s] of selectable) {
                 const opt = document.createElement('option');
-                opt.value       = String(id);
+                opt.value = String(id);
                 opt.textContent = s._is_powder_special ? s.name + ' (Powder Special)' : s.name;
                 sel.appendChild(opt);
             }
@@ -357,22 +357,22 @@ class SolverComboTotalNode extends ComputeNode {
             }
 
             for (const entry of sliders) {
-                const wrap  = document.createElement('div');
+                const wrap = document.createElement('div');
                 wrap.className = 'd-inline-flex align-items-center gap-1 m-1';
-                const lbl   = document.createElement('span');
-                lbl.className   = 'text-secondary small text-nowrap';
+                const lbl = document.createElement('span');
+                lbl.className = 'text-secondary small text-nowrap';
                 lbl.textContent = entry.name + ':';
-                const inp   = document.createElement('input');
-                inp.type    = 'number';
-                inp.className   = 'combo-row-input combo-row-boost-slider';
+                const inp = document.createElement('input');
+                inp.type = 'number';
+                inp.className = 'combo-row-input combo-row-boost-slider';
                 inp.style.cssText = 'width:4em; text-align:center;';
                 inp.dataset.boostName = entry.name;
-                inp.min     = '0';
-                inp.max     = String(entry.max ?? 100);
-                inp.step    = String(entry.step ?? 1);
-                inp.value   = old_slider.get(entry.name) ?? '0';
+                inp.min = '0';
+                inp.max = String(entry.max ?? 100);
+                inp.step = String(entry.step ?? 1);
+                inp.value = old_slider.get(entry.name) ?? '0';
                 const max_lbl = document.createElement('span');
-                max_lbl.className   = 'text-secondary small';
+                max_lbl.className = 'text-secondary small';
                 max_lbl.textContent = '/' + (entry.max ?? 100);
                 inp.addEventListener('input', () => {
                     _update_boost_btn_highlight(row);
@@ -389,10 +389,10 @@ class SolverComboTotalNode extends ComputeNode {
 
     /** Update the mana display below the combo total. */
     _update_mana_display(base_stats, mana_cost, spell_costs = [], has_transcendence = false, melee_hits = 0) {
-        const mana_row     = document.getElementById('combo-mana-row');
-        const mana_elem    = document.getElementById('combo-mana-display');
+        const mana_row = document.getElementById('combo-mana-row');
+        const mana_elem = document.getElementById('combo-mana-display');
         const mana_tooltip = document.getElementById('combo-mana-tooltip');
-        const time_inp     = document.getElementById('combo-time');
+        const time_inp = document.getElementById('combo-time');
         const downtime_btn = document.getElementById('combo-downtime-btn');
         if (!mana_elem) return;
 
@@ -405,11 +405,11 @@ class SolverComboTotalNode extends ComputeNode {
 
         const combo_time = parseFloat(time_str) || 0;
         const allow_down = downtime_btn?.classList.contains('toggleOn') ?? false;
-        const mr         = base_stats.get('mr') ?? 0;
-        const ms         = base_stats.get('ms') ?? 0;
+        const mr = base_stats.get('mr') ?? 0;
+        const ms = base_stats.get('ms') ?? 0;
         // Mana pool: 100 base + item maxMana bonus + int scaling (same mult=1 as str/dex, up to +80 at 150 int).
-        const item_mana  = base_stats.get('maxMana') ?? 0;
-        const int_mana   = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
+        const item_mana = base_stats.get('maxMana') ?? 0;
+        const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
         const start_mana = 100 + item_mana + int_mana;
         // mr is per 5 seconds; divide by 5 to get per-second rate.
         const mana_regen = (mr / 5) * combo_time;
@@ -417,12 +417,12 @@ class SolverComboTotalNode extends ComputeNode {
         let mana_steal = 0;
         if (ms && melee_hits > 0) {
             let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
-                          + (base_stats.get('atkTier') ?? 0);
+                + (base_stats.get('atkTier') ?? 0);
             adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
             mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
         }
-        const end_mana   = start_mana - mana_cost + mana_regen + mana_steal;
-        const deficit    = start_mana - end_mana; // positive = net loss per combo
+        const end_mana = start_mana - mana_cost + mana_regen + mana_steal;
+        const deficit = start_mana - end_mana; // positive = net loss per combo
 
         let text = `Mana: ${Math.round(end_mana)}/${start_mana}`;
         if (!allow_down && deficit > 5) {
@@ -460,7 +460,7 @@ class SolverComboTotalNode extends ComputeNode {
             let start_str = '100';
             if (item_mana || int_mana) {
                 if (item_mana) start_str += ` + ${item_mana} item`;
-                if (int_mana)  start_str += ` + ${int_mana} int`;
+                if (int_mana) start_str += ` + ${int_mana} int`;
                 start_str += ` = ${start_mana}`;
             }
             let cost_str = fmt(-mana_cost);
@@ -487,12 +487,12 @@ class SolverComboTotalNode extends ComputeNode {
 let solver_combo_total_node = null;
 
 // Module-level refs for use by reset / future phases
-let solver_equip_input_nodes   = [];  // ItemInputNode (pre-powder) for each equipment slot
-let solver_item_final_nodes    = [];  // ItemPowderingNode (or ItemInputNode for accessories/tomes)
-let solver_build_node          = null;
-let solver_aspect_input_nodes  = [];  // AspectInputNode instances (Phase 3)
-let solver_powder_nodes        = {};  // eq → PowderInputNode (helmet/chest/legs/boots/weapon)
-let _solver_aspect_agg_node    = null; // set by solver_graph_init; used by solver_compute_result_hash
+let solver_equip_input_nodes = [];  // ItemInputNode (pre-powder) for each equipment slot
+let solver_item_final_nodes = [];  // ItemPowderingNode (or ItemInputNode for accessories/tomes)
+let solver_build_node = null;
+let solver_aspect_input_nodes = [];  // AspectInputNode instances (Phase 3)
+let solver_powder_nodes = {};  // eq → PowderInputNode (helmet/chest/legs/boots/weapon)
+let _solver_aspect_agg_node = null; // set by solver_graph_init; used by solver_compute_result_hash
 
 /**
  * Compute the build hash (B64 string) for a top-N solver result, substituting the
@@ -503,11 +503,11 @@ let _solver_aspect_agg_node    = null; // set by solver_graph_init; used by solv
 function solver_compute_result_hash(result) {
     try {
         const mock_build = {
-            equipment:        result.items.slice(0, 8),
-            weapon:           solver_item_final_nodes[8]?.value,
-            tomes:            solver_item_final_nodes.slice(9).map((n, i) => n?.value ?? none_tomes[_NONE_TOME_KEY[tome_fields[i]]]),
+            equipment: result.items.slice(0, 8),
+            weapon: solver_item_final_nodes[8]?.value,
+            tomes: solver_item_final_nodes.slice(9).map((n, i) => n?.value ?? none_tomes[_NONE_TOME_KEY[tome_fields[i]]]),
             total_skillpoints: result.total_sp,
-            level:            parseInt(document.getElementById('level-choice')?.value) || MAX_PLAYER_LEVEL,
+            level: parseInt(document.getElementById('level-choice')?.value) || MAX_PLAYER_LEVEL,
         };
         if (!mock_build.weapon) return null;
         const powderable = ['helmet', 'chestplate', 'leggings', 'boots', 'weapon'];
