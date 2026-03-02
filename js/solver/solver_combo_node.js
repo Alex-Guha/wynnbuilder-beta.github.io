@@ -464,7 +464,7 @@ class SolverComboTotalNode extends ComputeNode {
                 start_str += ` = ${start_mana}`;
             }
             let cost_str = fmt(-mana_cost);
-            if (has_transcendence) cost_str += ' (\u00d70.70 Transcendence)';
+            if (has_transcendence) cost_str += ' (\u00d70.75 Transcendence)';
             html +=
                 `<div>Starting mana: ${start_str}</div>` +
                 `<div>Spell costs: ${cost_str}</div>` +
