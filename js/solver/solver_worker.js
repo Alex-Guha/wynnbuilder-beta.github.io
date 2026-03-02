@@ -191,23 +191,36 @@ function _eval_combo_mana_check(combo_base) {
     const combo_time = _cfg.combo_time ?? 0;
     if (!combo_time) return true;
 
-    const wep_sm = _cfg.weapon_sm;
     let mana_cost = 0;
+    let melee_hits = 0;
     for (const { qty, spell, mana_excl } of _cfg.parsed_combo) {
         if (mana_excl) continue;
+        if (spell?.scaling === 'melee') melee_hits += qty;
         if (spell.cost == null) continue;
         mana_cost += getSpellCost(combo_base, spell) * qty;
     }
 
+    // XXX Hardcoded MajorID
     // Transcendence (ARCANES): 30% chance no mana cost → ×0.70 expected value
-    if ((wep_sm.get('majorIds') ?? []).includes('ARCANES')) mana_cost *= 0.70;
+    if (combo_base.get('activeMajorIDs')?.has('ARCANES')) mana_cost *= 0.70;
 
     const mr         = combo_base.get('mr') ?? 0;
+    const ms         = combo_base.get('ms') ?? 0;
     const item_mana  = combo_base.get('maxMana') ?? 0;
     const int_mana   = Math.floor(skillPointsToPercentage(combo_base.get('int') ?? 0) * 100);
     const start_mana = 100 + item_mana + int_mana;
     const mana_regen = (mr / 5) * combo_time;
-    const end_mana   = start_mana - mana_cost + mana_regen;
+
+    // Mana steal: each melee-scaling hit restores ms/3/atkSpdMult mana.
+    let mana_steal = 0;
+    if (ms && melee_hits > 0) {
+        let adjAtkSpd = attackSpeeds.indexOf(combo_base.get('atkSpd'))
+                      + (combo_base.get('atkTier') ?? 0);
+        adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+        mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
+    }
+
+    const end_mana = start_mana - mana_cost + mana_regen + mana_steal;
 
     if (_cfg.allow_downtime) {
         return end_mana > 0;

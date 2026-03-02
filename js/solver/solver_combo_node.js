@@ -48,6 +48,7 @@ class SolverComboTotalNode extends ComputeNode {
         let total      = 0;
         let total_heal = 0;
         let mana_cost  = 0;
+        let melee_hits = 0;
         const spell_costs = []; // [{name, qty, cost_per_cast}] for tooltip breakdown
         for (const { qty, spell, boost_tokens, dom_row } of rows) {
             const dmg_wrap  = dom_row?.querySelector('.combo-row-damage-wrap');
@@ -97,6 +98,7 @@ class SolverComboTotalNode extends ComputeNode {
             // Skip if the row's mana toggle is excluded.
             const mana_excluded = dom_row?.querySelector('.combo-mana-toggle')
                                          ?.classList.contains('mana-excluded') ?? false;
+            if (!mana_excluded && spell.scaling === 'melee') melee_hits += qty;
             if (spell.cost != null && !mana_excluded) {
                 const cost_per = getSpellCost(base_stats, spell);
                 mana_cost += cost_per * qty;
@@ -138,12 +140,13 @@ class SolverComboTotalNode extends ComputeNode {
 
         if (total_elem) total_elem.textContent = Math.round(total).toLocaleString();
 
+        // XXX Hardcoded MajorID
         // Transcendence (ARCANES major ID): 30% chance spell costs no mana → ×0.70 for expected value.
-        const has_transcendence = (weapon.get('majorIds') ?? []).includes('ARCANES');
+        const has_transcendence = build.statMap.get('activeMajorIDs')?.has('ARCANES') ?? false;
         if (has_transcendence) mana_cost *= 0.70;
 
         // Mana display.
-        this._update_mana_display(base_stats, mana_cost, spell_costs, has_transcendence);
+        this._update_mana_display(base_stats, mana_cost, spell_costs, has_transcendence, melee_hits);
 
         // Schedule a hash update; combo data is encoded into the URL hash.
         _schedule_solver_hash_update();
@@ -385,7 +388,7 @@ class SolverComboTotalNode extends ComputeNode {
     }
 
     /** Update the mana display below the combo total. */
-    _update_mana_display(base_stats, mana_cost, spell_costs = [], has_transcendence = false) {
+    _update_mana_display(base_stats, mana_cost, spell_costs = [], has_transcendence = false, melee_hits = 0) {
         const mana_row     = document.getElementById('combo-mana-row');
         const mana_elem    = document.getElementById('combo-mana-display');
         const mana_tooltip = document.getElementById('combo-mana-tooltip');
@@ -403,13 +406,22 @@ class SolverComboTotalNode extends ComputeNode {
         const combo_time = parseFloat(time_str) || 0;
         const allow_down = downtime_btn?.classList.contains('toggleOn') ?? false;
         const mr         = base_stats.get('mr') ?? 0;
+        const ms         = base_stats.get('ms') ?? 0;
         // Mana pool: 100 base + item maxMana bonus + int scaling (same mult=1 as str/dex, up to +80 at 150 int).
         const item_mana  = base_stats.get('maxMana') ?? 0;
         const int_mana   = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
         const start_mana = 100 + item_mana + int_mana;
         // mr is per 5 seconds; divide by 5 to get per-second rate.
         const mana_regen = (mr / 5) * combo_time;
-        const end_mana   = start_mana - mana_cost + mana_regen;
+        // Mana steal: each melee-scaling hit restores ms/3/atkSpdMult mana.
+        let mana_steal = 0;
+        if (ms && melee_hits > 0) {
+            let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
+                          + (base_stats.get('atkTier') ?? 0);
+            adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+            mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
+        }
+        const end_mana   = start_mana - mana_cost + mana_regen + mana_steal;
         const deficit    = start_mana - end_mana; // positive = net loss per combo
 
         let text = `Mana: ${Math.round(end_mana)}/${start_mana}`;
@@ -456,7 +468,15 @@ class SolverComboTotalNode extends ComputeNode {
             html +=
                 `<div>Starting mana: ${start_str}</div>` +
                 `<div>Spell costs: ${cost_str}</div>` +
-                `<div>Regen \u00d7${combo_time}s: ${fmt(mana_regen)} (${mr}/5s)</div>` +
+                `<div>Regen \u00d7${combo_time}s: ${fmt(mana_regen)} (${mr}/5s)</div>`;
+            if (mana_steal > 0) {
+                const mana_per_hit = ms / 3 / baseDamageMultiplier[
+                    Math.max(0, Math.min(6,
+                        attackSpeeds.indexOf(base_stats.get('atkSpd'))
+                        + (base_stats.get('atkTier') ?? 0)))];
+                html += `<div>Mana steal \u00d7${melee_hits} hits: ${fmt(mana_steal)} (${Math.round(mana_per_hit * 10) / 10}/hit)</div>`;
+            }
+            html +=
                 `<hr class="my-1 border-secondary">` +
                 `<div>Ending mana: ${Math.round(end_mana)} / ${start_mana}</div>`;
             mana_tooltip.innerHTML = html;
