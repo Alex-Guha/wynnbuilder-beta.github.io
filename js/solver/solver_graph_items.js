@@ -11,7 +11,7 @@ class ItemInputNode extends BaseItemInputNode {
     _on_match(item) {
         // Apply roll mode: Build.initBuildStats() always reads maxRolls, so we
         // replace maxRolls with getRolledValue(min, max) for each rolled stat.
-        if (current_roll_mode !== ROLL_MODES.MAX) {
+        if (current_roll_mode < 100) {
             const minR = item.statMap.get('minRolls');
             const maxR = item.statMap.get('maxRolls');
             if (minR && maxR) {

@@ -651,9 +651,8 @@ async function decodeSolverParams(b64_str) {
         const bv = new BitVector(b64_str, b64_str.length * 6);
         const cursor = new BitVectorCursor(bv, 0);
 
-        // Fixed fields (43 bits)
-        const roll_vals = ['max', '75pct', 'avg', 'min'];
-        const roll = roll_vals[cursor.advanceBy(2)] || 'max';
+        // Fixed fields (48 bits)
+        const roll = cursor.advanceBy(7);  // 0-100 percentage
         const sfree = cursor.advanceBy(8);
         const dir_enabled = cursor.advanceBy(5);
         const lvl_min = cursor.advanceBy(7) + 1;

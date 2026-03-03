@@ -141,7 +141,13 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     });
 
-    row.append(rm_btn, qty_inp, spell_sel, boost_wrap, mana_btn, dmg_btn, dmg_wrap);
+    // Wrap toggles + damage in a group so they always move to line 2 together
+    // when the row wraps, instead of splitting across lines.
+    const toggles_wrap = document.createElement('div');
+    toggles_wrap.className = 'combo-row-toggles-wrap';
+    toggles_wrap.append(mana_btn, dmg_btn, dmg_wrap);
+
+    row.append(rm_btn, qty_inp, spell_sel, boost_wrap, toggles_wrap);
     return row;
 }
 
@@ -172,7 +178,7 @@ function combo_toggle_boost_popup(btn) {
         // Try to span the full combo column using fixed positioning.
         // Use right-anchor so the popup never extends past the column's right edge.
         const btn_rect  = btn.getBoundingClientRect();
-        const combo_col = btn.closest('.col-xl-4');
+        const combo_col = btn.closest('.solver-combo-column');
         if (combo_col) {
             const col_rect = combo_col.getBoundingClientRect();
             const vw = document.documentElement.clientWidth;
@@ -185,6 +191,21 @@ function combo_toggle_boost_popup(btn) {
         popup.style.display = 'block';
     }
 }
+
+// Close boost popups when clicking outside (needed for mobile bottom-sheet UX).
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.boost-popup') || e.target.closest('.combo-boost-menu-btn')) return;
+    document.querySelectorAll('.boost-popup').forEach(p => {
+        if (p.style.display === 'none') return;
+        p.style.display  = 'none';
+        p.style.position = '';
+        p.style.top      = '';
+        p.style.right    = '';
+        p.style.left     = '';
+        p.style.width    = '';
+        p.style.maxWidth = '';
+    });
+});
 
 function combo_remove_row(btn) {
     btn.closest('.combo-row')?.remove();

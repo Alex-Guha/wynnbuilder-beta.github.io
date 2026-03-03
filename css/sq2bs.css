@@ -178,6 +178,7 @@ input.aspect-input:not(.is-invalid) {
 .skp-tooltip {
     font-size: 2.1875rem;
     font-weight: bold;
+    white-space: nowrap;
 }
 
 .spellcost-tooltip b {

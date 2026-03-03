@@ -59,12 +59,13 @@ function copy_solver_url() {
 // ── Roll mode selection ───────────────────────────────────────────────────────
 
 /**
- * Sets the active roll mode and syncs the dropdown UI.
+ * Sets the active roll percentage (0-100) and syncs the input UI.
  */
-function setRollMode(mode) {
-    current_roll_mode = mode;
-    const sel = document.getElementById('roll-mode-select');
-    if (sel) sel.value = mode;
+function setRollMode(pct) {
+    pct = Math.max(0, Math.min(100, parseInt(pct) || 0));
+    current_roll_mode = pct;
+    const inp = document.getElementById('roll-mode-input');
+    if (inp && document.activeElement !== inp) inp.value = pct + '%';
 
     // Re-evaluate all item nodes so Build picks up the new rolled values.
     if (typeof solver_equip_input_nodes !== 'undefined') {
@@ -204,7 +205,7 @@ function resetSolverFields() {
     if (downtime_btn) downtime_btn.classList.remove('toggleOn');
 
     setValue("level-choice", String(MAX_PLAYER_LEVEL));
-    setRollMode(ROLL_MODES.MAX);
+    setRollMode(ROLL_DEFAULT);
 
     // Re-propagate graph to clear displays
     if (solver_equip_input_nodes.length) {
@@ -280,11 +281,11 @@ async function init() {
     }
 
     if (solver_params) {
-        // Roll mode
-        if (solver_params.roll && Object.values(ROLL_MODES).includes(solver_params.roll)) {
+        // Roll percentage
+        if (solver_params.roll !== undefined && solver_params.roll >= 0 && solver_params.roll <= 100) {
             current_roll_mode = solver_params.roll;
-            const sel = document.getElementById('roll-mode-select');
-            if (sel) sel.value = solver_params.roll;
+            const inp = document.getElementById('roll-mode-input');
+            if (inp) inp.value = solver_params.roll + '%';
         }
 
         // Build direction: disable any SP types not set in the bitmask

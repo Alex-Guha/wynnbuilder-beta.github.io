@@ -93,18 +93,20 @@
 
         <!-- Beta banner -->
         <div id="beta-banner" class="mx-2 mx-lg-3 mt-3 px-3 py-2 rounded"
-             style="background-color: #a35b00; border: 1px solid #cc7700; text-align: center; position: relative;">
+            style="background-color: #a35b00; border: 1px solid #cc7700; text-align: center; position: relative;">
             <button onclick="document.getElementById('beta-banner').style.display='none'"
-                    style="position: absolute; top: 4px; right: 10px; background: none; border: none; color: #fff; font-size: 1.1rem; cursor: pointer; line-height: 1;"
-                    title="Dismiss">&times;</button>
+                style="position: absolute; top: 4px; right: 10px; background: none; border: none; color: #fff; font-size: 1.1rem; cursor: pointer; line-height: 1;"
+                title="Dismiss">&times;</button>
             <strong style="font-size: 1.05rem;">Beta Testing</strong><br>
             <span style="font-size: 0.9rem;">
                 This page is under active development. The combo section may contain bugs for some class archetypes.<br>
                 The solver works best when you lock in some items and narrow the search &mdash; trying to solve all
-                slots at once is not feasible. Up to ~6 unlocked slots is practical with higher worker counts
-                and constraints.<br>
+                slots at once is not feasible.<br>
+                Up to ~6 unlocked slots is possible with higher worker counts and constraints, but it is generally
+                recommended to limit them to 4 at a time.<br>
                 Please report issues and provide feedback in the
-                <a href="https://discord.gg/CGavnAnerv" target="_blank" style="color: #ffe0a0; text-decoration: underline;">WynnBuilder Discord</a>.
+                <a href="https://discord.gg/CGavnAnerv" target="_blank"
+                    style="color: #ffe0a0; text-decoration: underline;">WynnBuilder Discord</a>.
             </span>
         </div>
 
@@ -114,7 +116,8 @@
             <div class="col-xl-5">
 
                 <!-- Mobile tab selector (hidden on lg+) -->
-                <div class="row my-2 dark-6 rounded text-center g-0 px-3 d-flex d-lg-none">
+                <div class="row my-2 dark-6 rounded text-center g-0 px-3 d-flex d-lg-none"
+                    id="solver-mobile-tab-selector">
                     <div class="col">
                         <p class="fake-button scaled-font mb-0 selected-btn" id="equipment-inputs-btn"
                             onclick='show_tab("equipment-inputs", ["equipment-inputs", "adjust-id"])'>Items</p>
@@ -420,42 +423,31 @@
                             </div>
                         </div>
 
-                        <!-- LEVEL / ROLL / RESET / COPY (right col, bottom — four columns) -->
+                        <!-- LEVEL / ROLL / RESET + action buttons -->
                         <div class="col order-xl-0 order-1">
                             <div class="row h-100 px-2 align-items-center">
-                                <div class="col">
-                                    <div class="row align-items-stretch g-1">
-                                        <!-- Level -->
-                                        <div class="col">
-                                            <div class="fw-bold scaled-font" style="font-size: 0.8em;">Level</div>
-                                            <input class="equipment-input text-light form-control form-control-sm"
-                                                id="level-choice" name="level-choice" value="121" placeholder="Level">
-                                        </div>
-                                        <!-- Roll -->
-                                        <div class="col">
-                                            <div class="fw-bold scaled-font" style="font-size: 0.8em;">Roll</div>
-                                            <select class="solver-select form-select form-select-sm scaled-font"
-                                                id="roll-mode-select" onchange="setRollMode(this.value)">
-                                                <option value="max" selected>Maximum</option>
-                                                <option value="75pct">75%</option>
-                                                <option value="avg">Average</option>
-                                                <option value="min">Minimum</option>
-                                            </select>
-                                        </div>
-                                        <!-- Reset -->
-                                        <!-- <div class="col-auto d-flex flex-column justify-content-end">
-                                            <button class="button py-0 fw-bold text-light dark-5 scaled-font rounded"
-                                                onclick="resetSolverFields()">Reset</button>
-                                        </div> -->
-                                        <!-- Copy URL + Export to Builder -->
-                                        <div class="col-auto d-flex flex-column gap-1">
-                                            <button class="button py-0 fw-bold text-light dark-5 scaled-font rounded"
-                                                id="copy-solver-url-btn" title="Copy WynnSolver URL to clipboard"
-                                                onclick="copy_solver_url()">Copy URL</button>
-                                            <button class="button py-0 fw-bold text-light dark-5 scaled-font rounded"
-                                                id="copy-to-builder-btn" title="Export build to WynnBuilder">Export to
-                                                Builder</button>
-                                        </div>
+                                <div class="col solver-lrg-wrap">
+                                    <div class="solver-level-roll-grid">
+                                        <!-- Row 1: Level + Copy URL -->
+                                        <div class="fw-bold scaled-font solver-lrg-label">Level</div>
+                                        <input class="equipment-input text-light form-control form-control-sm"
+                                            id="level-choice" name="level-choice" value="121" placeholder="Level">
+                                        <button class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
+                                            id="copy-solver-url-btn" title="Copy WynnSolver URL to clipboard"
+                                            onclick="copy_solver_url()">Copy URL</button>
+                                        <!-- Reset spans rows 1-2 -->
+                                        <button class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-reset-btn"
+                                            onclick="resetSolverFields()">Reset</button>
+                                        <!-- Row 2: Roll + Export -->
+                                        <div class="fw-bold scaled-font solver-lrg-label">Roll</div>
+                                        <input type="text" class="equipment-input text-light form-control form-control-sm"
+                                            id="roll-mode-input" value="85%"
+                                            onfocus="this.value=this.value.replace('%','')"
+                                            onblur="setRollMode(this.value)"
+                                            onkeydown="if(event.key==='Enter')this.blur()">
+                                        <button class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
+                                            id="copy-to-builder-btn" title="Export build to WynnBuilder">Export to
+                                            Builder</button>
                                     </div>
                                 </div>
                             </div>
@@ -1105,7 +1097,7 @@
             </div><!-- /.col-xl-3 (middle) -->
 
             <!-- ═══════ RIGHT COLUMN: Active Boosts + Combo + Restrictions ══════════ -->
-            <div class="col-xl-4 mb-3 order-2 order-lg-0">
+            <div class="col-xl-4 mb-3 order-2 order-lg-0 solver-combo-column">
 
                 <!-- ─── Active boosts ─── -->
                 <div class="mb-2 text-center scaled-font dark-5 rounded dark-shadow">
@@ -1154,7 +1146,7 @@
 
                     <!-- ── Combo total + time/mana ── -->
                     <div class="px-2 pb-2 border-top border-dark-7">
-                        <div class="d-flex align-items-center gap-2 mt-2">
+                        <div class="d-flex align-items-center gap-2 mt-2 combo-total-row">
                             <span class="fw-bold">Combo Total:</span>
                             <span class="Damage fw-bold" id="combo-total-avg">—</span>
                             <span class="text-secondary small">(avg)</span>

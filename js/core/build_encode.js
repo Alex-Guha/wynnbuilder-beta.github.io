@@ -544,7 +544,7 @@ const SOLVER_HASH_SEP = '_';
  * Encode solver-specific parameters into a Base64 string for the URL hash.
  *
  * Binary layout (EncodingBitVector):
- *   [2]  roll mode: 0=max, 1=75pct, 2=avg, 3=min
+ *   [7]  roll percentage (0-100)
  *   [8]  sfree mask (solver-free equipment slots)
  *   [5]  dir_enabled bitmask (bit0=str, bit1=dex, ..., bit4=agi; 1=enabled)
  *   [7]  lvl_min - 1 (0-105, stored offset by 1)
@@ -553,14 +553,14 @@ const SOLVER_HASH_SEP = '_';
  *   [2]  gtome (0=off, 1=standard, 2=rare)
  *   [1]  dtime (allow downtime)
  *   [10] ctime (combo time in seconds, 0-1023)
- *   --- 43 bits fixed ---
+ *   --- 48 bits fixed ---
  *   [12] restrictions_byte_length (0 = no restrictions)
  *   [N*8] restrictions UTF-8 bytes ("stat:op:value|..." text)
  *   [16] combo_compressed_byte_length (0 = no combo)
  *   [N*8] combo deflate-raw compressed bytes
  *
  * @param {Object} params
- * @param {string} params.roll - Roll mode ('max', '75pct', 'avg', 'min')
+ * @param {number} params.roll - Roll percentage (0-100)
  * @param {number} params.sfree - Bitmask of solver-free slots (8 bits)
  * @param {number} params.dir_enabled - Bitmask of enabled SP directions (5 bits)
  * @param {number} params.lvl_min - Minimum item level (1-106)
@@ -576,9 +576,8 @@ const SOLVER_HASH_SEP = '_';
 async function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
 
-    // Roll mode: 2 bits
-    const roll_map = { 'max': 0, '75pct': 1, 'avg': 2, 'min': 3 };
-    bv.append(roll_map[params.roll] ?? 0, 2);
+    // Roll percentage: 7 bits (0-100)
+    bv.append(Math.max(0, Math.min(100, params.roll || 0)), 7);
 
     // sfree mask: 8 bits
     bv.append(params.sfree & 0xFF, 8);

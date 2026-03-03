@@ -13,22 +13,16 @@ const UNLOCK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="curren
 // ── Solver-specific constants ────────────────────────────────────────────────
 
 /**
- * Roll modes control which value in the rolled ID range is used when evaluating
- * items during the solve. The existing expandItem() gives minRolls/maxRolls.
- *
- *   MAX  → use maxRolls  (matches WynnBuilder default)
- *   PCT75 → minRolls + 0.75 * (maxRolls - minRolls)
- *   AVG  → (minRolls + maxRolls) / 2
- *   MIN  → use minRolls
+ * Roll percentage (0-100) controlling which value in the rolled ID range is
+ * used when evaluating items during the solve.
+ *   100 → use maxRolls  (matches WynnBuilder default)
+ *    85 → minRolls + 0.85 * (maxRolls - minRolls) (solver default)
+ *    50 → (minRolls + maxRolls) / 2
+ *     0 → use minRolls
  */
-const ROLL_MODES = Object.freeze({
-    MAX:   "max",
-    PCT75: "75pct",
-    AVG:   "avg",
-    MIN:   "min",
-});
+const ROLL_DEFAULT = 85;
 
-let current_roll_mode = ROLL_MODES.MAX;
+let current_roll_mode = ROLL_DEFAULT;
 
 /**
  * Stats available for use in restriction threshold rows.
@@ -133,17 +127,13 @@ const RESTRICTION_STATS = [
 ];
 
 /**
- * Returns the effective rolled value for a stat given the current roll mode.
+ * Returns the effective rolled value for a stat given the current roll percentage.
  * @param {number} minVal
  * @param {number} maxVal
  * @returns {number}
  */
 function getRolledValue(minVal, maxVal) {
-    switch (current_roll_mode) {
-        case ROLL_MODES.MAX:   return maxVal;
-        case ROLL_MODES.PCT75: return Math.round(minVal + 0.75 * (maxVal - minVal));
-        case ROLL_MODES.AVG:   return Math.round((minVal + maxVal) / 2);
-        case ROLL_MODES.MIN:   return minVal;
-        default:               return maxVal;
-    }
+    if (current_roll_mode >= 100) return maxVal;
+    if (current_roll_mode <= 0) return minVal;
+    return Math.round(minVal + (current_roll_mode / 100) * (maxVal - minVal));
 }

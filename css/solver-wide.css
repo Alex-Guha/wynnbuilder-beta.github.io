@@ -75,6 +75,7 @@
  */
 .combo-row {
     min-width: 0;
+    flex-wrap: wrap;
 }
 
 /*
@@ -82,8 +83,8 @@
  * min-width keeps it readable when the panel is narrow.
  */
 .combo-row-spell {
-    flex: 1 1 0;
-    min-width: 4em;
+    flex: 999 1 0;
+    min-width: 8em;
 }
 
 /* Boosts wrapper and button stay at natural (content) width. */
@@ -189,9 +190,12 @@ select.solver-select:focus {
     padding-bottom: 4px;
 }
 
-/* Push page content up so fixed footer doesn't overlap */
+/* Push page content up so fixed footer doesn't overlap.
+ * min-width prevents the layout from squishing below 400px — users scroll
+ * horizontally instead of the app trying to scale into an unusable state. */
 body {
     padding-bottom: 40px;
+    min-width: 400px;
 }
 
 /* ── Item slot lock toggle ──────────────────────────────────────────────── */
@@ -358,20 +362,97 @@ body {
     }
 }
 
-/* ── Roll-mode select sizing ─────────────────────────────────────────────────── */
-
+/* ── Level / Roll / Reset + action buttons grid ──────────────────────────────── */
 /*
- * Bootstrap form-select-sm and form-control-sm should be the same height by
- * default, but some browser UA styles make the select a pixel or two taller.
- * Force the computed inner height to match the text input so the two fields
- * sit flush next to each other.
+ * Container-query driven layout with explicit grid-template-areas for
+ * reliable placement.  Three tiers:
+ *
+ * Narrow (default, <240px): 3-col, 4-row — reset spans rows 1-2, buttons below.
+ *   Row 1: [Level] [input] [Reset]
+ *   Row 2: [Roll]  [input] [Reset]
+ *   Row 3: [Copy URL ────────────]
+ *   Row 4: [Export to Builder ───]
+ *
+ * Medium (≥240px, also mobile/tablet): 3-col, 3-row — buttons inline, reset below.
+ *   Row 1: [Level] [input] [Copy URL]
+ *   Row 2: [Roll]  [input] [Export to Builder]
+ *   Row 3: [Reset ──────────────────────────]
+ *
+ * Wide (≥295px, desktop XL only): 4-col, 2-row — everything inline.
+ *   Row 1: [Level] [input] [Copy URL]         [Reset]
+ *   Row 2: [Roll]  [input] [Export to Builder] [Reset]
  */
-#roll-mode-select.form-select-sm {
-    line-height: 1.5;
-    padding-top: 0.25rem;
-    padding-bottom: 0.25rem;
-    /* Force same computed height as form-control-sm (1.5em + 0.5rem + 2px border) */
-    height: calc(1.5em + 0.5rem + 2px);
+
+.solver-lrg-wrap {
+    container-type: inline-size;
+}
+
+/* Assign grid areas to each child by DOM position */
+.solver-level-roll-grid > :nth-child(1) { grid-area: lvl-lbl; }
+.solver-level-roll-grid > :nth-child(2) { grid-area: lvl-in; }
+.solver-level-roll-grid > :nth-child(3) { grid-area: copy; }
+.solver-level-roll-grid > :nth-child(4) { grid-area: reset; }
+.solver-level-roll-grid > :nth-child(5) { grid-area: roll-lbl; }
+.solver-level-roll-grid > :nth-child(6) { grid-area: roll-in; }
+.solver-level-roll-grid > :nth-child(7) { grid-area: export; }
+
+/* Default: narrowest — 3-column, 4-row */
+.solver-level-roll-grid {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+        "lvl-lbl  lvl-in  reset"
+        "roll-lbl roll-in reset"
+        "copy     copy    copy"
+        "export   export  export";
+    gap: 0.25rem 0.5rem;
+    align-items: center;
+}
+
+.solver-lrg-label {
+    font-size: 0.8em;
+    white-space: nowrap;
+}
+
+#level-choice,
+#roll-mode-input {
+    min-width: 3em;
+}
+
+.solver-reset-btn {
+    align-self: stretch;
+    white-space: nowrap;
+}
+
+.solver-action-btn {
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Medium: buttons inline, reset drops to full-width row below (3 rows) */
+@container (min-width: 240px) {
+    .solver-level-roll-grid {
+        grid-template-columns: auto 1fr max-content;
+        grid-template-areas:
+            "lvl-lbl  lvl-in  copy"
+            "roll-lbl roll-in export"
+            "reset    reset   reset";
+    }
+    .solver-action-btn {
+        text-align: center;
+    }
+}
+
+/* Wide: everything inline — desktop XL only (mobile/tablet stay at medium) */
+@container (min-width: 295px) {
+    @media (min-width: 1200px) {
+        .solver-level-roll-grid {
+            grid-template-columns: auto 1fr max-content auto;
+            grid-template-areas:
+                "lvl-lbl  lvl-in  copy   reset"
+                "roll-lbl roll-in export reset";
+        }
+    }
 }
 
 /* ── Ability-tree active list scroll ─────────────────────────────────────────── */
@@ -485,6 +566,31 @@ body {
     cursor: default;
 }
 
+/*
+ * Wrapper around mana toggle, damage toggle, and damage display.
+ * Keeps these three elements together as a single flex item so they always
+ * wrap to line 2 as a group instead of splitting across lines.
+ */
+.combo-row-toggles-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    flex-grow: 1;
+}
+
+.combo-row-toggles-wrap .combo-row-damage-wrap {
+    margin-left: auto;
+}
+
+/*
+ * Combo total row: always allow wrapping so the Time/Downtime section can
+ * drop to line 2 when the panel is narrow — not only at ≤576px.
+ */
+.combo-total-row {
+    flex-wrap: wrap;
+}
+
 /* ── Combo row drag-and-drop ─────────────────────────────────────────────────── */
 
 .combo-row[draggable="true"] {
@@ -552,4 +658,227 @@ body {
 .solver-result-newtab:hover {
     opacity: 1;
     color: #9ec5fe;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * Mobile / narrow viewport support
+ *
+ * Breakpoints:  576px (phone)  |  768px (tablet)
+ * Bootstrap already stacks the 3-column layout below 1200px (xl breakpoint).
+ * These rules fix individual components that overflow on narrow screens.
+ * All rules use plain CSS — no Bootstrap utility classes added.
+ *
+ * NOTE: sq2bs.css scales fonts/icons down for landscape-and-<1200px and for
+ * >=1200px, but portrait phones (<1200px, portrait) get the giant 2.5rem
+ * defaults (the builder works around this via viewport initial-scale=.45).
+ * Since the solver uses initial-scale=1 for proper mobile support, we must
+ * apply the scale-down ourselves for narrow portrait viewports.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Portrait phone/tablet: scale down fonts and icons ─────────────────────── */
+/*
+ * Mirrors the values from sq2bs.css's landscape-and-<1200px media query.
+ * Uses max-width:1199px + portrait to catch exactly the gap sq2bs.css misses.
+ */
+
+@media screen and (orientation: portrait) and (max-width: 1199px) {
+    :root {
+        --scaled-fontsize: max(1rem, 16px);
+    }
+
+    .scaled-font {
+        font-size: max(1rem, 16px);
+    }
+
+    .box-title {
+        font-size: 1rem;
+    }
+
+    .item-title {
+        font-size: 1.2rem;
+    }
+
+    .big-title {
+        font-size: 1.5rem;
+    }
+
+    .skp-tooltip {
+        font-size: 1rem;
+    }
+
+    .spellcost-tooltip b {
+        font-size: .625rem !important;
+    }
+
+    .scaled-item-icon {
+        width: 3.2rem;
+    }
+
+    .scaled-item-icon img {
+        width: 2.8rem;
+    }
+
+    .scaled-bckgrd {
+        width: 4rem;
+        height: 4rem;
+    }
+
+    .scaled-bckgrd img {
+        width: 2.8rem;
+    }
+
+    .warning {
+        font-size: .7rem;
+    }
+
+    .spell-display b {
+        font-size: 1rem;
+    }
+}
+
+/* ── Remove Items/AT tab switcher ──────────────────────────────────────────── */
+/*
+ * On the solver, the ability tree lives in a tabbed panel (Tomes/AT/Aspects)
+ * that is always visible below the item grid.  The builder's mobile tab
+ * switcher that toggles between Items and AT sections is not needed.
+ */
+
+#solver-mobile-tab-selector {
+    display: none !important;
+}
+
+/* ── Stacked layout: weapon ordering ───────────────────────────────────────── */
+/*
+ * Below the xl breakpoint Bootstrap stacks the equipment grid into one column.
+ * The interleaved order-0/order-1 groups armor first, then accessories.
+ * Push the weapon row after accessories, with level/roll controls last.
+ */
+
+@media (max-width: 1199px) {
+    .col:has(#weapon-dropdown) {
+        order: 2 !important;
+    }
+    .col:has(#level-choice) {
+        order: 3 !important;
+    }
+
+    /* Ring1 has my-0 (needed on xl to avoid extra top margin on the first row).
+     * On stacked layout ring1 follows boots, so restore its gutter margin. */
+    .col:has(#ring1-dropdown) {
+        margin-top: var(--bs-gutter-y) !important;
+    }
+
+}
+
+/* ── Tablet: atree touch scroll ────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    #atree-ui {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;  /* prevent back-nav gesture hijack */
+    }
+}
+
+/* ── Restriction rows: prevent wrapping ────────────────────────────────────── */
+/*
+ * Restriction rows reuse the .combo-row class but should NOT wrap.
+ * Override the combo-row flex-wrap and constrain the stat input.
+ */
+
+[id^="restr-row-"] {
+    flex-wrap: nowrap;
+}
+
+.restr-stat-input {
+    flex: 1 1 0 !important;    /* shrink instead of overflowing */
+    min-width: 5em;
+}
+
+/* ── Phone: all component fixes ────────────────────────────────────────────── */
+
+@media (max-width: 576px) {
+
+    /* ── Item tooltips: constrain to viewport ── */
+
+    .float-tooltip {
+        min-width: 0;
+        max-width: 100%;
+        flex-basis: 100%;           /* one tooltip per row on phones */
+    }
+
+    #masonry-container {
+        gap: 8px;
+    }
+
+    /* ── Skill points: compact for phones ── */
+
+    .skp-tooltip {
+        font-size: 0.8rem;
+    }
+
+    /* ── Combo rows: tweak for phone ── */
+    /*
+     * flex-wrap is always on (see global .combo-row rule).
+     * Shrink the boost button and widen the spell select on narrow screens.
+     */
+
+    .combo-row-spell {
+        flex: 1 1 45%;
+        min-width: 7em;
+    }
+
+    .combo-boost-btn-wrap {
+        flex-shrink: 1;
+    }
+
+    /* ── Mana / damage toggle bars: larger touch targets ── */
+
+    .combo-mana-toggle,
+    .combo-dmg-toggle {
+        width: 14px;
+        min-width: 14px;
+    }
+
+    /* ── Boost popup: bottom-sheet on phones ── */
+    /*
+     * CSS !important overrides the inline styles set by JS in
+     * combo_toggle_boost_popup(), converting the popup to a viewport-anchored
+     * bottom sheet above the fixed footer.
+     */
+
+    .boost-popup {
+        position: fixed !important;
+        left: 4px !important;
+        right: 4px !important;
+        width: auto !important;
+        max-width: none !important;
+        min-width: 0;
+        top: auto !important;
+        bottom: 50px !important;    /* above fixed footer */
+        max-height: 60vh;
+    }
+
+    /* ── Damage popup: prevent right-edge clipping ── */
+
+    .combo-dmg-popup {
+        min-width: 0;
+        max-width: calc(100vw - 32px);
+    }
+
+    /* ── Footer: extra clearance for wrapping text ── */
+
+    body {
+        padding-bottom: 56px;
+    }
+
+    .solver-footer {
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+
+    /* ── Restriction autocomplete: constrain to viewport ── */
+
+    ul.search-box {
+        max-width: calc(100vw - 32px);
+    }
 }

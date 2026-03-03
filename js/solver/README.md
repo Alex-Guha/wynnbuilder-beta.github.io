@@ -130,18 +130,19 @@ http://localhost:8000/solver/?combo=c%3AM7RQqFHwTS1JzS9SqFEIz8xLSU1RMDNQqFEw5DJU
 ### Improve Solver
 See SOLVER.md for details.
 
+### Effective HPR stat restriction
+
 ### Crep Ray
 Abilities like crep ray that cast over time need to be allowed special entry so the user can enter multiple instances of it with varying focus buffs
 
 ### UI polish
 
-- **Level / roll mode / reset / copy row** - the controls in this row need visual refinement: consistent sizing, spacing, and alignment with the rest of the panel.
-- **Solver restrictions panel** - the stat threshold rows would benefit from better layout (aligned columns, cleaner autocomplete styling) and clearer labeling of the min/max selector.
-- **Tomes / Ability Tree / Aspects toggle buttons** - on page load, whichever section is shown by default does not receive the active hover highlight. The button hover/active state needs to be set programmatically at init to match the visible section.
-- **General design** - various small inconsistencies across sections (font sizing, border radii, button heights) that could be unified in a polish pass.
-- **UI Scaling** - Test different aspect ratios and improve css
+- **Solver restrictions panel** - the filter rows would benefit from better layout (aligned columns, cleaner autocomplete styling) and clearer labeling of the min/max selector.
+    - "Filters", "Targets" w/ weighting option
+- **Tomes / Ability Tree / Aspects toggle buttons** - on page load, whichever section is shown by default does not receive the active hover highlight. The button hover/active state needs to be set programmatically at init to match the visible section. Same when a weapon is entered.
 - **Item pop up on hover** - Allow for both clicking to show items at the bottom and pop up the item when hovered over
 - **Downtime text** - Inform users to consider the downtime part of the cycle
+
 
 ### Future
 
