@@ -141,7 +141,7 @@ function toggleItemTooltip(tooltip_id) {
 function toggleSlotLock(i) {
     const eq = equipment_fields[i];
     const input = document.getElementById(eq + '-choice');
-    if (!input || !input.value) return;             // empty slot — nothing to toggle
+    if (!input) return;
 
     const is_free = input.dataset.solverFilled === 'true';
     if (is_free) {
@@ -155,19 +155,28 @@ function toggleSlotLock(i) {
     }
     _schedule_solver_hash_update();
 
+    const now_free = !is_free;
+    const has_item = !!input.value;
+
     // Update visuals on the slot row
     const dropdown = document.getElementById(eq + '-dropdown');
     if (dropdown) {
-        dropdown.classList.remove('slot-locked', 'slot-solver');
-        dropdown.classList.add(is_free ? 'slot-locked' : 'slot-solver');
+        dropdown.classList.remove('slot-locked', 'slot-solver', 'slot-unlocked');
+        if (has_item) {
+            dropdown.classList.add(now_free ? 'slot-solver' : 'slot-locked');
+        } else {
+            dropdown.classList.add(now_free ? 'slot-unlocked' : 'slot-locked');
+        }
     }
     const lockEl = document.getElementById(eq + '-lock');
     if (lockEl) {
-        const now_free = !is_free;
         lockEl.innerHTML = now_free ? UNLOCK_SVG : LOCK_SVG;
         lockEl.classList.toggle('solver-lock-free', now_free);
-        lockEl.title = now_free ? 'Slot free \u2014 solver will search (click to lock)' :
-            'Slot locked \u2014 solver will keep this item (click to unlock)';
+        lockEl.title = now_free
+            ? 'Slot free \u2014 solver will search (click to lock)'
+            : has_item
+                ? 'Slot locked \u2014 solver will keep this item (click to unlock)'
+                : 'Slot locked \u2014 solver will keep empty (click to unlock)';
     }
     _schedule_auto_dir_update(true);
 }
@@ -337,16 +346,29 @@ async function init() {
             }
         }
 
-        // Solver-free slot mask
-        if (solver_params.sfree) {
-            _solver_free_mask = solver_params.sfree;
+        // Solver-free slot mask (explicit from URL — sets dataset for the default block below)
+        if (solver_params.sfree !== undefined) {
             for (let i = 0; i < 8; i++) {
-                if (solver_params.sfree & (1 << i)) {
-                    const input = document.getElementById(equipment_fields[i] + '-choice');
-                    if (input) input.dataset.solverFilled = 'true';
-                }
+                const input = document.getElementById(equipment_fields[i] + '-choice');
+                if (!input) continue;
+                input.dataset.solverFilled = (solver_params.sfree & (1 << i)) ? 'true' : 'false';
             }
         }
+    }
+
+    // Default lock state for slots not set by URL: filled → locked, empty → free
+    _solver_free_mask = 0;
+    for (let i = 0; i < 8; i++) {
+        const input = document.getElementById(equipment_fields[i] + '-choice');
+        if (!input) continue;
+        if (input.dataset.solverFilled === undefined || input.dataset.solverFilled === '') {
+            if (input.value) {
+                input.dataset.solverFilled = 'false';
+            } else {
+                input.dataset.solverFilled = 'true';
+            }
+        }
+        if (input.dataset.solverFilled === 'true') _solver_free_mask |= (1 << i);
     }
 
     // Wire static restriction inputs so URL stays in sync as user edits them
@@ -357,16 +379,24 @@ async function init() {
     const restr_guild_tome = document.getElementById('restr-guild-tome');
     if (restr_guild_tome) restr_guild_tome.addEventListener('change', _schedule_solver_hash_update);
 
-    // When the user manually edits an equipment slot, revert it to locked.
-    // This handles both solver-filled and user-toggled-free slots.
+    // When the user manually edits an equipment slot, update its lock state.
+    // Entering an item → locked (solver keeps it).
+    // Clearing an item → free (solver will search this slot).
     for (let i = 0; i < 8; i++) {
         const input = document.getElementById(equipment_fields[i] + '-choice');
         if (!input) continue;
         input.addEventListener('change', () => {
             if (_solver_filling_ui) return;   // triggered by _fill_build_into_ui — keep flag
             _solver_sp_override = null;       // manual edit — revert to normal SP display
-            input.dataset.solverFilled = 'false';
-            _solver_free_mask &= ~(1 << i);
+            if (input.value) {
+                // Item entered — lock it
+                input.dataset.solverFilled = 'false';
+                _solver_free_mask &= ~(1 << i);
+            } else {
+                // Item cleared — default to free so solver will search
+                input.dataset.solverFilled = 'true';
+                _solver_free_mask |= (1 << i);
+            }
             _schedule_solver_hash_update();
             _schedule_auto_dir_update(true);
         });

@@ -96,8 +96,9 @@ function auto_update_build_directions() {
                 changed = true;
             }
         } else {
-            // Re-enable only if we previously auto-disabled it
-            if (_auto_disabled_dirs.has(sp)) {
+            // Re-enable if currently disabled (covers both auto-disabled and
+            // previously user-disabled directions whose overrides were cleared).
+            if (!btn.classList.contains('toggleOn')) {
                 btn.classList.add('toggleOn');
                 _auto_disabled_dirs.delete(sp);
                 changed = true;

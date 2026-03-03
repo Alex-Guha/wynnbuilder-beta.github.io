@@ -39,11 +39,16 @@ function _collect_locked_items(illegal_at_2) {
     const locked = {};
     for (let i = 0; i < 8; i++) {
         const slot = equipment_fields[i];
+        const input = document.getElementById(slot + '-choice');
+        if (input?.dataset.solverFilled === 'true') continue; // free slot — solver searches
         const node = solver_item_final_nodes[i];
         const item = node?.value;
-        if (!item || item.statMap.has('NONE')) continue;
-        const input = document.getElementById(slot + '-choice');
-        if (input?.dataset.solverFilled === 'true') continue;
+        if (!item) continue;
+        if (item.statMap.has('NONE')) {
+            // Empty + locked — solver will keep this slot empty
+            locked[slot] = item;
+            continue;
+        }
         // Attach illegal set info so the worker can track it
         const sn = item.statMap.get('set') ?? null;
         item._illegalSet = (sn && illegal_at_2.has(sn)) ? sn : null;
@@ -557,6 +562,40 @@ function _stop_solver() {
     }
 }
 
+/**
+ * Compute SP overflow diagnostics from current UI equipment.
+ * Returns an array of warning strings for attributes where the required
+ * base assignment exceeds the per-attribute cap (100).
+ */
+function _compute_sp_overflow_warnings() {
+    const skp_names = ["Strength", "Dexterity", "Intelligence", "Defense", "Agility"];
+    const warnings = [];
+
+    // Gather equipment statMaps (8 equips + guild tome)
+    const equip_sms = [];
+    for (let i = 0; i < 8; i++) {
+        const item = solver_item_final_nodes[i]?.value;
+        equip_sms.push(item?.statMap ?? none_items[i].statMap);
+    }
+    const guild_tome_idx = tome_fields.indexOf('guildTome1');
+    const gt_item = (guild_tome_idx >= 0 && solver_item_final_nodes[9 + guild_tome_idx]?.value)
+        ? solver_item_final_nodes[9 + guild_tome_idx].value
+        : new Item(none_tomes[2]);
+    equip_sms.push(gt_item.statMap);
+
+    const weapon = solver_item_final_nodes[8]?.value;
+    if (!weapon || weapon.statMap.has('NONE')) return warnings;
+
+    const result = calculate_skillpoints(equip_sms, weapon.statMap);
+    const assign = result[0];
+    for (let i = 0; i < 5; i++) {
+        if (assign[i] > SP_PER_ATTR_CAP) {
+            warnings.push(`Cannot assign ${assign[i]} skillpoints in ${skp_names[i]} manually.`);
+        }
+    }
+    return warnings;
+}
+
 function _on_all_workers_done(workers_snapshot) {
     const search_completed = _solver_running;  // true only if finished naturally
     const elapsed_s = Math.floor((Date.now() - _solver_start) / 1000);
@@ -613,10 +652,19 @@ function _on_all_workers_done(workers_snapshot) {
     } else if (search_completed) {
         const panel = document.getElementById('solver-results-panel');
         if (panel) {
-            const reason = _solver_feasible === 0
-                ? 'No builds satisfied the skill point requirements. Try relaxing restrictions or enabling guild tomes.'
-                : 'No builds met the stat thresholds. Try lowering the restriction values.';
-            panel.innerHTML = `<div class="text-warning small">${reason}</div>`;
+            if (_solver_feasible === 0) {
+                let html = '<div class="text-warning small">'
+                    + 'No builds satisfied the skill point requirements. Try relaxing restrictions or enabling guild tomes.';
+                const sp_warnings = _compute_sp_overflow_warnings();
+                for (const w of sp_warnings) {
+                    html += `<br>${w}`;
+                }
+                html += '</div>';
+                panel.innerHTML = html;
+            } else {
+                panel.innerHTML = '<div class="text-warning small">'
+                    + 'No builds met the stat thresholds. Try lowering the restriction values.</div>';
+            }
         }
     }
 }

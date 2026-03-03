@@ -17,12 +17,16 @@ class SolverSKPNode extends ComputeNode {
     compute_func(input_map) {
         const build = input_map.get('build');
 
+        const skp_names = ["Strength", "Dexterity", "Intelligence", "Defense", "Agility"];
+
         // Clear display
         for (const skp of skp_order) {
             const totalEl  = document.getElementById(skp + '-skp-total');
             const assignEl = document.getElementById(skp + '-skp-assign');
+            const warnEl   = document.getElementById(skp + '-warnings');
             if (totalEl)  totalEl.textContent  = '—';
             if (assignEl) assignEl.textContent = 'Assign: 0';
+            if (warnEl)   warnEl.textContent   = '';
         }
         const summaryBox = document.getElementById('summary-box');
         const errBox     = document.getElementById('err-box');
@@ -38,6 +42,8 @@ class SolverSKPNode extends ComputeNode {
         for (const [i, skp] of skp_order.entries()) {
             const totalEl  = document.getElementById(skp + '-skp-total');
             const assignEl = document.getElementById(skp + '-skp-assign');
+            const assigned = has_override ? ov.base_sp[i] : build.base_skillpoints[i];
+
             if (has_override) {
                 if (totalEl)  totalEl.textContent = ov.total_sp[i];
                 const req   = build.base_skillpoints[i];
@@ -48,6 +54,15 @@ class SolverSKPNode extends ComputeNode {
             } else {
                 if (totalEl)  totalEl.textContent  = build.total_skillpoints[i];
                 if (assignEl) assignEl.textContent = 'Assign: ' + build.base_skillpoints[i];
+            }
+
+            // Per-attribute overflow warning (matches builder behaviour)
+            const warnEl = document.getElementById(skp + '-warnings');
+            if (warnEl && assigned > SP_PER_ATTR_CAP) {
+                const p = document.createElement('p');
+                p.classList.add('warning', 'small-text');
+                p.textContent = `Cannot assign ${assigned} skillpoints in ${skp_names[i]} manually.`;
+                warnEl.appendChild(p);
             }
         }
 

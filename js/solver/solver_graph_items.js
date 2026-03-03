@@ -42,10 +42,21 @@ class SolverItemDisplayNode extends BaseItemDisplayNode {
         this.lock_elem = document.getElementById(eq + '-lock')     || null;
     }
 
+    _update_lock_icon() {
+        if (!this.lock_elem) return;
+        const is_free = this.input_field.dataset.solverFilled === 'true';
+        this.lock_elem.style.display = '';
+        this.lock_elem.innerHTML = is_free ? UNLOCK_SVG : LOCK_SVG;
+        this.lock_elem.classList.toggle('solver-lock-free', is_free);
+        this.lock_elem.title = is_free ? 'Slot free \u2014 solver will search (click to lock)' :
+                                         'Slot locked \u2014 solver will keep empty (click to unlock)';
+    }
+
     _on_empty(_item) {
         if (this.slot_elem) this.slot_elem.classList.remove('slot-locked', 'slot-unlocked', 'slot-solver', 'slot-selected');
-        if (this.slot_elem) this.slot_elem.classList.add('slot-unlocked');
-        if (this.lock_elem) this.lock_elem.style.display = 'none';
+        const is_free = this.input_field.dataset.solverFilled === 'true';
+        if (this.slot_elem) this.slot_elem.classList.add(is_free ? 'slot-unlocked' : 'slot-locked');
+        this._update_lock_icon();
         return null;
     }
 
@@ -53,12 +64,11 @@ class SolverItemDisplayNode extends BaseItemDisplayNode {
         if (this.slot_elem) this.slot_elem.classList.remove('slot-locked', 'slot-unlocked', 'slot-solver', 'slot-selected');
         const is_free = this.input_field.dataset.solverFilled === 'true';
         if (this.slot_elem) this.slot_elem.classList.add(is_free ? 'slot-solver' : 'slot-locked');
-        if (this.lock_elem) {
-            this.lock_elem.style.display = '';
-            this.lock_elem.innerHTML = is_free ? UNLOCK_SVG : LOCK_SVG;
-            this.lock_elem.classList.toggle('solver-lock-free', is_free);
-            this.lock_elem.title = is_free ? 'Slot free \u2014 solver will search (click to lock)' :
-                                             'Slot locked \u2014 solver will keep this item (click to unlock)';
+        this._update_lock_icon();
+        if (!this.lock_elem) return;
+        // Override title for filled slots
+        if (!is_free) {
+            this.lock_elem.title = 'Slot locked \u2014 solver will keep this item (click to unlock)';
         }
     }
 }
