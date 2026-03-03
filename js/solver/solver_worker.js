@@ -38,9 +38,12 @@ const _PRECHECK_EXCLUDED = new Set(['ehp', 'str', 'dex', 'int', 'def', 'agi']);
 let _constraint_prechecks = [];  // [{stat, adjusted_threshold}]
 let _ehp_precheck = null;        // {threshold, fixed_hp, ehp_divisor} or null
 
+// ── Debug logging (worker 0 only) ───────────────────────────────────────────
+const _SOLVER_WORKER_DEBUG = false;
+
 // ── Search state ────────────────────────────────────────────────────────────
 
-const PROGRESS_INTERVAL = 5000;
+const PROGRESS_INTERVAL = 500;
 let _checked = 0;
 let _feasible = 0;
 let _top5 = [];
@@ -311,6 +314,15 @@ function _run_level_enum() {
     // Without this, subsequent work-stealing partitions on the same worker
     // would see already-sliced (effectively empty) pools.
     const pools = { ..._cfg.pools };
+    const _dbg = _SOLVER_WORKER_DEBUG && _cfg.worker_id === 0;
+    let _dbg_sp_prune_count = 0;
+    let _dbg_precheck_reject = 0;
+    let _dbg_ehp_reject = 0;
+    let _dbg_sp_reject = 0;
+    let _dbg_threshold_reject = 0;
+    let _dbg_mana_reject = 0;
+    let _dbg_scored = 0;
+    let _dbg_leaf_time = 0;  // cumulative ms for feasible leaf processing
 
     const tracker = _make_illegal_tracker();
 
@@ -486,10 +498,12 @@ function _run_level_enum() {
         // running_sm has all item stats accumulated; prechecks account for
         // fixed contributions (atree_raw + static_boosts).
         if (_constraint_prechecks.length > 0 && !_fast_constraint_precheck(running_sm)) {
+            _dbg_precheck_reject++;
             _maybe_progress();
             return;
         }
         if (!_fast_ehp_precheck(running_sm)) {
+            _dbg_ehp_reject++;
             _maybe_progress();
             return;
         }
@@ -506,6 +520,7 @@ function _run_level_enum() {
         // rejection than the old two-step _sp_prefilter + calculate_skillpoints.
         const sp_result = _solver_sp_calc([...equip_8_sms, guild_tome_sm], weapon_sm, sp_budget);
         if (!sp_result) {
+            _dbg_sp_reject++;
             _maybe_progress();
             return;
         }
@@ -516,6 +531,7 @@ function _run_level_enum() {
         _feasible++;
 
         // Build stat assembly from running statMap (incremental accumulation)
+        const t0 = _dbg ? performance.now() : 0;
         const all_equip_sms = [...equip_8_sms, ...tome_sms, weapon_sm];
         const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, all_equip_sms);
 
@@ -533,6 +549,8 @@ function _run_level_enum() {
         // Threshold check
         if (restrictions.stat_thresholds.length > 0) {
             if (!_check_thresholds(thresh_stats, restrictions.stat_thresholds)) {
+                _dbg_threshold_reject++;
+                if (_dbg) _dbg_leaf_time += performance.now() - t0;
                 _maybe_progress();
                 return;
             }
@@ -540,12 +558,16 @@ function _run_level_enum() {
 
         // Mana constraint check (only when combo_time is set)
         if (!_eval_combo_mana_check(combo_base)) {
+            _dbg_mana_reject++;
+            if (_dbg) _dbg_leaf_time += performance.now() - t0;
             _maybe_progress();
             return;
         }
 
         // Score
         const score = _eval_score(combo_base, thresh_stats);
+        _dbg_scored++;
+        if (_dbg) _dbg_leaf_time += performance.now() - t0;
         const item_names = equip_8_sms.map(sm => _get_item_name(sm));
         _insert_top5({ score, item_names, base_sp, total_sp, assigned_sp: final_assigned });
         _maybe_progress();
@@ -767,6 +789,8 @@ function _run_level_enum() {
 
             if (_sp_mid_tree_feasible(slot_idx + 1)) {
                 enumerate(slot_idx + 1, remaining_L - offset);
+            } else {
+                _dbg_sp_prune_count++;
             }
 
             _sp_unplace_free_item(item.statMap, slot_idx);
@@ -856,6 +880,35 @@ function _run_level_enum() {
             if (is1) tracker.remove(is1, r1._illegalSetName);
         }
     }
+
+    if (_dbg) {
+        const pool_sizes = Object.fromEntries(
+            Object.entries(pools).map(([k, v]) => [k, v.length]));
+        console.log('[w0] enum setup | free:', free_armor_slots,
+            '| pools:', pool_sizes,
+            '| L_max:', L_max,
+            '| rings_free:', rings_free,
+            '| ring_pool:', ring_pool?.length,
+            '| partition:', JSON.stringify(partition));
+        console.log('[w0] leaf breakdown | checked:', _checked,
+            '| precheck_reject:', _dbg_precheck_reject,
+            '| ehp_reject:', _dbg_ehp_reject,
+            '| sp_reject:', _dbg_sp_reject,
+            '| sp_pruned:', _dbg_sp_prune_count,
+            '| feasible:', _feasible,
+            '| threshold_reject:', _dbg_threshold_reject,
+            '| mana_reject:', _dbg_mana_reject,
+            '| scored:', _dbg_scored);
+        if (_feasible > 0) {
+            console.log('[w0] perf | avg feasible leaf:',
+                (_dbg_leaf_time / _feasible).toFixed(2), 'ms',
+                '| total feasible time:', _dbg_leaf_time.toFixed(0), 'ms');
+        }
+        if (_top5.length > 0) {
+            console.log('[w0] best score:', _top5[0].score.toFixed(1),
+                '| items:', _top5[0].item_names.filter(n => n).join(', '));
+        }
+    }
 }
 
 // ── Message handler ─────────────────────────────────────────────────────────
@@ -867,14 +920,34 @@ self.onmessage = function (e) {
         sets = new Map(msg.sets_data);
         _cfg = msg;
         _cancelled = false;
-        _build_constraint_prechecks();
+        try {
+            _build_constraint_prechecks();
+        } catch (err) {
+            console.error('[w] prechecks crashed:', err.message, err.stack);
+            postMessage({ type: 'done', worker_id: msg.worker_id, checked: 0, feasible: 0, top5: [] });
+            return;
+        }
+        if (_SOLVER_WORKER_DEBUG && msg.worker_id === 0) {
+            console.log('[w0] init | scoring:', msg.scoring_target,
+                '| combo_rows:', msg.parsed_combo?.length,
+                '| combo_time:', msg.combo_time,
+                '| allow_downtime:', msg.allow_downtime,
+                '| sp_budget:', msg.sp_budget,
+                '| prechecks:', _constraint_prechecks.length,
+                '| ehp_precheck:', !!_ehp_precheck,
+                '| thresholds:', msg.restrictions?.stat_thresholds?.length ?? 0);
+        }
 
         // Run immediately if a partition is requested
         if (msg.partition) {
             _checked = 0;
             _feasible = 0;
             _top5 = [];
-            _run_level_enum();
+            try {
+                _run_level_enum();
+            } catch (err) {
+                console.error('[w] enum crashed:', err.message, err.stack);
+            }
             postMessage({
                 type: 'done',
                 worker_id: msg.worker_id,
@@ -892,7 +965,11 @@ self.onmessage = function (e) {
         _top5 = [];
         _cancelled = false;
 
-        _run_level_enum();
+        try {
+            _run_level_enum();
+        } catch (err) {
+            console.error('[w] enum crashed:', err.message, err.stack);
+        }
         postMessage({
             type: 'done',
             worker_id: msg.worker_id,

@@ -247,6 +247,8 @@ Because both rings draw from the same pool and the pair is unordered, rings are 
 
 ## High priority improvements
 
+### Mana Calc is too expensive
+
 ### Intelligent priority scoring
 Order items by whatever is needed most in the build, focusing on fulfilling constraints first
 i.e. (target ehp - current ehp) / current ehp vs (target MR - current MR) / current MR

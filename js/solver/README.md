@@ -140,7 +140,6 @@ Abilities like crep ray that cast over time need to be allowed special entry so 
 - **Solver restrictions panel** - the filter rows would benefit from better layout (aligned columns, cleaner autocomplete styling) and clearer labeling of the min/max selector.
     - "Filters", "Targets" w/ weighting option
 - **Tomes / Ability Tree / Aspects toggle buttons** - on page load, whichever section is shown by default does not receive the active hover highlight. The button hover/active state needs to be set programmatically at init to match the visible section. Same when a weapon is entered.
-- **Item pop up on hover** - Allow for both clicking to show items at the bottom and pop up the item when hovered over
 - **Downtime text** - Inform users to consider the downtime part of the cycle
 
 

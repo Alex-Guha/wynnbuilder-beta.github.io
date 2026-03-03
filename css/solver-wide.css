@@ -244,13 +244,16 @@ body {
     border-left: 3px solid hsl(0, 0%, 30%) !important;
 }
 
-/* Visual feedback: brighten the slot row when hovering a clickable slot. */
-.slot-locked:hover {
-    background-color: hsla(145, 60%, 40%, 0.18) !important;
-}
+/* Visual feedback: brighten the slot row when hovering a clickable slot.
+   Gated behind (hover: hover) to prevent sticky :hover on touch devices. */
+@media (hover: hover) {
+    .slot-locked:hover {
+        background-color: hsla(145, 60%, 40%, 0.18) !important;
+    }
 
-.slot-solver:hover {
-    background-color: hsla(0, 0%, 60%, 0.14) !important;
+    .slot-solver:hover {
+        background-color: hsla(0, 0%, 60%, 0.14) !important;
+    }
 }
 
 /* Persist highlight when the item tooltip is currently visible. */
