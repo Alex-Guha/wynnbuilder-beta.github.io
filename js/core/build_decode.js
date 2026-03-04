@@ -690,8 +690,19 @@ async function decodeSolverParams(b64_str) {
             }
         }
 
+        // Blacklist text (backward-compatible: missing in older URLs)
+        let blacklist_text = '';
+        if (cursor.endIdx - cursor.currIdx >= 12) {
+            const bl_len = cursor.advanceBy(12);
+            if (bl_len > 0) {
+                const bl_bytes = new Uint8Array(bl_len);
+                for (let i = 0; i < bl_len; i++) bl_bytes[i] = cursor.advanceBy(8);
+                blacklist_text = new TextDecoder().decode(bl_bytes);
+            }
+        }
+
         return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
-                 restrictions_text, combo_text };
+                 restrictions_text, combo_text, blacklist_text };
     } catch (e) {
         console.warn('[decode] decodeSolverParams failed:', e);
         return null;

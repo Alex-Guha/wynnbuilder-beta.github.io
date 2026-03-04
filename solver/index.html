@@ -432,20 +432,24 @@
                                         <div class="fw-bold scaled-font solver-lrg-label">Level</div>
                                         <input class="equipment-input text-light form-control form-control-sm"
                                             id="level-choice" name="level-choice" value="121" placeholder="Level">
-                                        <button class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
+                                        <button
+                                            class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
                                             id="copy-solver-url-btn" title="Copy WynnSolver URL to clipboard"
                                             onclick="copy_solver_url()">Copy URL</button>
                                         <!-- Reset spans rows 1-2 -->
-                                        <button class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-reset-btn"
+                                        <button
+                                            class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-reset-btn"
                                             onclick="resetSolverFields()">Reset</button>
                                         <!-- Row 2: Roll + Export -->
                                         <div class="fw-bold scaled-font solver-lrg-label">Roll</div>
-                                        <input type="text" class="equipment-input text-light form-control form-control-sm"
+                                        <input type="text"
+                                            class="equipment-input text-light form-control form-control-sm"
                                             id="roll-mode-input" value="85%"
                                             onfocus="this.value=this.value.replace('%','')"
                                             onblur="setRollMode(this.value)"
                                             onkeydown="if(event.key==='Enter')this.blur()">
-                                        <button class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
+                                        <button
+                                            class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
                                             id="copy-to-builder-btn" title="Export build to WynnBuilder">Export to
                                             Builder</button>
                                     </div>
@@ -1033,11 +1037,16 @@
 
                     <hr class="mx-2 my-1 border-secondary">
 
-                    <!-- Stat threshold rows -->
+                    <!-- Stat threshold + blacklist rows -->
                     <div class="px-2 pb-2">
                         <div id="restriction-rows" class="d-flex flex-column gap-1 mb-2"></div>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="restriction_add_row()">+ Add
-                            Restriction</button>
+                        <div id="blacklist-rows" class="d-flex flex-column gap-1 mb-2"></div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="restriction_add_row()">+ Add
+                                Restriction</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="blacklist_add_row()">+ Blacklist
+                                Item</button>
+                        </div>
                     </div>
                 </div>
 
@@ -1154,10 +1163,10 @@
                                 <span class="text-secondary small">Time:</span>
                                 <input id="combo-time" type="number" min="0" step="0.1" placeholder="sec"
                                     class="combo-row-input" style="width:5em; text-align:center;"
-                                    title="Optional - Combo time for mana calculations"
+                                    title="Optional - Total cycle time for mana calculations (include cooldown)."
                                     oninput="if(solver_combo_total_node) solver_combo_total_node.mark_dirty().update()">
                                 <button id="combo-downtime-btn" class="btn btn-sm btn-outline-secondary"
-                                    title="Allow for time in between combo loops to regen mana"
+                                    title="Allow for time in between cycles to regen mana"
                                     onclick="combo_toggle_downtime()">Allow Downtime</button>
                             </div>
                         </div>

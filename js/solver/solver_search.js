@@ -59,7 +59,7 @@ function _collect_locked_items(illegal_at_2) {
     return locked;
 }
 
-function _build_item_pools(restrictions, illegal_at_2 = new Set()) {
+function _build_item_pools(restrictions, illegal_at_2 = new Set(), blacklist = new Set()) {
     const slot_types = {
         helmet: 'helmet', chestplate: 'chestplate', leggings: 'leggings',
         boots: 'boots', ring: 'ring', bracelet: 'bracelet', necklace: 'necklace',
@@ -73,6 +73,7 @@ function _build_item_pools(restrictions, illegal_at_2 = new Set()) {
             const item_obj = itemMap.get(name);
             if (!item_obj) continue;
             if (item_obj.name?.startsWith('No ')) continue;
+            if (blacklist.has(name)) continue;
             const lvl = item_obj.lvl ?? 0;
             if (lvl < restrictions.lvl_min || lvl > restrictions.lvl_max) continue;
             if (restrictions.no_major_id && item_obj.majorIds?.length > 0) continue;
@@ -875,8 +876,9 @@ function start_solver_search() {
         }
     }
 
+    const blacklist = get_blacklist();
     const locked = _collect_locked_items(illegal_at_2);
-    const pools = _build_item_pools(restrictions, illegal_at_2);
+    const pools = _build_item_pools(restrictions, illegal_at_2, blacklist);
 
     // Remove pools for locked slots
     if (locked.ring1 && locked.ring2) delete pools.ring;

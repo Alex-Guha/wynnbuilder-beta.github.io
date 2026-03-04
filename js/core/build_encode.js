@@ -558,6 +558,8 @@ const SOLVER_HASH_SEP = '_';
  *   [N*8] restrictions UTF-8 bytes ("stat:op:value|..." text)
  *   [16] combo_compressed_byte_length (0 = no combo)
  *   [N*8] combo deflate-raw compressed bytes
+ *   [12] blacklist_byte_length (0 = no blacklist)
+ *   [N*8] blacklist UTF-8 bytes ("name|name|..." text)
  *
  * @param {Object} params
  * @param {number} params.roll - Roll percentage (0-100)
@@ -571,6 +573,7 @@ const SOLVER_HASH_SEP = '_';
  * @param {number} params.ctime - Combo time in seconds (0-1023)
  * @param {string} params.restrictions_text - Pipe-separated "key:op:value" restrictions
  * @param {string} params.combo_text - Multi-line combo text
+ * @param {string} params.blacklist_text - Pipe-separated blacklisted item names
  * @returns {Promise<string>} Base64 string for appending after SOLVER_HASH_SEP
  */
 async function encodeSolverParams(params) {
@@ -629,6 +632,13 @@ async function encodeSolverParams(params) {
     }
     bv.append(combo_bytes.length, 16); // max 65535 bytes
     for (const b of combo_bytes) bv.append(b, 8);
+
+    // Blacklist text: uncompressed UTF-8, length-prefixed
+    const bl_bytes = params.blacklist_text
+        ? new TextEncoder().encode(params.blacklist_text)
+        : new Uint8Array(0);
+    bv.append(bl_bytes.length, 12); // max 4095 bytes
+    for (const b of bl_bytes) bv.append(b, 8);
 
     return bv.toB64();
 }

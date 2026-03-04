@@ -347,6 +347,17 @@ async function init() {
             }
         }
 
+        // Blacklist rows
+        if (solver_params.blacklist_text) {
+            for (const name of solver_params.blacklist_text.split('|')) {
+                if (!name || !itemMap.has(name)) continue;
+                const row = blacklist_add_row();
+                if (!row) continue;
+                const input = row.querySelector('.bl-item-input');
+                if (input) input.value = name;
+            }
+        }
+
         // Solver-free slot mask (explicit from URL — sets dataset for the default block below)
         if (solver_params.sfree !== undefined) {
             for (let i = 0; i < 8; i++) {

@@ -280,6 +280,16 @@ function _collect_solver_params() {
         if (data.length > 0) combo_text = combo_data_to_text(data);
     }
 
+    // Blacklist text (pipe-separated item names)
+    const bl_entries = [];
+    for (const row of (document.getElementById('blacklist-rows')?.children ?? [])) {
+        if (!row.id?.startsWith('bl-row-')) continue;
+        const input = row.querySelector('.bl-item-input');
+        const name = input?.value.trim();
+        if (name && itemMap.has(name)) bl_entries.push(name);
+    }
+    const blacklist_text = bl_entries.join('|');
+
     return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
-             restrictions_text, combo_text };
+             restrictions_text, combo_text, blacklist_text };
 }

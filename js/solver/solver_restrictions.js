@@ -150,7 +150,7 @@ function restriction_add_row() {
     // Wire all inputs for URL persistence
     for (const inp of row.querySelectorAll('input, select')) {
         inp.addEventListener('change', _schedule_solver_hash_update);
-        inp.addEventListener('input',  _schedule_solver_hash_update);
+        inp.addEventListener('input', _schedule_solver_hash_update);
     }
     return row;
 }
@@ -182,8 +182,8 @@ function _init_restriction_stat_autocomplete(input_id) {
                 const inp = document.getElementById(input_id);
                 if (!inp) return;
                 const rect = inp.getBoundingClientRect();
-                list.style.top   = (rect.bottom + window.scrollY) + 'px';
-                list.style.left  = rect.x + 'px';
+                list.style.top = (rect.bottom + window.scrollY) + 'px';
+                list.style.left = rect.x + 'px';
                 list.style.width = Math.max(rect.width, 200) + 'px';
                 if (!data.results.length) {
                     const msg = document.createElement('li');
@@ -233,30 +233,159 @@ function get_restrictions() {
         build_dir[sp] = btn ? btn.classList.contains('toggleOn') : true;
     }
 
-    const lvl_min    = parseInt(document.getElementById('restr-lvl-min')?.value) || 1;
-    const lvl_max    = parseInt(document.getElementById('restr-lvl-max')?.value) || MAX_PLAYER_LEVEL;
+    const lvl_min = parseInt(document.getElementById('restr-lvl-min')?.value) || 1;
+    const lvl_max = parseInt(document.getElementById('restr-lvl-max')?.value) || MAX_PLAYER_LEVEL;
     const no_major_id = document.getElementById('restr-no-major-id')?.classList.contains('toggleOn') ?? false;
-    const guild_tome  = parseInt(document.getElementById('restr-guild-tome')?.value) || 0;
+    const guild_tome = parseInt(document.getElementById('restr-guild-tome')?.value) || 0;
 
     const stat_thresholds = [];
     for (const row of (document.getElementById('restriction-rows')?.children ?? [])) {
         if (!row.id?.startsWith('restr-row-')) continue;
         const stat_input = row.querySelector('.restr-stat-input');
-        const op_select  = row.querySelector('select');
-        const val_input  = row.querySelector('input[type="number"]');
+        const op_select = row.querySelector('select');
+        const val_input = row.querySelector('input[type="number"]');
         if (!stat_input || !op_select || !val_input) continue;
-        const stat_key   = stat_input.dataset?.statKey || null;
+        const stat_key = stat_input.dataset?.statKey || null;
         const stat_label = stat_input.value.trim();
-        const value      = parseFloat(val_input.value);
+        const value = parseFloat(val_input.value);
         if ((!stat_key && !stat_label) || isNaN(value)) continue;
         stat_thresholds.push({
-            stat:  stat_key || stat_label,
-            op:    op_select.value,   // 'ge' (≥) or 'le' (≤)
+            stat: stat_key || stat_label,
+            op: op_select.value,   // 'ge' (≥) or 'le' (≤)
             value,
         });
     }
 
     return { build_dir, lvl_min, lvl_max, no_major_id, guild_tome, stat_thresholds };
+}
+
+// ── Item Blacklist ──────────────────────────────────────────────────────────
+
+let _blacklist_row_counter = 0;
+let _all_item_names = null; // cached on first use
+
+/**
+ * Lazily builds and caches the list of all non-deprecated item display names
+ * for the blacklist autocomplete dropdown.
+ */
+function _get_all_item_names() {
+    if (_all_item_names) return _all_item_names;
+    const names = [];
+    const types = ['helmet', 'chestplate', 'leggings', 'boots',
+        'ring', 'bracelet', 'necklace',
+        'dagger', 'wand', 'bow', 'relik', 'spear'];
+    for (const type of types) {
+        for (const name of (itemLists.get(type) ?? [])) {
+            const obj = itemMap.get(name);
+            if (!obj) continue;
+            if (obj.restrict === 'DEPRECATED') continue;
+            if (obj.name?.startsWith('No ')) continue;
+            names.push(name);
+        }
+    }
+    _all_item_names = names;
+    return names;
+}
+
+/**
+ * Appends a new blacklist row to the restrictions panel.
+ */
+function blacklist_add_row() {
+    const container = document.getElementById('blacklist-rows');
+    if (!container) return null;
+    const idx = ++_blacklist_row_counter;
+    const row = document.createElement('div');
+    row.id = 'bl-row-' + idx;
+    row.className = 'combo-row d-flex align-items-center gap-1';
+    row.innerHTML = `
+        <button class="btn btn-sm btn-outline-secondary px-1"
+                style="min-width:1.6em; font-size:0.8em; flex-shrink:0;"
+                onclick="blacklist_remove_row(this)" title="Remove from blacklist">×</button>
+        <input class="combo-row-input flex-grow-1 bl-item-input restr-stat-input"
+               id="bl-item-${idx}"
+               placeholder="Item..." autocomplete="off" style="min-width:0;">
+    `;
+    container.appendChild(row);
+    _init_blacklist_autocomplete('bl-item-' + idx);
+    for (const inp of row.querySelectorAll('input')) {
+        inp.addEventListener('change', _schedule_solver_hash_update);
+        inp.addEventListener('input', _schedule_solver_hash_update);
+    }
+    return row;
+}
+
+/**
+ * Removes a blacklist row when the × button is clicked.
+ */
+function blacklist_remove_row(btn) {
+    const row = btn.closest('[id^="bl-row-"]');
+    if (row) row.remove();
+    _schedule_solver_hash_update();
+}
+
+/**
+ * Sets up autoComplete.js on a blacklist item input field.
+ */
+function _init_blacklist_autocomplete(input_id) {
+    const names = _get_all_item_names();
+    new autoComplete({
+        data: { src: names },
+        selector: '#' + input_id,
+        wrapper: false,
+        resultsList: {
+            maxResults: 60,
+            tabSelect: true,
+            noResults: true,
+            class: 'search-box dark-7 rounded-bottom px-2 fw-bold dark-shadow-sm',
+            element: (list, data) => {
+                const inp = document.getElementById(input_id);
+                if (!inp) return;
+                const rect = inp.getBoundingClientRect();
+                list.style.top = (rect.bottom + window.scrollY) + 'px';
+                list.style.left = rect.x + 'px';
+                list.style.width = Math.max(rect.width, 200) + 'px';
+                if (!data.results.length) {
+                    const msg = document.createElement('li');
+                    msg.classList.add('scaled-font');
+                    msg.textContent = 'No results found!';
+                    list.prepend(msg);
+                }
+            },
+        },
+        resultItem: {
+            class: 'scaled-font search-item',
+            selected: 'dark-5',
+            element: (item, data) => {
+                const obj = itemMap.get(data.value);
+                if (obj) item.classList.add(obj.tier);
+            },
+        },
+        events: {
+            input: {
+                selection: (event) => {
+                    if (event.detail.selection.value) {
+                        event.target.value = event.detail.selection.value;
+                    }
+                    event.target.dispatchEvent(new Event('change'));
+                },
+            },
+        },
+    });
+}
+
+/**
+ * Returns the current blacklist as a Set of item display names.
+ */
+function get_blacklist() {
+    const result = new Set();
+    for (const row of (document.getElementById('blacklist-rows')?.children ?? [])) {
+        if (!row.id?.startsWith('bl-row-')) continue;
+        const input = row.querySelector('.bl-item-input');
+        if (!input) continue;
+        const name = input.value.trim();
+        if (name && itemMap.has(name)) result.add(name);
+    }
+    return result;
 }
 
 // Restriction URL persistence is now handled by the unified solver hash updater
