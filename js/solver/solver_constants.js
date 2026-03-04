@@ -32,8 +32,10 @@ let current_roll_mode = ROLL_DEFAULT;
 const RESTRICTION_STATS = [
     // ── Health / Sustain ────────────────────────────────────────────────
     { key: 'ehp',        label: 'Effective HP' },   // derived — computed during solver eval
+    { key: 'ehpr',       label: 'Effective HPR' },  // derived — computed during solver eval
+    { key: 'hpr',        label: 'HP Regen' },       // derived — hprRaw + hprPct combined
     { key: 'hpBonus',    label: 'HP Bonus' },
-    { key: 'hprRaw',     label: 'Health Regen' },
+    { key: 'hprRaw',     label: 'Health Regen Raw' },
     { key: 'hprPct',     label: 'Health Regen %' },
     { key: 'healPct',    label: 'Heal Effectiveness %' },
     { key: 'ls',         label: 'Life Steal' },

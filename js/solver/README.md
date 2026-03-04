@@ -130,8 +130,6 @@ http://localhost:8000/solver/?combo=c%3AM7RQqFHwTS1JzS9SqFEIz8xLSU1RMDNQqFEw5DJU
 ### Improve Solver
 See SOLVER.md for details.
 
-### Effective HPR stat restriction
-
 ### Crep Ray
 Abilities like crep ray that cast over time need to be allowed special entry so the user can enter multiple instances of it with varying focus buffs
 

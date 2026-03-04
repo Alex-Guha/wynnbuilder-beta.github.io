@@ -109,8 +109,8 @@ function _build_dmg_weights(snap) {
 function _build_constraint_weights(restrictions) {
     const weights = [];
     for (const { stat, op, value } of restrictions.stat_thresholds ?? []) {
-        // Only ge constraints on direct stats (not computed ehp — too indirect)
-        if (op !== 'ge' || stat === 'ehp' || value <= 0) continue;
+        // Only ge constraints on direct stats (not computed ehp/ehpr/hpr — too indirect)
+        if (op !== 'ge' || stat === 'ehp' || stat === 'ehpr' || stat === 'hpr' || value <= 0) continue;
         // A full threshold's worth of this stat on one item ≈ 25 priority points
         weights.push({ stat, per_unit: 25 / value });
     }
@@ -214,7 +214,7 @@ function _prune_dominated_items(pools, snap, restrictions) {
     // (threshold constraints are ge-only, so higher is always at least as good).
     const check_stats = [...dmg_weights.keys()];
     for (const { stat, op } of (restrictions.stat_thresholds ?? [])) {
-        if (op === 'ge' && stat !== 'ehp' && !check_stats.includes(stat)) {
+        if (op === 'ge' && stat !== 'ehp' && stat !== 'ehpr' && stat !== 'hpr' && !check_stats.includes(stat)) {
             check_stats.push(stat);
         }
     }

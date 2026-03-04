@@ -34,7 +34,7 @@ let _cancelled = false;
 // Stats excluded from simple precheck:
 //   - 'ehp': derived from HP + def% + agi% + classDef + defMult (has special handling)
 //   - 'str','dex','int','def','agi': overwritten by total_sp from SP assignment
-const _PRECHECK_EXCLUDED = new Set(['ehp', 'str', 'dex', 'int', 'def', 'agi']);
+const _PRECHECK_EXCLUDED = new Set(['ehp', 'ehpr', 'hpr', 'str', 'dex', 'int', 'def', 'agi']);
 let _constraint_prechecks = [];  // [{stat, adjusted_threshold}]
 let _ehp_precheck = null;        // {threshold, fixed_hp, ehp_divisor} or null
 
@@ -154,11 +154,16 @@ function _assemble_threshold_stats(combo_base) {
 }
 
 function _check_thresholds(stats, thresholds) {
+    let _def_cache = null;
+    const _get_def = () => _def_cache ?? (_def_cache = getDefenseStats(stats));
     for (const { stat, op, value } of thresholds) {
         let v;
         if (stat === 'ehp') {
-            const def = getDefenseStats(stats);
-            v = def?.[1]?.[0] ?? 0;
+            v = _get_def()[1]?.[0] ?? 0;
+        } else if (stat === 'ehpr') {
+            v = _get_def()[3]?.[0] ?? 0;
+        } else if (stat === 'hpr') {
+            v = _get_def()[2] ?? 0;
         } else {
             v = stats.get(stat) ?? 0;
         }
