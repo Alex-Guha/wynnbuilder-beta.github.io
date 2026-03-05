@@ -86,21 +86,22 @@ class SolverComboTotalNode extends ComputeNode {
             // Populate the breakdown popup (shown on hover/click of the damage number).
             if (dmg_popup && full && full.avg > 0) {
                 const spell_cost = full.has_cost && mod_spell.cost != null
-                    ? getSpellCost(base_stats, mod_spell) : null;
+                    ? getSpellCost(stats, mod_spell) : null;
                 dmg_popup.innerHTML = renderSpellPopupHTML(full, crit_chance, spell_cost);
                 dmg_wrap?.classList.add('has-popup');
             } else if (dmg_popup) {
                 dmg_popup.textContent = '';
                 dmg_wrap?.classList.remove('has-popup', 'popup-locked');
             }
-            // Mana cost: use base_stats (not row-boosted) for consistent cost calculation.
+            // Mana cost: use boosted stats so cost-modifying abilities (e.g. Mask of
+            // the Lunatic's spPct3Final) are reflected in the mana calculation.
             // spell.cost may be null (e.g. Bamboozle) — skip those.
             // Skip if the row's mana toggle is excluded.
             const mana_excluded = dom_row?.querySelector('.combo-mana-toggle')
                 ?.classList.contains('mana-excluded') ?? false;
             if (!mana_excluded && spell.scaling === 'melee') melee_hits += qty;
-            if (spell.cost != null && !mana_excluded) {
-                const cost_per = getSpellCost(base_stats, spell);
+            if (mod_spell.cost != null && !mana_excluded) {
+                const cost_per = getSpellCost(stats, mod_spell);
                 mana_cost += cost_per * qty;
                 spell_costs.push({ name: spell.name, qty, cost: cost_per });
             }

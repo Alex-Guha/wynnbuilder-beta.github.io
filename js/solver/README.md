@@ -135,7 +135,6 @@ http://localhost:8000/solver/?combo=c%3AM7RQqFHwTS1JzS9SqFEIz8xLSU1RMDNQqFEw5DJU
 
 
 ### Necessary Improvements
-- Spell modifying boosts aren't factored into mana calc (mask of the lunatic)
 - Abilities like crep ray that cast over time need to be allowed special entry so the user can enter multiple instances of it with varying focus buffs
 
 ### Improve Solver
