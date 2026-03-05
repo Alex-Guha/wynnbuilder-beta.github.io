@@ -167,6 +167,7 @@ function _build_solver_snapshot(restrictions) {
     const combo_time_str = document.getElementById('combo-time')?.value?.trim() ?? '';
     const combo_time = parseFloat(combo_time_str) || 0;
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
+    const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
 
     // Serialize atree interactive state for workers
     const { button_states, slider_states } = _serialize_atree_interactive(atree_interactive_val);
@@ -176,7 +177,7 @@ function _build_solver_snapshot(restrictions) {
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
         restrictions, button_states, slider_states, scoring_target,
-        combo_time, allow_downtime,
+        combo_time, allow_downtime, flat_mana,
     };
 }
 
@@ -506,6 +507,7 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         scoring_target: snap.scoring_target,
         combo_time: snap.combo_time,
         allow_downtime: snap.allow_downtime,
+        flat_mana: snap.flat_mana,
         restrictions: snap.restrictions,
         // Global data
         sets_data: [...sets],

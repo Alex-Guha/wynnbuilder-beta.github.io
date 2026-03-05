@@ -151,7 +151,29 @@ function solver_graph_init() {
             document.querySelectorAll('.combo-row-damage-wrap.popup-locked')
                 .forEach(w => w.classList.remove('popup-locked'));
         }
+        if (!e.target.closest('.combo-mana-wrapper')) {
+            document.querySelectorAll('.combo-mana-wrapper.popup-locked')
+                .forEach(w => w.classList.remove('popup-locked'));
+        }
     });
+
+    // Click-to-lock for the mana tooltip.
+    const mana_wrap = document.querySelector('.combo-mana-wrapper');
+    if (mana_wrap) {
+        mana_wrap.addEventListener('click', (e) => {
+            if (e.target.closest('.combo-row-input')) return;   // don't toggle when clicking the input
+            e.stopPropagation();
+            mana_wrap.classList.toggle('popup-locked');
+        });
+    }
+
+    // Recalc when the flat-mana input changes.
+    const flat_mana_inp = document.getElementById('flat-mana-input');
+    if (flat_mana_inp) {
+        flat_mana_inp.addEventListener('input', () => {
+            if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+        });
+    }
 
     // ── URL encoding ─────────────────────────────────────────────────────────
     const encode_node = new SolverBuildEncodeNode()

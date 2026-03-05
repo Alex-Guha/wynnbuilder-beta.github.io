@@ -228,7 +228,8 @@ function _eval_combo_mana_check(combo_base) {
         mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
     }
 
-    const end_mana = start_mana - mana_cost + mana_regen + mana_steal;
+    const flat_mana = _cfg.flat_mana ?? 0;
+    const end_mana = start_mana - mana_cost + mana_regen + mana_steal + flat_mana;
 
     if (_cfg.allow_downtime) {
         return end_mana > 0;

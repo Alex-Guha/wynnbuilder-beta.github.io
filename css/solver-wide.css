@@ -121,8 +121,32 @@
     white-space: nowrap;
 }
 
-.combo-mana-wrapper:hover .combo-mana-tooltip {
+.combo-mana-wrapper:hover .combo-mana-tooltip,
+.combo-mana-wrapper.popup-locked .combo-mana-tooltip {
     display: block;
+}
+
+.combo-mana-wrapper.popup-locked .combo-mana-tooltip {
+    pointer-events: auto;
+}
+
+.combo-flat-mana-row {
+    display: none;
+    bottom: auto;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 1050;
+    white-space: nowrap;
+}
+
+.combo-mana-wrapper.popup-locked .combo-flat-mana-row {
+    display: block;
+    pointer-events: auto;
+}
+
+.combo-flat-mana-row .combo-row-input {
+    width: 4em;
+    text-align: center;
 }
 
 /* ── Roll-mode select ────────────────────────────────────────────────────── */

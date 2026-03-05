@@ -421,7 +421,8 @@ class SolverComboTotalNode extends ComputeNode {
             adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
             mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
         }
-        const end_mana = start_mana - mana_cost + mana_regen + mana_steal;
+        const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
+        const end_mana = start_mana - mana_cost + mana_regen + mana_steal + flat_mana;
         const deficit = start_mana - end_mana; // positive = net loss per combo
 
         let text = `Mana: ${Math.round(end_mana)}/${start_mana}`;
@@ -475,6 +476,9 @@ class SolverComboTotalNode extends ComputeNode {
                         attackSpeeds.indexOf(base_stats.get('atkSpd'))
                         + (base_stats.get('atkTier') ?? 0)))];
                 html += `<div>Mana steal \u00d7${melee_hits} hits: ${fmt(mana_steal)} (${Math.round(mana_per_hit * 10) / 10}/hit)</div>`;
+            }
+            if (flat_mana > 0) {
+                html += `<div>Flat mana / cycle: ${fmt(flat_mana)}</div>`;
             }
             html +=
                 `<hr class="my-1 border-secondary">` +
