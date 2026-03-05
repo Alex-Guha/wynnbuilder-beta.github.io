@@ -269,7 +269,11 @@ const atree_render = new (class extends ComputeNode {
         if (atree) { ret = render_AT(this.UI_elem, this.list_elem, atree); }
 
         //Toggle on, previously was toggled off
-        toggle_tab('atree-dropdown'); toggleButton('toggle-atree');
+        if (typeof ensureSolverPanel === 'function') {
+            ensureSolverPanel('atree-dropdown');
+        } else {
+            toggle_tab('atree-dropdown'); toggleButton('toggle-atree');
+        }
 
         return ret;
     }

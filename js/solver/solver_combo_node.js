@@ -308,7 +308,7 @@ class SolverComboTotalNode extends ComputeNode {
         const container = document.getElementById('combo-selection-rows');
         if (!container) return;
 
-        const sig = registry.map(e => e.name + ':' + e.type).join(',');
+        const sig = registry.map(e => e.name + ':' + e.type + (e.max != null ? ':' + e.max : '')).join(',');
         const registry_changed = sig !== this._last_registry_sig;
         if (registry_changed) this._last_registry_sig = sig;
 

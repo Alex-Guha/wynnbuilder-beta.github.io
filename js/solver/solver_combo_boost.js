@@ -172,21 +172,24 @@ function build_combo_boost_registry(atree_merged, build = null) {
                 if (toggle_seen.has(toggle_name)) continue;
 
                 const stat_bonuses = [];
+                const prop_bonuses = [];
                 for (const bonus of (effect.bonuses ?? [])) {
-                    if (bonus.type !== 'stat') continue;
                     let val = bonus.value;
                     // Resolve "abilId.propName" string references.
                     if (typeof val === 'string') {
                         const [id_str, prop] = val.split('.');
                         val = atree_merged.get(parseInt(id_str))?.properties?.[prop] ?? 0;
                     }
-                    if (typeof val === 'number') {
+                    if (typeof val !== 'number') continue;
+                    if (bonus.type === 'stat') {
                         stat_bonuses.push({ key: bonus.name, value: val, mode: 'add' });
+                    } else if (bonus.type === 'prop') {
+                        prop_bonuses.push({ ref: String(bonus.abil) + '.' + bonus.name, value_per_unit: val, mode: 'add' });
                     }
                 }
-                if (stat_bonuses.length > 0) {
+                if (stat_bonuses.length > 0 || prop_bonuses.length > 0) {
                     toggle_seen.add(toggle_name);
-                    registry.push({ name: toggle_name, aliases: [], type: 'toggle', stat_bonuses, prop_bonuses: [] });
+                    registry.push({ name: toggle_name, aliases: [], type: 'toggle', stat_bonuses, prop_bonuses });
                 }
             } else if (effect.type === 'stat_scaling' && effect.slider === true) {
                 const slider_name = effect.slider_name;

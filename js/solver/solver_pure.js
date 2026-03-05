@@ -335,7 +335,14 @@ function apply_combo_row_boosts(base_stats, boost_tokens, registry) {
                 }
             }
             for (const p of entry.prop_bonuses) {
-                prop_overrides.set(p.ref, (p.value_per_unit ?? 1) * effective_value);
+                const contrib = (p.value_per_unit ?? 1) * effective_value;
+                const existing = prop_overrides.get(p.ref) ?? { replace: null, add: 0 };
+                if (p.mode === 'add') {
+                    existing.add += contrib;
+                } else {
+                    existing.replace = (existing.replace ?? 0) + contrib;
+                }
+                prop_overrides.set(p.ref, existing);
             }
         }
     }
@@ -383,7 +390,12 @@ function apply_spell_prop_overrides(spell, prop_overrides, atree_merged) {
         for (const sub_name of Object.keys(part.hits)) {
             const orig_val = orig_hits[sub_name];
             if (typeof orig_val === 'string' && prop_overrides.has(orig_val)) {
-                part.hits[sub_name] = prop_overrides.get(orig_val);
+                const ov = prop_overrides.get(orig_val);
+                if (ov.replace != null) {
+                    part.hits[sub_name] = ov.replace + ov.add;
+                } else {
+                    part.hits[sub_name] += ov.add;
+                }
             }
         }
     }

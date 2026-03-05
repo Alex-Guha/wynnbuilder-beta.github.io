@@ -11,10 +11,12 @@ class ItemInputNode extends BaseItemInputNode {
     _on_match(item) {
         // Apply roll mode: Build.initBuildStats() always reads maxRolls, so we
         // replace maxRolls with getRolledValue(min, max) for each rolled stat.
+        // Preserve originals under '_origMaxRolls' so the tooltip can show true ranges.
         if (current_roll_mode < 100) {
             const minR = item.statMap.get('minRolls');
             const maxR = item.statMap.get('maxRolls');
             if (minR && maxR) {
+                item.statMap.set('_origMaxRolls', maxR);
                 const rolledMap = new Map();
                 for (const [id, maxVal] of maxR.entries()) {
                     rolledMap.set(id, getRolledValue(minR.get(id) ?? 0, maxVal));
@@ -94,7 +96,15 @@ class SolverItemTooltipNode extends ComputeNode {
             setHTML(this.tooltip_id, '');
             return null;
         }
+        // Temporarily restore original maxRolls so the tooltip shows true ID ranges
+        // instead of the roll-mode-interpolated values used for build calculation.
+        const origMax = item.statMap.get('_origMaxRolls');
+        const curMax = origMax ? item.statMap.get('maxRolls') : null;
+        if (origMax) item.statMap.set('maxRolls', origMax);
+
         displayExpandedItem(item.statMap, this.tooltip_id);
+
+        if (curMax) item.statMap.set('maxRolls', curMax);
         // Keep tooltip hidden until user clicks; displayExpandedItem may make it visible.
         tooltip.style.display = 'none';
         return null;

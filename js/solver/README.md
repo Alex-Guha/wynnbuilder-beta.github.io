@@ -127,25 +127,35 @@ http://localhost:8000/solver/?combo=c%3AM7RQqFHwTS1JzS9SqFEIz8xLSU1RMDNQqFEw5DJU
 
 ## Todo
 
+### Bugs
+#### Combo
+- Commander and Invigorating Wave (Invigorate Puppets) aren't in boosts
+    - https://alex-guha.github.io/wynnbuilder.github.io/solver/?sfree=101&gtome=1&combo=c%3AlcuxCsIwFEbh3af4N5cu8Q3EFjooCPoCV5ukF71JSXKHQh5edHJM18P5DCqOmggVF8ovRIcyW5w1UOFnh1FFOPgHpynvDCpG0nfTfPjOf2GPWwy-haLC_PgpseQYMDjHft1Er7ostqAnIW83yXssVlrFBw&ctime=2&dir=int%2Cdef&dtime=1&roll=100#CN0W9md6ib0uQ01F2n0n1Qdmj6S9O90yp0Zky5-dsjFFGb5
+- Changing puppet count in boosts to anything other than 0 makes the damage 0
+
+#### UI
+- Per-spell damage hover - Currently goes off screen. Limit the box size to stay in window, since scrolling in the box is available
+- Tomes / Ability Tree / Aspects toggle buttons - on page load, whichever section is shown by default does not receive the active hover highlight. The button hover/active state needs to be set programmatically at init to match the visible section. Same when a weapon is entered.
+- Roll % is misapplying to the weapon IDs that are displayed, affecting the ranges
+
+### Necessary Improvements
+- Spell modifying boosts aren't factored into mana calc (mask of the lunatic)
+- Add a "flat mana per cycle" entry field to allow users to tally in mana provided from spells like Invigorating Wave
+- Abilities like crep ray that cast over time need to be allowed special entry so the user can enter multiple instances of it with varying focus buffs
+- Add stat restriction for non-agi ehp
+- Switch stat restriction for hp bonus to total hp
+
 ### Improve Solver
 See SOLVER.md for details.
 
-### Crep Ray
-Abilities like crep ray that cast over time need to be allowed special entry so the user can enter multiple instances of it with varying focus buffs
 
-### UI polish
-
-- **Solver restrictions panel** - the filter rows would benefit from better layout (aligned columns, cleaner autocomplete styling) and clearer labeling of the min/max selector.
+### Polish
+#### UI
+- Solver restrictions panel - the filter rows would benefit from better layout (aligned columns, cleaner autocomplete styling) and clearer labeling of the min/max selector.
     - "Filters", "Targets" w/ weighting option
-- **Tomes / Ability Tree / Aspects toggle buttons** - on page load, whichever section is shown by default does not receive the active hover highlight. The button hover/active state needs to be set programmatically at init to match the visible section. Same when a weapon is entered.
-- **Downtime text** - Inform users to consider the downtime part of the cycle
-
-
-### Future
-
-- **Modified Spell Mana Cost** - Currently, spells like Eldritch Call and Bamboozle don't have automatic mana cost inference, since they modify other abilities.
-- **Automatic combo sequencing** - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a per-spell state machine for each ability interaction. This is a significant undertaking and was deferred from the initial design.
-- **SOLVER.md** See "Potential Improvements" for details.
+#### Combo
+- Modified Spell Mana Cost - Currently, spells like Eldritch Call and Bamboozle don't have automatic mana cost inference, since they modify other abilities.
+- Automatic combo sequencing - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a per-spell state machine for each ability interaction. This is a significant undertaking and was deferred from the initial design.
 
 ### Testing
 

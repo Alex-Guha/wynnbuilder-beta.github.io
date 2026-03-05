@@ -256,6 +256,13 @@ i.e. (target ehp - current ehp) / current ehp vs (target MR - current MR) / curr
 ### Tune item pool ordering
 Develop a testing suite for `_build_dmg_weights` in `solver_search.js`.
 
+### Investigate the slow down over time
+Could be an issue with the workers, where some might finish and then do nothing instead of grabbing more work.
+Or it could be that because of the item weighting, the first million combinations are largely impossible skill point wise and don't have to go to the damage/mana calculation phase, so getting through them is much faster.
+
+### Make dominance pruning a bit more aggressive
+Exclude stats that don't factor into the calc (depending on which those are), like poison or walk speed or mana steal, etc.
+
 ---
 
 ## Potential Improvements

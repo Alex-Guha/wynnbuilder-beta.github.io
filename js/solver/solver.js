@@ -86,6 +86,23 @@ const SOLVER_PANEL_BTNS = {
 };
 
 /**
+ * Ensures the given panel is shown (no toggle) and hides the others.
+ * Used by shared code (e.g. atree.js) that needs to guarantee a panel is open.
+ */
+function ensureSolverPanel(panelId) {
+    for (const p of SOLVER_PANELS) {
+        const el = document.getElementById(p);
+        if (el) el.style.display = "none";
+        const btn = document.getElementById(SOLVER_PANEL_BTNS[p]);
+        if (btn) btn.classList.remove("selected-btn");
+    }
+    const panel = document.getElementById(panelId);
+    if (panel) panel.style.display = "";
+    const btn = document.getElementById(SOLVER_PANEL_BTNS[panelId]);
+    if (btn) btn.classList.add("selected-btn");
+}
+
+/**
  * Shows the given panel and hides the others. Clicking the same panel's button
  * a second time collapses it (toggle behaviour).
  */

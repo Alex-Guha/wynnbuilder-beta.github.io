@@ -95,10 +95,15 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     const dmg_popup = document.createElement('div');
     dmg_popup.className = 'combo-dmg-popup text-light';
     dmg_wrap.append(heal_span, dmg_span, dmg_popup);
-    // Reposition popup above or below the row depending on available viewport space.
+    // Reposition popup above or below the row depending on available viewport space,
+    // and constrain its max-height so it never overflows the viewport.
     const _update_dmg_popup_pos = () => {
         const rect = dmg_wrap.getBoundingClientRect();
-        dmg_wrap.classList.toggle('popup-below', rect.top < 400);
+        const vh = window.innerHeight;
+        const below = rect.top < 400;
+        dmg_wrap.classList.toggle('popup-below', below);
+        const available = below ? (vh - rect.bottom - 8) : (rect.top - 8);
+        dmg_popup.style.maxHeight = Math.max(100, available) + 'px';
     };
     dmg_wrap.addEventListener('mouseenter', _update_dmg_popup_pos);
     dmg_wrap.addEventListener('click', (e) => {

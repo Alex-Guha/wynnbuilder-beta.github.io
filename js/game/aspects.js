@@ -221,6 +221,15 @@ class TooltipGeneratorNode extends ComputeNode {
                 });
                 this.trigger.appendChild(this.tooltip_elem);
                 this.tooltip_generator_fn(this.tooltip_elem, args);
+
+                // If the tooltip overflows the bottom of the viewport, show it above the icon instead.
+                const tooltipRect = this.tooltip_elem.getBoundingClientRect();
+                if (tooltipRect.bottom > window.innerHeight) {
+                    const triggerPageY = this.trigger.getBoundingClientRect().top + window.pageYOffset;
+                    this.tooltip_elem.style.top = (triggerPageY - this.tooltip_elem.offsetHeight - 10) + "px";
+                    this.tooltip_elem.classList.remove("rounded-bottom");
+                    this.tooltip_elem.classList.add("rounded-top");
+                }
             };
 
             this.trigger.onmouseout = (e) => {
