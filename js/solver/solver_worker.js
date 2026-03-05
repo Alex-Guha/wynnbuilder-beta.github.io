@@ -32,11 +32,13 @@ let _cancelled = false;
 // set bonuses — all of which can only increase the stat for ge constraints).
 //
 // Stats excluded from simple precheck:
-//   - 'ehp': derived from HP + def% + agi% + classDef + defMult (has special handling)
+//   - 'ehp','ehp_no_agi','total_hp': derived from HP + def% + agi% + classDef + defMult (has special handling)
 //   - 'str','dex','int','def','agi': overwritten by total_sp from SP assignment
-const _PRECHECK_EXCLUDED = new Set(['ehp', 'ehpr', 'hpr', 'str', 'dex', 'int', 'def', 'agi']);
+const _PRECHECK_EXCLUDED = new Set(['ehp', 'ehp_no_agi', 'total_hp', 'ehpr', 'hpr', 'str', 'dex', 'int', 'def', 'agi']);
 let _constraint_prechecks = [];  // [{stat, adjusted_threshold}]
 let _ehp_precheck = null;        // {threshold, fixed_hp, ehp_divisor} or null
+let _ehp_no_agi_precheck = null; // {threshold, fixed_hp, ehp_divisor} or null
+let _total_hp_precheck = null;   // {threshold, fixed_hp} or null
 
 // ── Debug logging (worker 0 only) ───────────────────────────────────────────
 const _SOLVER_WORKER_DEBUG = false;
@@ -61,6 +63,8 @@ function _insert_top5(candidate) {
 function _build_constraint_prechecks() {
     _constraint_prechecks = [];
     _ehp_precheck = null;
+    _ehp_no_agi_precheck = null;
+    _total_hp_precheck = null;
 
     const thresholds = _cfg.restrictions?.stat_thresholds ?? [];
     if (thresholds.length === 0) return;
@@ -74,19 +78,30 @@ function _build_constraint_prechecks() {
     for (const { stat, op, value } of thresholds) {
         if (op !== 'ge') continue;  // only ge constraints benefit from early rejection
 
-        if (stat === 'ehp') {
+        if (stat === 'ehp' || stat === 'ehp_no_agi') {
             // Precompute fixed EHP constants
             const fixed_hp = fixed('hpBonus');
 
             const def_pct = skillPointsToPercentage(100) * skillpoint_final_mult[3];
-            const agi_pct = skillPointsToPercentage(100) * skillpoint_final_mult[4];
-            const agi_reduction = (100 - 90) / 100;
             const weaponType = _cfg.weapon_sm?.get('type');
             const classDef = classDefenseMultipliers.get(weaponType) || 1.0;
             const defMult = (2 - classDef);
-            const ehp_divisor = (agi_reduction * agi_pct + (1 - agi_pct) * (1 - def_pct)) * defMult;
 
-            _ehp_precheck = { threshold: value, fixed_hp, ehp_divisor };
+            if (stat === 'ehp') {
+                const agi_pct = skillPointsToPercentage(100) * skillpoint_final_mult[4];
+                const agi_reduction = (100 - 90) / 100;
+                const ehp_divisor = (agi_reduction * agi_pct + (1 - agi_pct) * (1 - def_pct)) * defMult;
+                _ehp_precheck = { threshold: value, fixed_hp, ehp_divisor };
+            } else {
+                // ehp_no_agi: no agility dodge factor, just def_pct
+                const ehp_divisor = (1 - def_pct) * defMult;
+                _ehp_no_agi_precheck = { threshold: value, fixed_hp, ehp_divisor };
+            }
+            continue;
+        }
+
+        if (stat === 'total_hp') {
+            _total_hp_precheck = { threshold: value, fixed_hp: fixed('hpBonus') };
             continue;
         }
 
@@ -116,17 +131,34 @@ function _fast_constraint_precheck(running_sm) {
  * Optimistic EHP precheck using precomputed constants.
  * Computes an upper bound on EHP assuming max def/agi skill points (100 each)
  * and no extra defMult penalties. If even this can't meet the threshold, reject.
+ * Also checks ehp_no_agi and total_hp prechecks.
  */
 function _fast_ehp_precheck(running_sm) {
-    if (!_ehp_precheck) return true;
+    if (!_ehp_precheck && !_ehp_no_agi_precheck && !_total_hp_precheck) return true;
 
     // running_sm.get('hp') = levelToHPBase + sum of item 'hp' (static ID)
     // running_sm.get('hpBonus') = sum of item hpBonus (from maxRolls)
-    let totalHp = (running_sm.get('hp') ?? 0) + (running_sm.get('hpBonus') ?? 0)
-        + _ehp_precheck.fixed_hp;
-    if (totalHp < 5) totalHp = 5;
+    const raw_hp = (running_sm.get('hp') ?? 0) + (running_sm.get('hpBonus') ?? 0);
 
-    return (totalHp / _ehp_precheck.ehp_divisor) >= _ehp_precheck.threshold;
+    if (_ehp_precheck) {
+        let totalHp = raw_hp + _ehp_precheck.fixed_hp;
+        if (totalHp < 5) totalHp = 5;
+        if ((totalHp / _ehp_precheck.ehp_divisor) < _ehp_precheck.threshold) return false;
+    }
+
+    if (_ehp_no_agi_precheck) {
+        let totalHp = raw_hp + _ehp_no_agi_precheck.fixed_hp;
+        if (totalHp < 5) totalHp = 5;
+        if ((totalHp / _ehp_no_agi_precheck.ehp_divisor) < _ehp_no_agi_precheck.threshold) return false;
+    }
+
+    if (_total_hp_precheck) {
+        let totalHp = raw_hp + _total_hp_precheck.fixed_hp;
+        if (totalHp < 5) totalHp = 5;
+        if (totalHp < _total_hp_precheck.threshold) return false;
+    }
+
+    return true;
 }
 
 // ── Per-candidate stat assembly ─────────────────────────────────────────────
@@ -160,6 +192,10 @@ function _check_thresholds(stats, thresholds) {
         let v;
         if (stat === 'ehp') {
             v = _get_def()[1]?.[0] ?? 0;
+        } else if (stat === 'ehp_no_agi') {
+            v = _get_def()[1]?.[1] ?? 0;
+        } else if (stat === 'total_hp') {
+            v = _get_def()[0] ?? 0;
         } else if (stat === 'ehpr') {
             v = _get_def()[3]?.[0] ?? 0;
         } else if (stat === 'hpr') {
@@ -263,6 +299,9 @@ function _eval_score(combo_base, thresh_stats) {
     const stats = thresh_stats ?? _assemble_threshold_stats(combo_base);
     if (target === 'ehp') {
         return getDefenseStats(stats)[1][0];   // EHP weighted by agility
+    }
+    if (target === 'ehp_no_agi') {
+        return getDefenseStats(stats)[1][1];   // EHP without agility dodge
     }
     return stats.get(target) ?? 0;
 }
@@ -940,7 +979,7 @@ self.onmessage = function (e) {
                 '| allow_downtime:', msg.allow_downtime,
                 '| sp_budget:', msg.sp_budget,
                 '| prechecks:', _constraint_prechecks.length,
-                '| ehp_precheck:', !!_ehp_precheck,
+                '| ehp_precheck:', !!_ehp_precheck, '| ehp_no_agi_precheck:', !!_ehp_no_agi_precheck, '| total_hp_precheck:', !!_total_hp_precheck,
                 '| thresholds:', msg.restrictions?.stat_thresholds?.length ?? 0);
         }
 

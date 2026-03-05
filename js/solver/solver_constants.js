@@ -31,10 +31,11 @@ let current_roll_mode = ROLL_DEFAULT;
  */
 const RESTRICTION_STATS = [
     // ── Health / Sustain ────────────────────────────────────────────────
-    { key: 'ehp',        label: 'Effective HP' },   // derived — computed during solver eval
-    { key: 'ehpr',       label: 'Effective HPR' },  // derived — computed during solver eval
-    { key: 'hpr',        label: 'HP Regen' },       // derived — hprRaw + hprPct combined
-    { key: 'hpBonus',    label: 'HP Bonus' },
+    { key: 'ehp',        label: 'Effective HP' },          // derived — computed during solver eval
+    { key: 'ehp_no_agi', label: 'Effective HP (No Agi)' }, // derived — EHP without agility dodge
+    { key: 'ehpr',       label: 'Effective HPR' },         // derived — computed during solver eval
+    { key: 'hpr',        label: 'HP Regen' },              // derived — hprRaw + hprPct combined
+    { key: 'total_hp',   label: 'Total HP' },              // derived — hp + hpBonus
     { key: 'hprRaw',     label: 'Health Regen Raw' },
     { key: 'hprPct',     label: 'Health Regen %' },
     { key: 'healPct',    label: 'Heal Effectiveness %' },
