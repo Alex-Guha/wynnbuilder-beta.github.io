@@ -290,6 +290,9 @@ function _collect_solver_params() {
     }
     const blacklist_text = bl_entries.join('|');
 
+    // Flat mana per cycle
+    const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
+
     return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
-             restrictions_text, combo_text, blacklist_text };
+             restrictions_text, combo_text, blacklist_text, flat_mana };
 }

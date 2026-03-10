@@ -535,6 +535,11 @@ async function init() {
             if (btn) btn.classList.add('toggleOn');
         }
 
+        if (solver_params.flat_mana) {
+            const inp = document.getElementById('flat-mana-input');
+            if (inp) inp.value = solver_params.flat_mana;
+        }
+
         if (solver_params.combo_text && solver_combo_total_node) {
             try {
                 const data = combo_text_to_data(solver_params.combo_text);

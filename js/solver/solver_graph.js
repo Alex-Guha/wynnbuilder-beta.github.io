@@ -172,6 +172,7 @@ function solver_graph_init() {
     if (flat_mana_inp) {
         flat_mana_inp.addEventListener('input', () => {
             if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+            _schedule_solver_hash_update();
         });
     }
 

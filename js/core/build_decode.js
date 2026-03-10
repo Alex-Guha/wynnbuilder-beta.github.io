@@ -701,8 +701,14 @@ async function decodeSolverParams(b64_str) {
             }
         }
 
+        // Flat mana per cycle (backward-compatible: missing in older URLs)
+        let flat_mana = 0;
+        if (cursor.endIdx - cursor.currIdx >= 8) {
+            flat_mana = cursor.advanceBy(8);
+        }
+
         return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
-                 restrictions_text, combo_text, blacklist_text };
+                 restrictions_text, combo_text, blacklist_text, flat_mana };
     } catch (e) {
         console.warn('[decode] decodeSolverParams failed:', e);
         return null;

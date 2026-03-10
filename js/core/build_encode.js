@@ -560,6 +560,7 @@ const SOLVER_HASH_SEP = '_';
  *   [N*8] combo deflate-raw compressed bytes
  *   [12] blacklist_byte_length (0 = no blacklist)
  *   [N*8] blacklist UTF-8 bytes ("name|name|..." text)
+ *   [8]  flat_mana (0-255, integer mana per cycle)
  *
  * @param {Object} params
  * @param {number} params.roll - Roll percentage (0-100)
@@ -639,6 +640,9 @@ async function encodeSolverParams(params) {
         : new Uint8Array(0);
     bv.append(bl_bytes.length, 12); // max 4095 bytes
     for (const b of bl_bytes) bv.append(b, 8);
+
+    // Flat mana per cycle: 8 bits (0-255, integer)
+    bv.append(Math.max(0, Math.min(255, Math.round(params.flat_mana || 0))), 8);
 
     return bv.toB64();
 }
