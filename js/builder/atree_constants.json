@@ -2,7 +2,7 @@
     "Archer": [
         {
             "display_name": "Arrow Bomb",
-            "desc": "Click Combo: LEFT-RIGHT-RIGHT </br> Shoots a long-ranged arrow that explodes and deals high damage over a large area. (Self-damage for 10% of your DPS) </br> Mana Cost: 45 </br><span class='mc-white'>Total Damage</span>: 160% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 140%)   </br>&emsp;(<span class='fDam'>Fire</span>: 20%) </br>Range: \u00b126 Blocks </br>Area of Effect: 4.5 Blocks (Circle-Shaped)",
+            "desc": "Click Combo: LEFT-RIGHT-RIGHT </br> Shoots a long-ranged arrow that explodes and deals high damage over a large area. (Self-damage for 10% of your DPS) </br> Mana Cost: 45 </br><span class='mc-white'>Total Damage</span>: 160% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 140%)   </br>&emsp;(<span class='fDam'>Fire</span>: 20%) </br>Range: ±26 Blocks </br>Area of Effect: 4.5 Blocks (Circle-Shaped)",
             "parents": [],
             "dependencies": [],
             "blockers": [],
@@ -268,7 +268,7 @@
         },
         {
             "display_name": "Arrow Storm",
-            "desc": "Click Combo: LEFT-RIGHT-LEFT </br> Shoots a stream of 8 arrows, dealing significant damage to close mobs and pushing them away. </br> Mana Cost: 35 </br><span class='mc-white'>Total Damage</span>: 40% (of your DPS, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: 30%)   </br>&emsp;(<span class='tDam'>Thunder</span>: 10%) </br>Range: \u00b116 Blocks",
+            "desc": "Click Combo: LEFT-RIGHT-LEFT </br> Shoots a stream of 8 arrows, dealing significant damage to close mobs and pushing them away. </br> Mana Cost: 35 </br><span class='mc-white'>Total Damage</span>: 40% (of your DPS, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: 30%)   </br>&emsp;(<span class='tDam'>Thunder</span>: 10%) </br>Range: ±16 Blocks",
             "parents": [
                 "Double Shots",
                 "Cheaper Escape I"
@@ -2938,7 +2938,8 @@
                                 "DPS": 7
                             }
                         }
-                    ]
+                    ],
+                    "mana_derived_from": 1
                 }
             ]
         },
@@ -3189,7 +3190,7 @@
         },
         {
             "display_name": "Elusive",
-            "desc": "\u00a77\u00a7nArrow Bomb\u00a77 and \u00a77\u00a7nArrow Storm\u00a77 will no longer have recoil, and your \u00a77\u00a7nArrow Bombs\u00a77 will not deal self-damage.",
+            "desc": "§7§nArrow Bomb§7 and §7§nArrow Storm§7 will no longer have recoil, and your §7§nArrow Bombs§7 will not deal self-damage.",
             "archetype": "Boltslinger",
             "archetype_req": 0,
             "parents": [
@@ -9652,7 +9653,7 @@
                     },
                     "scaling": [
                         10
-                    ], 
+                    ],
                     "max": 100
                 }
             ]
@@ -10321,7 +10322,7 @@
         {
             "display_name": "Interweave",
             "desc": "Hitting an ally with a Lightweaver orb consumes the orb and applies Shining.</br></br>Shining players can be healed from any distance, and they deal the orb's damage to nearby enemies.</br></br>Duration: 6s",
-            "archetype":"Light Bender",
+            "archetype": "Light Bender",
             "archetype_req": 10,
             "parents": [
                 "Sunflare"
@@ -12484,7 +12485,8 @@
                                 "Malicious Mockery Damage": "Malicious Mockery.tricks"
                             }
                         }
-                    ]
+                    ],
+                    "mana_derived_from": 2
                 },
                 {
                     "type": "stat_scaling",
@@ -13479,7 +13481,8 @@
                                 0
                             ]
                         }
-                    ]
+                    ],
+                    "mana_derived_from": 3
                 }
             ]
         },
@@ -14117,7 +14120,7 @@
         {
             "display_name": "Disappearing Act",
             "desc": "After losing all of your Mirror Clones, create an explosion the next time you enter Vanish.",
-            "archetype":"Trickster",
+            "archetype": "Trickster",
             "parents": [
                 "Paranoia",
                 "Looming Presence"
@@ -16516,8 +16519,7 @@
                 "col": 4,
                 "icon": "node_3"
             },
-            "properties": {
-            },
+            "properties": {},
             "effects": [
                 {
                     "type": "raw_stat",
@@ -16604,7 +16606,8 @@
                                 "Single Hit": 4
                             }
                         }
-                    ]
+                    ],
+                    "mana_derived_from": 1
                 }
             ]
         },
@@ -17153,8 +17156,7 @@
                 "fanatic_cost": -65,
                 "heretic_cost": -50
             },
-            "effects": [
-            ]
+            "effects": []
         },
         {
             "display_name": "Bloodier II",
@@ -17369,7 +17371,8 @@
                                 "Single Hummingbird DPS": "Hummingbirds' Song.count"
                             }
                         }
-                    ]
+                    ],
+                    "mana_derived_from": 2
                 },
                 {
                     "type": "raw_stat",
@@ -17502,7 +17505,8 @@
                                 "Beam DPS": "Blood Sorrow.duration"
                             }
                         }
-                    ]
+                    ],
+                    "mana_derived_from": 4
                 }
             ]
         },

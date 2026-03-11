@@ -30,7 +30,6 @@ See SOLVER.md for details.
     - "Filters", "Targets" w/ weighting option
 
 #### Combo
-- Modified Spell Mana Cost - Currently, spells like Eldritch Call and Bamboozle don't have automatic mana cost inference, since they modify other abilities.
 
 
 ### Testing

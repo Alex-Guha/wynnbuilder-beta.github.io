@@ -1067,6 +1067,19 @@ const atree_collect_spells = new (class extends ComputeNode {
                 }
             }
         }
+        // Resolve mana_derived_from: copy cost from the parent spell so that
+        // derived spells (alternate casts like Bamboozle, Eldritch Call) inherit
+        // the parent's mana cost and use the parent's base_spell for cost stat
+        // lookups (spRaw/spPct) and recast tracking.
+        for (const spell of ret_spells.values()) {
+            if ('mana_derived_from' in spell) {
+                const parent = ret_spells.get(spell.mana_derived_from);
+                if (parent && 'cost' in parent) {
+                    spell.cost = parent.cost;
+                }
+            }
+        }
+
         return ret_spells;
     }
 })().link_to(atree_scaling_tree, 'atree-merged');

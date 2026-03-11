@@ -246,13 +246,15 @@ function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map
 // ── Spell cost helpers (worker null-safe versions of display.js) ─────────────
 
 function getBaseSpellCost(stats, spell) {
+    const bs = spell.mana_derived_from ?? spell.base_spell;
     const int_reduction = skillPointsToPercentage(stats.get('int') ?? 0) * skillpoint_final_mult[2];
     let cost = spell.cost * (1 - int_reduction);
-    cost += (stats.get('spRaw' + spell.base_spell) ?? 0);
-    return cost * (1 + (stats.get('spPct' + spell.base_spell) ?? 0) / 100);
+    cost += (stats.get('spRaw' + bs) ?? 0);
+    return cost * (1 + (stats.get('spPct' + bs) ?? 0) / 100);
 }
 
 function getSpellCost(stats, spell) {
-    const final_pct = stats.get('spPct' + spell.base_spell + 'Final') ?? 0;
+    const bs = spell.mana_derived_from ?? spell.base_spell;
+    const final_pct = stats.get('spPct' + bs + 'Final') ?? 0;
     return Math.max(1, getBaseSpellCost(stats, spell) * (1 + final_pct / 100));
 }

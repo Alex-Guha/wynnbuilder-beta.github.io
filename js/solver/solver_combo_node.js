@@ -52,11 +52,15 @@ class SolverComboTotalNode extends ComputeNode {
         let recast_penalty_total = 0;
         const spell_costs = []; // [{name, qty, cost_per_cast, recast_penalty}] for tooltip breakdown
 
-        // Recast tracking: consecutive casts of the same spell add +5 mana each.
+        // Recast tracking: first cast and first recast of the same spell are free.
+        // After that, each subsequent cast adds +RECAST_MANA_PENALTY mana, and
+        // the penalty persists across spell switches. The counter resets only
+        // when the previous spell was cast exactly once (no recast) and you switch.
         // Melee (base_spell=0) doesn't affect the counter. Mana-excluded rows
         // are invisible to the recast tracker. Mana Reset resets the counter.
         let last_spell_base = null; // base_spell of the last mana-visible non-melee spell
-        let recast_count = 0;      // how many consecutive casts so far
+        let consecutive_count = 0;  // how many consecutive casts of last_spell_base
+        let penalty_counter = 0;    // running penalty multiplier (increments per penalized cast)
 
         for (const { qty, spell, boost_tokens, dom_row } of rows) {
             const dmg_wrap = dom_row?.querySelector('.combo-row-damage-wrap');
@@ -73,7 +77,8 @@ class SolverComboTotalNode extends ComputeNode {
             if (spell_id === MANA_RESET_SPELL_ID) {
                 if (!mana_excluded) {
                     last_spell_base = null;
-                    recast_count = 0;
+                    consecutive_count = 0;
+                    penalty_counter = 0;
                 }
                 if (dmg_span) dmg_span.textContent = '';
                 if (dmg_popup) { dmg_popup.textContent = ''; }
@@ -147,26 +152,44 @@ class SolverComboTotalNode extends ComputeNode {
             }
             // Mana cost: use boosted stats so cost-modifying abilities (e.g. Mask of
             // the Lunatic's spPct3Final) are reflected in the mana calculation.
-            // spell.cost may be null (e.g. Bamboozle) — skip those.
+            // spell.cost may be null for passive/non-cast spells — skip those.
             // Skip if the row's mana toggle is excluded.
             if (!mana_excluded && spell.scaling === 'melee') melee_hits += qty;
             if (mod_spell.cost != null && !mana_excluded) {
                 const cost_per = getSpellCost(stats, mod_spell);
 
-                // Recast penalty: consecutive casts of the same non-melee spell
-                // add RECAST_MANA_PENALTY per recast. Melee doesn't affect tracking.
+                // Recast penalty: first cast + first recast are free, then each
+                // subsequent cast adds penalty_counter * RECAST_MANA_PENALTY.
+                // Penalty persists across spell switches; resets only when the
+                // previous spell was cast exactly once and you switch away.
+                // Melee doesn't affect tracking.
                 let row_recast_penalty = 0;
-                const is_melee = spell.base_spell === 0;
+                const recast_base = spell.mana_derived_from ?? spell.base_spell;
+                const is_melee = recast_base === 0;
                 if (!is_melee) {
-                    if (spell.base_spell !== last_spell_base) {
-                        // Different spell — reset counter
-                        last_spell_base = spell.base_spell;
-                        recast_count = 0;
+                    if (recast_base !== last_spell_base) {
+                        // Different spell — reset only if previous was cast once (no recast)
+                        if (consecutive_count === 1) penalty_counter = 0;
+                        consecutive_count = 0;
+                        last_spell_base = recast_base;
                     }
-                    // Penalty for this row: sum_{i=0}^{qty-1} (recast_count + i) * RECAST_MANA_PENALTY
-                    // = RECAST_MANA_PENALTY * (qty * recast_count + qty*(qty-1)/2)
-                    row_recast_penalty = RECAST_MANA_PENALTY * (qty * recast_count + qty * (qty - 1) / 2);
-                    recast_count += qty;
+
+                    if (penalty_counter > 0) {
+                        // Penalty already active — all casts in this row are penalized.
+                        // sum_{i=1}^{qty} (penalty_counter + i) * RECAST_MANA_PENALTY
+                        row_recast_penalty = RECAST_MANA_PENALTY * (qty * penalty_counter + qty * (qty + 1) / 2);
+                        penalty_counter += qty;
+                    } else {
+                        // First cast + first recast of same spell are free.
+                        const free_casts = Math.max(0, Math.min(qty, 2 - consecutive_count));
+                        const penalty_casts = qty - free_casts;
+                        if (penalty_casts > 0) {
+                            // sum_{i=1}^{penalty_casts} i * RECAST_MANA_PENALTY
+                            row_recast_penalty = RECAST_MANA_PENALTY * penalty_casts * (penalty_casts + 1) / 2;
+                            penalty_counter += penalty_casts;
+                        }
+                    }
+                    consecutive_count += qty;
                 }
 
                 mana_cost += cost_per * qty + row_recast_penalty;
