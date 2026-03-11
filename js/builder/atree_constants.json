@@ -8504,6 +8504,7 @@
                     "type": "replace_spell",
                     "name": "Arcane Transfer",
                     "base_spell": 1,
+                    "cost": null,
                     "parts": [],
                     "display": ""
                 }

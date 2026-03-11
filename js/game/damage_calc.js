@@ -28,7 +28,7 @@ function get_base_dps(item) {
 }
 
 
-function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ignore_speed=false, part_filter=undefined, ignore_str=false, ignored_mults=[]) {
+function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ignore_speed = false, part_filter = undefined, ignore_str = false, ignored_mults = []) {
     // TODO: Roll all the loops together maybe
 
     // Array of neutral + ewtfa damages. Each entry is a pair (min, max).
@@ -49,16 +49,16 @@ function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ign
     // 2.0: First, modify conversions.
     let conversions = structuredClone(_conversions);
     if (part_filter !== undefined) {
-        const conv_postfix = ':'+part_filter;
+        const conv_postfix = ':' + part_filter;
         for (let i in damage_elements) {
-            const stat_name = damage_elements[i]+'ConvBase'+conv_postfix;
+            const stat_name = damage_elements[i] + 'ConvBase' + conv_postfix;
             if (stats.has(stat_name)) {
                 conversions[i] += stats.get(stat_name);
             }
         }
     }
     for (let i in damage_elements) {
-        const stat_name = damage_elements[i]+'ConvBase';
+        const stat_name = damage_elements[i] + 'ConvBase';
         if (stats.has(stat_name)) {
             conversions[i] += stats.get(stat_name);
         }
@@ -85,14 +85,14 @@ function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ign
     let total_convert = 0;
     for (let i = 1; i <= 5; ++i) {
         if (conversions[i] > 0) {
-            const conv_frac = conversions[i]/100;
+            const conv_frac = conversions[i] / 100;
             damages[i][0] += conv_frac * weapon_min;
             damages[i][1] += conv_frac * weapon_max;
             present[i] = true;
             total_convert += conv_frac
         }
     }
-    total_convert += conversions[0]/100;
+    total_convert += conversions[0] / 100;
 
     if (!ignore_speed) {
         // 3. Apply attack speed multiplier. Ignored for melee single hit
@@ -106,8 +106,8 @@ function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ign
     // 4. Add additive damage. TODO: Is there separate additive damage?
     for (let i in damage_elements) {
         if (present[i]) {
-            damages[i][0] += stats.get(damage_elements[i]+'DamAddMin');
-            damages[i][1] += stats.get(damage_elements[i]+'DamAddMax');
+            damages[i][0] += stats.get(damage_elements[i] + 'DamAddMin');
+            damages[i][1] += stats.get(damage_elements[i] + 'DamAddMax');
         }
     }
 
@@ -122,7 +122,7 @@ function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ign
         const skp = skp_order[i];
         skill_boost.push(skillPointsToPercentage(stats.get(skp)) * skillpoint_damage_mult[i]);
     }
-    let static_boost = (stats.get(specific_boost_str.toLowerCase()+'Pct') + stats.get('damPct')) / 100;
+    let static_boost = (stats.get(specific_boost_str.toLowerCase() + 'Pct') + stats.get('damPct')) / 100;
 
     // These do not count raw damage. I think. Easy enough to change
     let total_min = 0;
@@ -135,9 +135,9 @@ function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ign
 
         let damage_specific = damage_elements[i] + specific_boost_str + 'Pct';
         let damageBoost = 1 + skill_boost[i] + static_boost
-                            + ((stats.get(damage_specific) + stats.get(damage_elements[i]+'DamPct')) /100);
+            + ((stats.get(damage_specific) + stats.get(damage_elements[i] + 'DamPct')) / 100);
         if (i > 0) {
-            damageBoost += (stats.get('r'+specific_boost_str+'Pct') + stats.get('rDamPct')) / 100;
+            damageBoost += (stats.get('r' + specific_boost_str + 'Pct') + stats.get('rDamPct')) / 100;
         }
         damages[i][0] *= damageBoost;
         damages[i][1] *= damageBoost;
@@ -148,8 +148,8 @@ function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ign
     let total_elem_max = total_max - save_prop[0][1];
 
     // 5.2: Raw application.
-    let prop_raw = stats.get(specific_boost_str.toLowerCase()+'Raw') + stats.get('damRaw');
-    let rainbow_raw = stats.get('r'+specific_boost_str+'Raw') + stats.get('rDamRaw');
+    let prop_raw = stats.get(specific_boost_str.toLowerCase() + 'Raw') + stats.get('damRaw');
+    let rainbow_raw = stats.get('r' + specific_boost_str + 'Raw') + stats.get('rDamRaw');
     for (let i in damages) {
         let save_obj = save_prop[i];
         let damages_obj = damages[i];
@@ -157,7 +157,7 @@ function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ign
         // Normie raw
         let raw_boost = 0;
         if (present[i]) {
-            raw_boost += stats.get(damage_prefix+'Raw') + stats.get(damage_elements[i]+'DamRaw');
+            raw_boost += stats.get(damage_prefix + 'Raw') + stats.get(damage_elements[i] + 'DamRaw');
         }
         // Next, rainraw and propRaw
         let min_boost = raw_boost;
@@ -214,17 +214,17 @@ function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ign
             const ele_bonus = k.split(';')[1];
             const ele_match = damage_elements.indexOf(ele_bonus);
             if (ele_bonus === "m" && !use_spell_damage) {
-                damage_mult *= (1 + v/100);
+                damage_mult *= (1 + v / 100);
             }
             else if (ele_match !== -1) {
-                ele_damage_mult[ele_match] *= (1 + v/100);
+                ele_damage_mult[ele_match] *= (1 + v / 100);
             }
         }
         else {
-            damage_mult *= (1 + v/100);
+            damage_mult *= (1 + v / 100);
         }
     }
-    const crit_mult = ignore_str ? 0 : 1+(stats.get("critDamPct")/100);
+    const crit_mult = ignore_str ? 0 : 1 + (stats.get("critDamPct") / 100);
 
     for (let i in damage_elements) {
         damages[i][0] *= ele_damage_mult[i];
@@ -233,8 +233,8 @@ function calculateSpellDamage(stats, weapon, _conversions, use_spell_damage, ign
     }
 
     for (const damage of damages) {
-        if(damage[0] < 0) damage[0] = 0;
-        if(damage[1] < 0) damage[1] = 0;
+        if (damage[0] < 0) damage[0] = 0;
+        if (damage[1] < 0) damage[1] = 0;
 
         const res = [
             damage[0] * strBoost * damage_mult,       // Normal min
@@ -264,6 +264,7 @@ spell: {
     use_atkspd:     Optional[bool]  [DEFAULT: true] true to factor attack speed, false otherwise.
     display:        Optional[str]   [DEFAULT: "total"] "total" to sum all parts. Or, the name of a spell part
     parts:          List[part]      Parts of this spell (different stuff the spell does basically)
+    mana_derived_from: Optional[int]   For alternate casts: inherit cost and stat lookups (spRaw/spPct) from this spell index
 }
 
 NOTE: when using `replace_spell` on an existing spell, all fields become optional.

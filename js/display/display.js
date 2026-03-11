@@ -1459,7 +1459,7 @@ function displaySpellDamage(parent_elem, _overallparent_elem, stats, spell, spel
     const overallparent_elem = make_elem("div", ['col'])
     let title_elemavg = document.createElement("b");
 
-    if ('cost' in spell) {
+    if (spell.cost != null) {
         let first = make_elem("span", [], { textContent: spell.name + " (" });
         title_elem.appendChild(first.cloneNode(true)); //cloneNode is needed here.
         title_elemavg.appendChild(first);
