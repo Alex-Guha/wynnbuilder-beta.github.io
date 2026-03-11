@@ -40,10 +40,6 @@ See SOLVER.md for details.
 #### Combo
 - Modified Spell Mana Cost - Currently, spells like Eldritch Call and Bamboozle don't have automatic mana cost inference, since they modify other abilities.
 
-#### URL Encoding
-- Currently, combo is encoded as text. We might be able to save significant url length by instead bit encoding the rows using the a fixed table of abilities and buffs, as they mostly come from the tree.
-- Not sure how well this would pan out across versions though...
-
 
 ### Testing
 

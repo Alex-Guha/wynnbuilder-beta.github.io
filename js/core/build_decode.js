@@ -635,80 +635,103 @@ async function decodeHashLegacy(url_tag) {
 
 // ── Solver params decoding ───────────────────────────────────────────────────
 
+/** Read a signed integer from 2's complement in a BitVectorCursor. */
+function _decode_signed(cursor, bits) {
+    const raw = cursor.advanceBy(bits);
+    const sign_bit = 1 << (bits - 1);
+    if (raw & sign_bit) {
+        // Negative: sign-extend
+        return raw - (1 << bits);
+    }
+    return raw;
+}
+
 /**
  * Decode solver-specific parameters from a Base64 string
  * (the portion of the URL hash after SOLVER_HASH_SEP).
  *
- * Mirror of encodeSolverParams(). See that function for the binary layout.
+ * Version 1 binary format with default elision.
+ * See encodeSolverParams() for the binary layout.
  *
  * @param {string} b64_str - Base64-encoded solver params
- * @returns {Promise<Object|null>} Decoded params, or null on failure
+ * @returns {Object|null} Decoded params, or null on failure
  */
-async function decodeSolverParams(b64_str) {
+function decodeSolverParams(b64_str) {
     if (!b64_str) return null;
 
     try {
         const bv = new BitVector(b64_str, b64_str.length * 6);
         const cursor = new BitVectorCursor(bv, 0);
+        const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-        // Fixed fields (48 bits)
-        const roll = cursor.advanceBy(7);  // 0-100 percentage
-        const sfree = cursor.advanceBy(8);
-        const dir_enabled = cursor.advanceBy(5);
-        const lvl_min = cursor.advanceBy(7) + 1;
-        const lvl_max = cursor.advanceBy(7) + 1;
-        const nomaj = cursor.advanceBy(1) === 1;
-        const gtome = cursor.advanceBy(2);
-        const dtime = cursor.advanceBy(1) === 1;
-        const ctime = cursor.advanceBy(10);
-
-        // Restrictions text (uncompressed UTF-8)
-        const restr_len = cursor.advanceBy(12);
-        let restrictions_text = '';
-        if (restr_len > 0) {
-            const restr_bytes = new Uint8Array(restr_len);
-            for (let i = 0; i < restr_len; i++) restr_bytes[i] = cursor.advanceBy(8);
-            restrictions_text = new TextDecoder().decode(restr_bytes);
+        // Version: 3 bits
+        const version = cursor.advanceBy(3);
+        if (version === 0) {
+            console.warn('[decode] decodeSolverParams: version 0 (extension signal) not supported');
+            return null;
+        }
+        if (version !== 1) {
+            console.warn('[decode] decodeSolverParams: unknown version', version);
+            return null;
         }
 
-        // Combo (deflate-compressed)
-        const combo_len = cursor.advanceBy(16);
-        let combo_text = '';
-        if (combo_len > 0) {
-            const combo_bytes = new Uint8Array(combo_len);
-            for (let i = 0; i < combo_len; i++) combo_bytes[i] = cursor.advanceBy(8);
-            try {
-                const ds = new DecompressionStream('deflate-raw');
-                const writer = ds.writable.getWriter();
-                writer.write(combo_bytes);
-                writer.close();
-                const decompressed = await _read_stream_bytes(ds.readable);
-                combo_text = new TextDecoder().decode(decompressed);
-            } catch (_) {
-                // Fallback: try interpreting as uncompressed
-                combo_text = new TextDecoder().decode(combo_bytes);
+        // ── Presence bitmask (10 bits) ──
+        const presence = cursor.advanceBy(10);
+
+        // ── Conditional fixed fields (defaults from _SOLVER_DEFAULTS) ──
+        const roll        = (presence & (1 << 0)) ? cursor.advanceBy(7)       : _SOLVER_DEFAULTS.roll;
+        const sfree       = (presence & (1 << 1)) ? cursor.advanceBy(8)       : _SOLVER_DEFAULTS.sfree;
+        const dir_enabled = (presence & (1 << 2)) ? cursor.advanceBy(5)       : _SOLVER_DEFAULTS.dir_enabled;
+        const lvl_min     = (presence & (1 << 3)) ? cursor.advanceBy(7) + 1   : _SOLVER_DEFAULTS.lvl_min;
+        const lvl_max     = (presence & (1 << 4)) ? cursor.advanceBy(7) + 1   : max_lvl;
+        const nomaj       = (presence & (1 << 5)) ? cursor.advanceBy(1) === 1 : _SOLVER_DEFAULTS.nomaj;
+        const gtome       = (presence & (1 << 6)) ? cursor.advanceBy(2)       : _SOLVER_DEFAULTS.gtome;
+        const dtime       = (presence & (1 << 7)) ? cursor.advanceBy(1) === 1 : _SOLVER_DEFAULTS.dtime;
+        const ctime       = (presence & (1 << 8)) ? cursor.advanceBy(10)      : _SOLVER_DEFAULTS.ctime;
+        const flat_mana   = (presence & (1 << 9)) ? _decode_signed(cursor, 10) : _SOLVER_DEFAULTS.flat_mana;
+
+        // ── Restrictions (variable-width values) ──
+        const restriction_count = cursor.advanceBy(4);
+        const restrictions = [];
+        for (let i = 0; i < restriction_count; i++) {
+            const stat_index = cursor.advanceBy(7);
+            const op = cursor.advanceBy(1);  // 0=ge, 1=le
+            const sc = cursor.advanceBy(2);  // size class
+            const bits = _RESTR_VALUE_BITS[sc];
+            const value = _RESTR_VALUE_SIGNED[sc] ? _decode_signed(cursor, bits) : cursor.advanceBy(bits);
+            restrictions.push({ stat_index, op, value });
+        }
+
+        // ── Combo rows (8-bit count, 7-bit qty) ──
+        const combo_row_count = cursor.advanceBy(8);
+        const combo_rows = [];
+        for (let i = 0; i < combo_row_count; i++) {
+            const spell_node_id = cursor.advanceBy(7);
+            const qty = cursor.advanceBy(7);
+            const mana_excl = cursor.advanceBy(1) === 1;
+            const dmg_excl = cursor.advanceBy(1) === 1;
+
+            const boost_count = cursor.advanceBy(4);
+            const boosts = [];
+            for (let j = 0; j < boost_count; j++) {
+                const node_id = cursor.advanceBy(7);
+                const effect_pos = cursor.advanceBy(2);
+                const has_value = cursor.advanceBy(1) === 1;
+                const value = has_value ? cursor.advanceBy(7) : 0;
+                boosts.push({ node_id, effect_pos, has_value, value });
             }
+            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, boosts });
         }
 
-        // Blacklist text (backward-compatible: missing in older URLs)
-        let blacklist_text = '';
-        if (cursor.endIdx - cursor.currIdx >= 12) {
-            const bl_len = cursor.advanceBy(12);
-            if (bl_len > 0) {
-                const bl_bytes = new Uint8Array(bl_len);
-                for (let i = 0; i < bl_len; i++) bl_bytes[i] = cursor.advanceBy(8);
-                blacklist_text = new TextDecoder().decode(bl_bytes);
-            }
-        }
-
-        // Flat mana per cycle (backward-compatible: missing in older URLs)
-        let flat_mana = 0;
-        if (cursor.endIdx - cursor.currIdx >= 8) {
-            flat_mana = cursor.advanceBy(8);
+        // ── Blacklist ──
+        const blacklist_count = cursor.advanceBy(4);
+        const blacklist_ids = [];
+        for (let i = 0; i < blacklist_count; i++) {
+            blacklist_ids.push(cursor.advanceBy(14));
         }
 
         return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
-                 restrictions_text, combo_text, blacklist_text, flat_mana };
+                 flat_mana, restrictions, combo_rows, blacklist_ids };
     } catch (e) {
         console.warn('[decode] decodeSolverParams failed:', e);
         return null;

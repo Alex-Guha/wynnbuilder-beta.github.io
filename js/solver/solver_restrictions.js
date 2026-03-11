@@ -1,3 +1,39 @@
+// ── Encoding-limit input validation ──────────────────────────────────────────
+
+/**
+ * Clamps a numeric input's value to [min_val, max_val] on blur.
+ * If the value was capped, adds a warning class + tooltip; otherwise removes it.
+ * Also enforces the cap eagerly on 'input' events so the user sees it immediately.
+ */
+function _wire_encoding_cap(input, min_val, max_val) {
+    // Set native HTML min/max so the browser's built-in validation stays in sync
+    // with the JS constants (single source of truth in solver_constants.js).
+    if (input.type === 'number') {
+        input.min = String(min_val);
+        input.max = String(max_val);
+    }
+    const enforce = () => {
+        const raw = input.value.trim();
+        if (raw === '') { input.classList.remove('encoding-capped'); input.title = ''; return; }
+        const num = parseFloat(raw);
+        if (isNaN(num)) return;
+        if (num > max_val) {
+            input.value = max_val;
+            input.classList.add('encoding-capped');
+            input.title = `Capped at ${max_val.toLocaleString()} (encoding limit)`;
+        } else if (num < min_val) {
+            input.value = min_val;
+            input.classList.add('encoding-capped');
+            input.title = `Capped at ${min_val.toLocaleString()} (encoding limit)`;
+        } else {
+            input.classList.remove('encoding-capped');
+            input.title = '';
+        }
+    };
+    input.addEventListener('change', enforce);
+    input.addEventListener('blur', enforce);
+}
+
 // ── Restrictions ──────────────────────────────────────────────────────────────
 
 /**
@@ -126,6 +162,10 @@ let _restriction_row_counter = 0;
 function restriction_add_row() {
     const container = document.getElementById('restriction-rows');
     if (!container) return null;
+    if (container.querySelectorAll('[id^="restr-row-"]').length >= MAX_RESTRICTION_ROWS) {
+        _flash_row_limit_warning(container, 'restriction');
+        return null;
+    }
     const idx = ++_restriction_row_counter;
     const row = document.createElement('div');
     row.id = 'restr-row-' + idx;
@@ -142,11 +182,14 @@ function restriction_add_row() {
             <option value="ge">≥</option>
             <option value="le">≤</option>
         </select>
-        <input type="number" class="combo-row-input"
+        <input type="number" class="combo-row-input restr-value-input"
                placeholder="0" style="width:4.5em; text-align:center; flex-shrink:0;">
     `;
     container.appendChild(row);
     _init_restriction_stat_autocomplete('restr-stat-' + idx);
+    // Clamp value input to encoding limits (±8,388,607)
+    const val_input = row.querySelector('.restr-value-input');
+    if (val_input) _wire_encoding_cap(val_input, RESTR_VALUE_MIN, RESTR_VALUE_MAX);
     // Wire all inputs for URL persistence
     for (const inp of row.querySelectorAll('input, select')) {
         inp.addEventListener('change', _schedule_solver_hash_update);
@@ -293,6 +336,10 @@ function _get_all_item_names() {
 function blacklist_add_row() {
     const container = document.getElementById('blacklist-rows');
     if (!container) return null;
+    if (container.querySelectorAll('[id^="bl-row-"]').length >= MAX_BLACKLIST_ROWS) {
+        _flash_row_limit_warning(container, 'blacklist');
+        return null;
+    }
     const idx = ++_blacklist_row_counter;
     const row = document.createElement('div');
     row.id = 'bl-row-' + idx;
@@ -386,6 +433,20 @@ function get_blacklist() {
         if (name && itemMap.has(name)) result.add(name);
     }
     return result;
+}
+
+/**
+ * Briefly shows a warning message when the user tries to add more rows
+ * than the encoding format supports.
+ */
+function _flash_row_limit_warning(container, type) {
+    // Avoid duplicate warnings
+    if (container.querySelector('.encoding-limit-msg')) return;
+    const msg = document.createElement('div');
+    msg.className = 'encoding-limit-msg small text-warning px-1';
+    msg.textContent = `Maximum ${type === 'blacklist' ? MAX_BLACKLIST_ROWS : MAX_RESTRICTION_ROWS} ${type} rows (URL encoding limit).`;
+    container.appendChild(msg);
+    setTimeout(() => msg.remove(), 3000);
 }
 
 // Restriction URL persistence is now handled by the unified solver hash updater

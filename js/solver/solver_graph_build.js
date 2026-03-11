@@ -203,17 +203,15 @@ function _schedule_solver_hash_update() {
 /**
  * Reads ALL solver state from the DOM, encodes it via encodeSolverParams(),
  * and writes the full URL hash: #<build_b64>_<solver_b64>.
- * Replaces the separate _do_restrictions_url_update, _do_combo_url_update,
- * _write_sfree_url, and roll-mode query-param logic.
  */
-async function _do_solver_hash_update() {
+function _do_solver_hash_update() {
     const build_b64 = _last_build_b64;
     if (!build_b64) return;
 
     const params = _collect_solver_params();
 
     try {
-        const solver_b64 = await encodeSolverParams(params);
+        const solver_b64 = encodeSolverParams(params);
         const full_hash = build_b64 + SOLVER_HASH_SEP + solver_b64;
         window.history.replaceState(null, '', location.pathname + '#' + full_hash);
     } catch (e) {
@@ -258,8 +256,14 @@ function _collect_solver_params() {
     // Allow Downtime
     const dtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
 
-    // Restrictions text (pipe-separated key:op:value)
-    const entries = [];
+    // Flat mana per cycle
+    const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
+
+    // Get atree_merged for spell/boost mapping
+    const atree_mg = (typeof atree_merge !== 'undefined' && atree_merge) ? atree_merge.value : null;
+
+    // Restrictions: structured [{stat_index, op, value}]
+    const restrictions = [];
     for (const row of (document.getElementById('restriction-rows')?.children ?? [])) {
         if (!row.id?.startsWith('restr-row-')) continue;
         const stat_input = row.querySelector('.restr-stat-input');
@@ -269,30 +273,64 @@ function _collect_solver_params() {
         const stat_key = stat_input.dataset?.statKey;
         const value    = val_input.value.trim();
         if (!stat_key || !value) continue;
-        entries.push(stat_key + ':' + op_select.value + ':' + value);
+        const stat_index = RESTRICTION_STATS.findIndex(s => s.key === stat_key);
+        if (stat_index < 0) continue;
+        restrictions.push({
+            stat_index,
+            op: op_select.value === 'le' ? 1 : 0,
+            value: parseInt(value) || 0,
+        });
     }
-    const restrictions_text = entries.join('|');
 
-    // Combo text
-    let combo_text = '';
+    // Combo rows: structured [{spell_node_id, qty, mana_excl, dmg_excl, boosts}]
+    const combo_rows = [];
     if (typeof solver_combo_total_node !== 'undefined' && solver_combo_total_node) {
-        const data = solver_combo_total_node._read_rows_as_data();
-        if (data.length > 0) combo_text = combo_data_to_text(data);
+        for (const row of document.querySelectorAll('#combo-selection-rows .combo-row')) {
+            const qty = parseInt(row.querySelector('.combo-row-qty')?.value) || 0;
+            const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
+            if (isNaN(spell_id)) continue;
+
+            const spell_node_id = spell_to_node_id(spell_id, atree_mg);
+
+            const mana_excl = row.querySelector('.combo-mana-toggle')
+                ?.classList.contains('mana-excluded') ?? false;
+            const dmg_excl = row.querySelector('.combo-dmg-toggle')
+                ?.classList.contains('dmg-excluded') ?? false;
+
+            // Collect boosts
+            const boosts = [];
+            for (const btn of row.querySelectorAll('.combo-row-boost-toggle.toggleOn')) {
+                const name = btn.dataset.boostName;
+                if (!name) continue;
+                const ref = boost_to_node_ref(name, atree_mg);
+                boosts.push({ node_id: ref.node_id, effect_pos: ref.effect_pos, has_value: false, value: 0 });
+            }
+            for (const inp of row.querySelectorAll('.combo-row-boost-slider')) {
+                const val = parseFloat(inp.value) || 0;
+                if (val <= 0) continue;
+                const name = inp.dataset.boostName;
+                if (!name) continue;
+                const ref = boost_to_node_ref(name, atree_mg);
+                boosts.push({ node_id: ref.node_id, effect_pos: ref.effect_pos, has_value: true, value: Math.round(val) });
+            }
+
+            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, boosts });
+        }
     }
 
-    // Blacklist text (pipe-separated item names)
-    const bl_entries = [];
+    // Blacklist: item IDs
+    const blacklist_ids = [];
     for (const row of (document.getElementById('blacklist-rows')?.children ?? [])) {
         if (!row.id?.startsWith('bl-row-')) continue;
         const input = row.querySelector('.bl-item-input');
         const name = input?.value.trim();
-        if (name && itemMap.has(name)) bl_entries.push(name);
+        if (!name || !itemMap.has(name)) continue;
+        const item = itemMap.get(name);
+        if (item && item.id !== undefined) {
+            blacklist_ids.push(item.id);
+        }
     }
-    const blacklist_text = bl_entries.join('|');
-
-    // Flat mana per cycle
-    const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
 
     return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
-             restrictions_text, combo_text, blacklist_text, flat_mana };
+             flat_mana, restrictions, combo_rows, blacklist_ids };
 }

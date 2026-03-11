@@ -122,11 +122,13 @@ function solver_graph_init() {
         .link_to(stat_agg, 'stats');
 
     // ── Phase 4: Per-row combo ────────────────────────────────────────────────
-    // combo_base_stats is stat_agg without solver_boosts_node so that per-row
-    // boosts specified in the combo text/selection override them individually.
+    // combo_base_stats includes global boosts (damMult/defMult from boost toggles)
+    // so that damage/defense numbers reflect active party buffs.
+    // Per-row combo boosts (from the boost registry) add on top of these.
     const combo_base_stats = new AggregateStatsNode('solver-combo-base-stats');
     combo_base_stats.link_to(solver_radiance_node, 'pre-scaling');
     combo_base_stats.link_to(atree_scaling_stats, 'atree-scaling');
+    combo_base_stats.link_to(solver_boosts_node, 'potion-boost');
 
     solver_combo_total_node = new SolverComboTotalNode()
         .link_to(solver_build_node, 'build')
@@ -170,11 +172,16 @@ function solver_graph_init() {
     // Recalc when the flat-mana input changes.
     const flat_mana_inp = document.getElementById('flat-mana-input');
     if (flat_mana_inp) {
+        _wire_encoding_cap(flat_mana_inp, FLAT_MANA_MIN, FLAT_MANA_MAX);
         flat_mana_inp.addEventListener('input', () => {
             if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
             _schedule_solver_hash_update();
         });
     }
+
+    // Clamp combo time input to encoding limit.
+    const ctime_inp = document.getElementById('combo-time');
+    if (ctime_inp) _wire_encoding_cap(ctime_inp, 0, CTIME_MAX);
 
     // ── URL encoding ─────────────────────────────────────────────────────────
     const encode_node = new SolverBuildEncodeNode()

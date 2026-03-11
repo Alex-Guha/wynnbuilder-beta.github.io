@@ -909,3 +909,19 @@ body {
         max-width: calc(100vw - 32px);
     }
 }
+
+/* ── Encoding-limit validation feedback ───────────────────────────────────── */
+
+.encoding-capped {
+    border-color: #f0ad4e !important;
+    box-shadow: 0 0 0 1px rgba(240, 173, 78, 0.4);
+}
+
+.encoding-limit-msg {
+    animation: fade-out-msg 3s ease-in forwards;
+}
+
+@keyframes fade-out-msg {
+    0%, 70% { opacity: 1; }
+    100%    { opacity: 0; }
+}

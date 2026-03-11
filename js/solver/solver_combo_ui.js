@@ -12,13 +12,14 @@ function _update_boost_btn_highlight(row) {
 
 // ── Combo row builder ─────────────────────────────────────────────────────────
 
-function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_mana_excl, pending_dmg_excl) {
+function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_mana_excl, pending_dmg_excl, pending_spell_value) {
     const row = document.createElement('div');
     row.className = 'combo-row d-flex gap-2 align-items-center';
-    if (pending_spell     !== undefined) row.dataset.pendingSpell    = pending_spell;
-    if (pending_boosts    !== undefined) row.dataset.pendingBoosts   = pending_boosts;
-    if (pending_mana_excl)               row.dataset.pendingManaExcl = '1';
-    if (pending_dmg_excl)                row.dataset.pendingDmgExcl  = '1';
+    if (pending_spell       !== undefined) row.dataset.pendingSpell      = pending_spell;
+    if (pending_spell_value != null)       row.dataset.pendingSpellValue = pending_spell_value;
+    if (pending_boosts      !== undefined) row.dataset.pendingBoosts     = pending_boosts;
+    if (pending_mana_excl)                 row.dataset.pendingManaExcl   = '1';
+    if (pending_dmg_excl)                  row.dataset.pendingDmgExcl    = '1';
 
     const rm_btn = document.createElement('button');
     rm_btn.className   = 'btn btn-sm btn-outline-danger flex-shrink-0';
@@ -31,8 +32,9 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     qty_inp.className = 'combo-row-input combo-row-qty flex-shrink-0';
     qty_inp.value     = String(qty_val);
     qty_inp.min       = '0';
-    qty_inp.max       = '999';
+    qty_inp.max       = String(COMBO_QTY_MAX);
     qty_inp.style.cssText = 'width:3em; text-align:center;';
+    _wire_encoding_cap(qty_inp, 0, COMBO_QTY_MAX);
     qty_inp.addEventListener('input', () => {
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     });
@@ -161,6 +163,10 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
 function combo_add_row() {
     const container = document.getElementById('combo-selection-rows');
     if (!container) return;
+    if (container.querySelectorAll('.combo-row').length >= MAX_COMBO_ROWS) {
+        _flash_row_limit_warning(container, 'combo');
+        return;
+    }
     container.appendChild(_build_selection_row(1));
     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
 }

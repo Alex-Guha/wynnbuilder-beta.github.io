@@ -291,7 +291,7 @@ async function init() {
     let solver_params = null;
     if (sep_idx >= 0) {
         try {
-            solver_params = await decodeSolverParams(full_hash.substring(sep_idx + 1));
+            solver_params = decodeSolverParams(full_hash.substring(sep_idx + 1));
         } catch (e) {
             console.warn('[solver] decodeSolverParams failed:', e);
         }
@@ -340,15 +340,10 @@ async function init() {
             if (sel) sel.value = String(solver_params.gtome);
         }
 
-        // Stat threshold rows
-        if (solver_params.restrictions_text) {
-            for (const entry of solver_params.restrictions_text.split('|')) {
-                const parts = entry.split(':');
-                if (parts.length < 3) continue;
-                const stat_key = parts[0];
-                const op = parts[1];
-                const value = parts.slice(2).join(':');
-                const stat_obj = RESTRICTION_STATS.find(s => s.key === stat_key);
+        // Stat threshold rows (binary: structured array of {stat_index, op, value})
+        if (solver_params.restrictions && solver_params.restrictions.length > 0) {
+            for (const r of solver_params.restrictions) {
+                const stat_obj = RESTRICTION_STATS[r.stat_index];
                 if (!stat_obj) continue;
                 const row = restriction_add_row();
                 if (!row) continue;
@@ -357,16 +352,21 @@ async function init() {
                 const val_input = row.querySelector('input[type="number"]');
                 if (stat_input) {
                     stat_input.value = stat_obj.label;
-                    stat_input.dataset.statKey = stat_key;
+                    stat_input.dataset.statKey = stat_obj.key;
                 }
-                if (op_select && (op === 'ge' || op === 'le')) op_select.value = op;
-                if (val_input) val_input.value = value;
+                if (op_select) op_select.value = r.op === 1 ? 'le' : 'ge';
+                if (val_input) val_input.value = r.value;
             }
         }
 
-        // Blacklist rows
-        if (solver_params.blacklist_text) {
-            for (const name of solver_params.blacklist_text.split('|')) {
+        // Blacklist rows (binary: array of item IDs)
+        if (solver_params.blacklist_ids && solver_params.blacklist_ids.length > 0) {
+            for (let item_id of solver_params.blacklist_ids) {
+                // Follow redirectMap if this ID was remapped to a new one
+                if (typeof redirectMap !== 'undefined' && redirectMap && redirectMap.has(item_id)) {
+                    item_id = redirectMap.get(item_id);
+                }
+                const name = idMap.get(item_id);
                 if (!name || !itemMap.has(name)) continue;
                 const row = blacklist_add_row();
                 if (!row) continue;
@@ -540,9 +540,28 @@ async function init() {
             if (inp) inp.value = solver_params.flat_mana;
         }
 
-        if (solver_params.combo_text && solver_combo_total_node) {
+        if (solver_params.combo_rows && solver_params.combo_rows.length > 0 && solver_combo_total_node) {
             try {
-                const data = combo_text_to_data(solver_params.combo_text);
+                // atree_merge.value is available at this point (solver_graph_init ran,
+                // atree was restored above).
+                const atree_mg = (typeof atree_merge !== 'undefined' && atree_merge) ? atree_merge.value : null;
+
+                const data = solver_params.combo_rows.map(r => {
+                    const spell_name = node_id_to_spell_name(r.spell_node_id, atree_mg);
+                    const spell_value = node_id_to_spell_value(r.spell_node_id, atree_mg);
+                    const boost_parts = r.boosts.map(b => {
+                        const name = node_ref_to_boost_name(b.node_id, b.effect_pos, atree_mg);
+                        return b.has_value ? name + ' ' + b.value : name;
+                    });
+                    return {
+                        qty: r.qty,
+                        spell_name,
+                        spell_value,
+                        boost_tokens_text: boost_parts.join(', '),
+                        mana_excl: r.mana_excl,
+                        dmg_excl: r.dmg_excl,
+                    };
+                });
                 if (data.length > 0) {
                     solver_combo_total_node._write_rows_from_data(data);
                     solver_combo_total_node.mark_dirty().update();

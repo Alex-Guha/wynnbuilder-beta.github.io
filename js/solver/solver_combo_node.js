@@ -210,9 +210,9 @@ class SolverComboTotalNode extends ComputeNode {
         const container = document.getElementById('combo-selection-rows');
         if (!container) return;
         container.innerHTML = '';
-        for (const { qty, spell_name, boost_tokens_text, mana_excl, dmg_excl } of data) {
+        for (const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl } of data) {
             container.appendChild(
-                _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl)
+                _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, spell_value)
             );
         }
     }
@@ -224,21 +224,40 @@ class SolverComboTotalNode extends ComputeNode {
     _apply_pending_selection_data() {
         for (const row of document.querySelectorAll('#combo-selection-rows .combo-row')) {
             const ps = row.dataset.pendingSpell;
+            const psv = row.dataset.pendingSpellValue;
             const pb = row.dataset.pendingBoosts;
             const pm = row.dataset.pendingManaExcl;
             const pd = row.dataset.pendingDmgExcl;
-            if (ps === undefined && pb === undefined && pm === undefined && pd === undefined) continue;
+            if (ps === undefined && psv === undefined && pb === undefined && pm === undefined && pd === undefined) continue;
 
-            if (ps !== undefined) {
+            if (ps !== undefined || psv !== undefined) {
                 delete row.dataset.pendingSpell;
+                delete row.dataset.pendingSpellValue;
                 const sel = row.querySelector('.combo-row-spell');
-                if (sel && ps) {
-                    const name_l = ps.toLowerCase();
-                    for (const opt of sel.options) {
-                        // Strip " (Powder Special)" suffix for comparison so powder specials restore correctly.
-                        const opt_name = opt.textContent.toLowerCase().replace(/\s*\(powder special\)$/, '');
-                        if (opt_name === name_l) { sel.value = opt.value; break; }
+                if (sel) {
+                    let matched = false;
+                    const available_opts = [...sel.options].map(o => `${o.value}=${o.textContent}`);
+                    // console.log('[combo pending] ps=', JSON.stringify(ps), 'psv=', JSON.stringify(psv),
+                    //     'options=', available_opts);
+                    // Prefer direct value match (from URL decode) — immune to name changes
+                    // from replacement abilities.
+                    if (psv && [...sel.options].some(o => o.value === psv)) {
+                        sel.value = psv;
+                        matched = true;
+                        // console.log('[combo pending] matched by value, sel.value=', sel.value,
+                        //     'text=', sel.options[sel.selectedIndex]?.textContent);
                     }
+                    // Fall back to name match (from clipboard import, which has no spell_value)
+                    if (!matched && ps) {
+                        const name_l = ps.toLowerCase();
+                        for (const opt of sel.options) {
+                            // Strip " (Powder Special)" suffix for comparison so powder specials restore correctly.
+                            const opt_name = opt.textContent.toLowerCase().replace(/\s*\(powder special\)$/, '');
+                            if (opt_name === name_l) { sel.value = opt.value; matched = true; break; }
+                        }
+                        // console.log('[combo pending] name match result: matched=', matched, 'sel.value=', sel.value);
+                    }
+                    if (!matched) console.warn('[combo pending] NO MATCH for ps/psv');
                 }
             }
             if (pb !== undefined) {
@@ -369,12 +388,14 @@ class SolverComboTotalNode extends ComputeNode {
                 inp.style.cssText = 'width:4em; text-align:center;';
                 inp.dataset.boostName = entry.name;
                 inp.min = '0';
-                inp.max = String(entry.max ?? 100);
+                const effective_max = Math.min(entry.max ?? 100, BOOST_SLIDER_MAX);
+                inp.max = String(effective_max);
                 inp.step = String(entry.step ?? 1);
                 inp.value = old_slider.get(entry.name) ?? '0';
                 const max_lbl = document.createElement('span');
                 max_lbl.className = 'text-secondary small';
-                max_lbl.textContent = '/' + (entry.max ?? 100);
+                max_lbl.textContent = '/' + effective_max;
+                _wire_encoding_cap(inp, 0, BOOST_SLIDER_MAX);
                 inp.addEventListener('input', () => {
                     _update_boost_btn_highlight(row);
                     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
@@ -478,7 +499,7 @@ class SolverComboTotalNode extends ComputeNode {
                         + (base_stats.get('atkTier') ?? 0)))];
                 html += `<div>Mana steal \u00d7${melee_hits} hits: ${fmt(mana_steal)} (${Math.round(mana_per_hit * 10) / 10}/hit)</div>`;
             }
-            if (flat_mana > 0) {
+            if (flat_mana !== 0) {
                 html += `<div>Flat mana / cycle: ${fmt(flat_mana)}</div>`;
             }
             html +=

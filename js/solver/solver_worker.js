@@ -176,13 +176,13 @@ function _assemble_combo_stats(build_sm, total_sp, weapon_sm) {
         _cfg.atree_merged, radiance_scaled, _cfg.button_states, _cfg.slider_states);
     const combo_base = _deep_clone_statmap(radiance_scaled);
     _merge_into(combo_base, atree_scaled_stats);
+    _merge_into(combo_base, _cfg.static_boosts);
     return combo_base;
 }
 
 function _assemble_threshold_stats(combo_base) {
-    const s = _deep_clone_statmap(combo_base);
-    _merge_into(s, _cfg.static_boosts);
-    return s;
+    // static_boosts are already merged into combo_base by _assemble_combo_stats.
+    return _deep_clone_statmap(combo_base);
 }
 
 function _check_thresholds(stats, thresholds) {
@@ -285,8 +285,8 @@ function _eval_combo_healing(combo_base) {
 
 /**
  * Dispatch to the correct scoring function based on _cfg.scoring_target.
- * @param {Map} combo_base  - stats after radiance+atree scaling (no static_boosts)
- * @param {Map} thresh_stats - combo_base + static_boosts (may be null; computed lazily)
+ * @param {Map} combo_base  - stats after radiance+atree scaling+static_boosts
+ * @param {Map} thresh_stats - deep clone of combo_base (may be null; computed lazily)
  */
 function _eval_score(combo_base, thresh_stats) {
     const target = _cfg.scoring_target ?? 'combo_damage';

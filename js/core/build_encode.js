@@ -514,24 +514,6 @@ function encodeBuildLegacy(build, powders, skillpoints, atree, atree_state, aspe
     }
 }
 
-// ── Stream helper (used by solver params encoding/decoding) ──────────────────
-
-/** Drain a ReadableStream into a single Uint8Array. */
-async function _read_stream_bytes(stream) {
-    const reader = stream.getReader();
-    const chunks = [];
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-    }
-    const total = chunks.reduce((n, c) => n + c.length, 0);
-    const out = new Uint8Array(total);
-    let off = 0;
-    for (const c of chunks) { out.set(c, off); off += c.length; }
-    return out;
-}
-
 // ── Solver params encoding ───────────────────────────────────────────────────
 
 /**
@@ -540,109 +522,208 @@ async function _read_stream_bytes(stream) {
  */
 const SOLVER_HASH_SEP = '_';
 
+/** Write a signed integer as 2's complement into an EncodingBitVector. */
+function _encode_signed(bv, value, bits) {
+    const mask = (1 << bits) - 1;
+    bv.append(value & mask, bits);
+}
+
+/**
+ * Restriction value size classes for variable-width encoding.
+ * [2] size_class selects the bit width for the value field:
+ *   0 →  6-bit unsigned (0 to 63)
+ *   1 →  8-bit signed   (±127)
+ *   2 → 16-bit signed   (±32,767)
+ *   3 → 26-bit signed   (±33,554,431)
+ */
+const _RESTR_VALUE_BITS = [6, 8, 16, 26];
+const _RESTR_VALUE_SIGNED = [false, true, true, true];
+
+/** Pick the smallest size class that can represent `value`. */
+function _restr_size_class(value) {
+    if (value >= 0 && value <= 63) return 0;
+    if (value >= -127 && value <= 127) return 1;
+    if (value >= -32767 && value <= 32767) return 2;
+    return 3;
+}
+
+/**
+ * Default values for solver fixed-header fields.
+ * Fields matching their default are omitted from the binary via a presence bitmask.
+ */
+const _SOLVER_DEFAULTS = {
+    roll: 85,            // ROLL_DEFAULT
+    sfree: 0,
+    dir_enabled: 0x1F,   // all 5 SP directions enabled
+    lvl_min: 1,
+    // lvl_max: MAX_PLAYER_LEVEL — resolved at runtime
+    nomaj: false,
+    gtome: 0,
+    dtime: false,
+    ctime: 0,
+    flat_mana: 0,
+};
+
 /**
  * Encode solver-specific parameters into a Base64 string for the URL hash.
+ * Version 1 binary format — compact binary with default elision.
  *
  * Binary layout (EncodingBitVector):
- *   [7]  roll percentage (0-100)
- *   [8]  sfree mask (solver-free equipment slots)
- *   [5]  dir_enabled bitmask (bit0=str, bit1=dex, ..., bit4=agi; 1=enabled)
- *   [7]  lvl_min - 1 (0-105, stored offset by 1)
- *   [7]  lvl_max - 1 (0-105, stored offset by 1)
- *   [1]  nomaj (no-major-ID filter)
- *   [2]  gtome (0=off, 1=standard, 2=rare)
- *   [1]  dtime (allow downtime)
- *   [10] ctime (combo time in seconds, 0-1023)
- *   --- 48 bits fixed ---
- *   [12] restrictions_byte_length (0 = no restrictions)
- *   [N*8] restrictions UTF-8 bytes ("stat:op:value|..." text)
- *   [16] combo_compressed_byte_length (0 = no combo)
- *   [N*8] combo deflate-raw compressed bytes
- *   [12] blacklist_byte_length (0 = no blacklist)
- *   [N*8] blacklist UTF-8 bytes ("name|name|..." text)
- *   [8]  flat_mana (0-255, integer mana per cycle)
+ *   [3]   version (001 = v1)
+ *   [10]  field_present bitmask (1 = non-default, field encoded below)
+ *          bit 0: roll       (default 85)
+ *          bit 1: sfree      (default 0)
+ *          bit 2: dir        (default 0x1F)
+ *          bit 3: lvl_min    (default 1)
+ *          bit 4: lvl_max    (default MAX_PLAYER_LEVEL)
+ *          bit 5: nomaj      (default false)
+ *          bit 6: gtome      (default 0)
+ *          bit 7: dtime      (default false)
+ *          bit 8: ctime      (default 0)
+ *          bit 9: flat_mana  (default 0)
+ *   --- conditional fixed fields (only if presence bit = 1) ---
+ *   NOTE: Bit widths below have corresponding range constants in
+ *         solver_constants.js (e.g. CTIME_MAX, FLAT_MANA_MIN/MAX,
+ *         COMBO_QTY_MAX, BOOST_SLIDER_MAX, MAX_RESTRICTION_ROWS,
+ *         MAX_COMBO_ROWS, MAX_BLACKLIST_ROWS). Keep them in sync.
+ *   [7]   roll percentage (0-100)
+ *   [8]   sfree mask
+ *   [5]   dir_enabled bitmask
+ *   [7]   lvl_min - 1 (0 to MAX_PLAYER_LEVEL-1)
+ *   [7]   lvl_max - 1 (0 to MAX_PLAYER_LEVEL-1)
+ *   [1]   nomaj
+ *   [2]   gtome
+ *   [1]   dtime
+ *   [10]  ctime
+ *   [10]  flat_mana (signed)
+ *   [4]   restriction_count (0-15)
+ *     Per restriction:
+ *       [7]   stat_index (index into RESTRICTION_STATS)
+ *       [1]   op (0=ge, 1=le)
+ *       [2]   size_class (0=6-bit unsigned, 1=8-bit signed, 2=16-bit signed, 3=26-bit signed)
+ *       [6/8/16/26]  value
+ *   [8]   combo_row_count (0-255)
+ *     Per combo row:
+ *       [7]   spell_node_id
+ *       [7]   qty (0-127)
+ *       [1]   mana_excl
+ *       [1]   dmg_excl
+ *       [4]   boost_count (0-15)
+ *       Per boost:
+ *         [7]   node_id
+ *         [2]   effect_pos (0-3)
+ *         [1]   has_value (0=toggle, 1=slider)
+ *         [7]   value (only if has_value=1, 0-127)
+ *   [4]   blacklist_count (0-15)
+ *     Per blacklist entry:
+ *       [14]  item_id (0-16383)
  *
  * @param {Object} params
  * @param {number} params.roll - Roll percentage (0-100)
  * @param {number} params.sfree - Bitmask of solver-free slots (8 bits)
  * @param {number} params.dir_enabled - Bitmask of enabled SP directions (5 bits)
- * @param {number} params.lvl_min - Minimum item level (1-106)
- * @param {number} params.lvl_max - Maximum item level (1-106)
+ * @param {number} params.lvl_min - Minimum item level (1-MAX_PLAYER_LEVEL)
+ * @param {number} params.lvl_max - Maximum item level (1-MAX_PLAYER_LEVEL)
  * @param {boolean} params.nomaj - No-Major-ID filter
  * @param {number} params.gtome - Guild tome (0=off, 1=standard, 2=rare)
  * @param {boolean} params.dtime - Allow downtime flag
  * @param {number} params.ctime - Combo time in seconds (0-1023)
- * @param {string} params.restrictions_text - Pipe-separated "key:op:value" restrictions
- * @param {string} params.combo_text - Multi-line combo text
- * @param {string} params.blacklist_text - Pipe-separated blacklisted item names
- * @returns {Promise<string>} Base64 string for appending after SOLVER_HASH_SEP
+ * @param {number} params.flat_mana - Flat mana per cycle (-512 to 511)
+ * @param {Array} params.restrictions - [{stat_index, op, value}]
+ * @param {Array} params.combo_rows - [{spell_node_id, qty, mana_excl, dmg_excl, boosts: [{node_id, effect_pos, has_value, value}]}]
+ * @param {Array} params.blacklist_ids - [item_id, ...]
+ * @returns {string} Base64 string for appending after SOLVER_HASH_SEP
  */
-async function encodeSolverParams(params) {
+function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
+    const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-    // Roll percentage: 7 bits (0-100)
-    bv.append(Math.max(0, Math.min(100, params.roll || 0)), 7);
+    // Version: 3 bits (v1 = 001)
+    bv.append(1, 3);
 
-    // sfree mask: 8 bits
-    bv.append(params.sfree & 0xFF, 8);
+    // ── Presence bitmask (10 bits) ──
+    const roll      = Math.max(0, Math.min(100, params.roll || 0));
+    const sfree     = params.sfree & 0xFF;
+    const dir       = params.dir_enabled & 0x1F;
+    const lvl_min   = Math.max(0, Math.min(max_lvl - 1, (params.lvl_min || 1) - 1));
+    const lvl_max   = Math.max(0, Math.min(max_lvl - 1, (params.lvl_max || max_lvl) - 1));
+    const nomaj     = params.nomaj ? 1 : 0;
+    const gtome     = params.gtome & 0x3;
+    const dtime     = params.dtime ? 1 : 0;
+    const ctime     = Math.min(1023, Math.max(0, params.ctime || 0));
+    const flat_mana = Math.max(-512, Math.min(511, Math.round(params.flat_mana || 0)));
 
-    // dir_enabled: 5 bits (bit 0 = str, bit 4 = agi; 1 = enabled)
-    bv.append(params.dir_enabled & 0x1F, 5);
+    let presence = 0;
+    if (roll      !== _SOLVER_DEFAULTS.roll)         presence |= (1 << 0);
+    if (sfree     !== _SOLVER_DEFAULTS.sfree)        presence |= (1 << 1);
+    if (dir       !== _SOLVER_DEFAULTS.dir_enabled)  presence |= (1 << 2);
+    if (lvl_min   !== (_SOLVER_DEFAULTS.lvl_min - 1)) presence |= (1 << 3);
+    if (lvl_max   !== (max_lvl - 1))                 presence |= (1 << 4);
+    if (nomaj     !== 0)                             presence |= (1 << 5);
+    if (gtome     !== _SOLVER_DEFAULTS.gtome)        presence |= (1 << 6);
+    if (dtime     !== 0)                             presence |= (1 << 7);
+    if (ctime     !== _SOLVER_DEFAULTS.ctime)        presence |= (1 << 8);
+    if (flat_mana !== _SOLVER_DEFAULTS.flat_mana)    presence |= (1 << 9);
 
-    // lvl_min: 7 bits (stored as value - 1; 1-106 → 0-105)
-    bv.append(Math.max(0, Math.min(105, (params.lvl_min || 1) - 1)), 7);
+    bv.append(presence, 10);
 
-    // lvl_max: 7 bits
-    bv.append(Math.max(0, Math.min(105, (params.lvl_max || 106) - 1)), 7);
+    // ── Conditional fixed fields ──
+    if (presence & (1 << 0)) bv.append(roll, 7);
+    if (presence & (1 << 1)) bv.append(sfree, 8);
+    if (presence & (1 << 2)) bv.append(dir, 5);
+    if (presence & (1 << 3)) bv.append(lvl_min, 7);
+    if (presence & (1 << 4)) bv.append(lvl_max, 7);
+    if (presence & (1 << 5)) bv.append(nomaj, 1);
+    if (presence & (1 << 6)) bv.append(gtome, 2);
+    if (presence & (1 << 7)) bv.append(dtime, 1);
+    if (presence & (1 << 8)) bv.append(ctime, 10);
+    if (presence & (1 << 9)) _encode_signed(bv, flat_mana, 10);
 
-    // nomaj: 1 bit
-    bv.append(params.nomaj ? 1 : 0, 1);
-
-    // gtome: 2 bits (0=off, 1=standard, 2=rare)
-    bv.append(params.gtome & 0x3, 2);
-
-    // dtime: 1 bit
-    bv.append(params.dtime ? 1 : 0, 1);
-
-    // ctime: 10 bits (0-1023)
-    bv.append(Math.min(1023, Math.max(0, params.ctime || 0)), 10);
-
-    // ── Variable-length sections ──
-
-    // Restrictions text: uncompressed UTF-8, length-prefixed
-    const restr_bytes = params.restrictions_text
-        ? new TextEncoder().encode(params.restrictions_text)
-        : new Uint8Array(0);
-    bv.append(restr_bytes.length, 12); // max 4095 bytes
-    for (const b of restr_bytes) bv.append(b, 8);
-
-    // Combo text: deflate-compressed, length-prefixed
-    let combo_bytes = new Uint8Array(0);
-    if (params.combo_text && params.combo_text.trim()) {
-        try {
-            const input = new TextEncoder().encode(params.combo_text);
-            const cs = new CompressionStream('deflate-raw');
-            const writer = cs.writable.getWriter();
-            writer.write(input);
-            writer.close();
-            combo_bytes = await _read_stream_bytes(cs.readable);
-        } catch (_) {
-            // Fallback: store uncompressed with high bit marker
-            combo_bytes = new TextEncoder().encode(params.combo_text);
+    // ── Restrictions ──
+    const restrictions = params.restrictions || [];
+    bv.append(Math.min(15, restrictions.length), 4);
+    for (let i = 0; i < Math.min(15, restrictions.length); i++) {
+        const r = restrictions[i];
+        bv.append(r.stat_index & 0x7F, 7);
+        bv.append(r.op & 1, 1);
+        const sc = _restr_size_class(r.value);
+        bv.append(sc, 2);
+        if (_RESTR_VALUE_SIGNED[sc]) {
+            _encode_signed(bv, r.value, _RESTR_VALUE_BITS[sc]);
+        } else {
+            bv.append(Math.max(0, r.value), _RESTR_VALUE_BITS[sc]);
         }
     }
-    bv.append(combo_bytes.length, 16); // max 65535 bytes
-    for (const b of combo_bytes) bv.append(b, 8);
 
-    // Blacklist text: uncompressed UTF-8, length-prefixed
-    const bl_bytes = params.blacklist_text
-        ? new TextEncoder().encode(params.blacklist_text)
-        : new Uint8Array(0);
-    bv.append(bl_bytes.length, 12); // max 4095 bytes
-    for (const b of bl_bytes) bv.append(b, 8);
+    // ── Combo rows ──
+    const combo_rows = params.combo_rows || [];
+    bv.append(Math.min(255, combo_rows.length), 8);
+    for (let i = 0; i < Math.min(255, combo_rows.length); i++) {
+        const row = combo_rows[i];
+        bv.append(row.spell_node_id & 0x7F, 7);
+        bv.append(Math.min(127, row.qty || 0), 7);
+        bv.append(row.mana_excl ? 1 : 0, 1);
+        bv.append(row.dmg_excl ? 1 : 0, 1);
 
-    // Flat mana per cycle: 8 bits (0-255, integer)
-    bv.append(Math.max(0, Math.min(255, Math.round(params.flat_mana || 0))), 8);
+        const boosts = row.boosts || [];
+        bv.append(Math.min(15, boosts.length), 4);
+        for (let j = 0; j < Math.min(15, boosts.length); j++) {
+            const b = boosts[j];
+            bv.append(b.node_id & 0x7F, 7);
+            bv.append(b.effect_pos & 0x3, 2);
+            bv.append(b.has_value ? 1 : 0, 1);
+            if (b.has_value) {
+                bv.append(Math.min(127, Math.max(0, b.value || 0)), 7);
+            }
+        }
+    }
+
+    // ── Blacklist ──
+    const blacklist_ids = params.blacklist_ids || [];
+    bv.append(Math.min(15, blacklist_ids.length), 4);
+    for (let i = 0; i < Math.min(15, blacklist_ids.length); i++) {
+        bv.append(blacklist_ids[i] & 0x3FFF, 14);
+    }
 
     return bv.toB64();
 }

@@ -313,14 +313,16 @@ function apply_combo_row_boosts(base_stats, boost_tokens, registry) {
                 const contrib = b.value * effective_value;
                 if (b.key.startsWith('damMult.')) {
                     const key = b.key.substring(8);
-                    if (b.mode === 'max') {
+                    // Potion and Vulnerability use max semantics (matching merge_stat).
+                    // These represent non-stacking party buffs where only the highest applies.
+                    if (b.mode === 'max' || key === 'Potion' || key === 'Vulnerability') {
                         damMult.set(key, Math.max(damMult.get(key) ?? 0, contrib));
                     } else {
                         damMult.set(key, (damMult.get(key) ?? 0) + contrib);
                     }
                 } else if (b.key.startsWith('defMult.')) {
                     const key = b.key.substring(8);
-                    if (b.mode === 'max') {
+                    if (b.mode === 'max' || key === 'Potion' || key === 'Vulnerability') {
                         defMult.set(key, Math.max(defMult.get(key) ?? 0, contrib));
                     } else {
                         defMult.set(key, (defMult.get(key) ?? 0) + contrib);
