@@ -18,7 +18,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 ### Necessary Improvements
 - Consider Warrior bloodpact in mana calc; is it even possible?
     - base hpr 3, not affected by hpr%
-- ramping mana cost for spells (problem)
 
 
 ### Improve Solver

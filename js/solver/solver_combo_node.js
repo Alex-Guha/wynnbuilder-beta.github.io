@@ -49,13 +49,39 @@ class SolverComboTotalNode extends ComputeNode {
         let total_heal = 0;
         let mana_cost = 0;
         let melee_hits = 0;
-        const spell_costs = []; // [{name, qty, cost_per_cast}] for tooltip breakdown
+        let recast_penalty_total = 0;
+        const spell_costs = []; // [{name, qty, cost_per_cast, recast_penalty}] for tooltip breakdown
+
+        // Recast tracking: consecutive casts of the same spell add +5 mana each.
+        // Melee (base_spell=0) doesn't affect the counter. Mana-excluded rows
+        // are invisible to the recast tracker. Mana Reset resets the counter.
+        let last_spell_base = null; // base_spell of the last mana-visible non-melee spell
+        let recast_count = 0;      // how many consecutive casts so far
+
         for (const { qty, spell, boost_tokens, dom_row } of rows) {
             const dmg_wrap = dom_row?.querySelector('.combo-row-damage-wrap');
             const dmg_span = dmg_wrap?.querySelector('.combo-row-damage')
                 ?? dom_row?.querySelector('.combo-row-damage');
             const dmg_popup = dmg_wrap?.querySelector('.combo-dmg-popup');
             const heal_span = dom_row?.querySelector('.combo-row-heal');
+
+            const mana_excluded = dom_row?.querySelector('.combo-mana-toggle')
+                ?.classList.contains('mana-excluded') ?? false;
+
+            // Mana Reset pseudo-spell: resets the recast counter and shows nothing.
+            const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
+            if (spell_id === MANA_RESET_SPELL_ID) {
+                if (!mana_excluded) {
+                    last_spell_base = null;
+                    recast_count = 0;
+                }
+                if (dmg_span) dmg_span.textContent = '';
+                if (dmg_popup) { dmg_popup.textContent = ''; }
+                dmg_wrap?.classList.remove('has-popup', 'popup-locked');
+                if (heal_span) heal_span.textContent = '';
+                continue;
+            }
+
             if (qty <= 0 || !spell) {
                 if (dmg_span) dmg_span.textContent = '';
                 if (dmg_popup) dmg_popup.textContent = '';
@@ -123,13 +149,29 @@ class SolverComboTotalNode extends ComputeNode {
             // the Lunatic's spPct3Final) are reflected in the mana calculation.
             // spell.cost may be null (e.g. Bamboozle) — skip those.
             // Skip if the row's mana toggle is excluded.
-            const mana_excluded = dom_row?.querySelector('.combo-mana-toggle')
-                ?.classList.contains('mana-excluded') ?? false;
             if (!mana_excluded && spell.scaling === 'melee') melee_hits += qty;
             if (mod_spell.cost != null && !mana_excluded) {
                 const cost_per = getSpellCost(stats, mod_spell);
-                mana_cost += cost_per * qty;
-                spell_costs.push({ name: spell.name, qty, cost: cost_per });
+
+                // Recast penalty: consecutive casts of the same non-melee spell
+                // add RECAST_MANA_PENALTY per recast. Melee doesn't affect tracking.
+                let row_recast_penalty = 0;
+                const is_melee = spell.base_spell === 0;
+                if (!is_melee) {
+                    if (spell.base_spell !== last_spell_base) {
+                        // Different spell — reset counter
+                        last_spell_base = spell.base_spell;
+                        recast_count = 0;
+                    }
+                    // Penalty for this row: sum_{i=0}^{qty-1} (recast_count + i) * RECAST_MANA_PENALTY
+                    // = RECAST_MANA_PENALTY * (qty * recast_count + qty*(qty-1)/2)
+                    row_recast_penalty = RECAST_MANA_PENALTY * (qty * recast_count + qty * (qty - 1) / 2);
+                    recast_count += qty;
+                }
+
+                mana_cost += cost_per * qty + row_recast_penalty;
+                recast_penalty_total += row_recast_penalty;
+                spell_costs.push({ name: spell.name, qty, cost: cost_per, recast_penalty: row_recast_penalty });
             }
         }
 
@@ -173,7 +215,7 @@ class SolverComboTotalNode extends ComputeNode {
         if (has_transcendence) mana_cost *= 0.75;
 
         // Mana display.
-        this._update_mana_display(base_stats, mana_cost, spell_costs, has_transcendence, melee_hits);
+        this._update_mana_display(base_stats, mana_cost, spell_costs, has_transcendence, melee_hits, recast_penalty_total);
 
         // Schedule a hash update; combo data is encoded into the URL hash.
         _schedule_solver_hash_update();
@@ -213,7 +255,7 @@ class SolverComboTotalNode extends ComputeNode {
             const qty = parseInt(row.querySelector('.combo-row-qty')?.value) || 0;
             const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
             const spell = this._spell_map_cache?.get(spell_id);
-            const spell_name = spell?.name ?? '';
+            const spell_name = spell_id === MANA_RESET_SPELL_ID ? 'Mana Reset' : (spell?.name ?? '');
             const boost_parts = [];
             for (const btn of row.querySelectorAll('.combo-row-boost-toggle.toggleOn')) {
                 boost_parts.push(btn.dataset.boostName);
@@ -354,6 +396,16 @@ class SolverComboTotalNode extends ComputeNode {
                 opt.textContent = s._is_powder_special ? s.name + ' (Powder Special)' : s.name;
                 sel.appendChild(opt);
             }
+            // Mana Reset pseudo-spell: resets the spell recast counter.
+            // Only shown when the mana calc is active (combo time entered).
+            const time_str = document.getElementById('combo-time')?.value?.trim() ?? '';
+            if (time_str) {
+                const reset_opt = document.createElement('option');
+                reset_opt.value = String(MANA_RESET_SPELL_ID);
+                reset_opt.textContent = 'Mana Reset';
+                sel.appendChild(reset_opt);
+            }
+
             if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
         }
     }
@@ -505,7 +557,7 @@ class SolverComboTotalNode extends ComputeNode {
     }
 
     /** Update the mana display below the combo total. */
-    _update_mana_display(base_stats, mana_cost, spell_costs = [], has_transcendence = false, melee_hits = 0) {
+    _update_mana_display(base_stats, mana_cost, spell_costs = [], has_transcendence = false, melee_hits = 0, recast_penalty_total = 0) {
         const mana_row = document.getElementById('combo-mana-row');
         const mana_elem = document.getElementById('combo-mana-display');
         const mana_tooltip = document.getElementById('combo-mana-tooltip');
@@ -555,23 +607,25 @@ class SolverComboTotalNode extends ComputeNode {
         if (mana_tooltip) {
             const fmt = n => (n >= 0 ? '+' : '\u2212') + Math.abs(Math.round(n));
             let html = '';
-            // Per-spell cost breakdown — group rows with the same spell name.
+            // Per-spell cost breakdown — each row shown individually (order matters
+            // for recast penalties, so we no longer group by spell name).
             if (spell_costs.length) {
-                const grouped = [];
-                const seen = new Map(); // name → index in grouped
-                for (const { name, qty, cost } of spell_costs) {
-                    if (seen.has(name)) {
-                        grouped[seen.get(name)].qty += qty;
-                    } else {
-                        seen.set(name, grouped.length);
-                        grouped.push({ name, qty, cost });
+                for (const { name, qty, cost, recast_penalty } of spell_costs) {
+                    const base_total = cost * qty;
+                    const row_total = base_total + (recast_penalty || 0);
+                    let line = qty > 1
+                        ? `${qty}\u00d7 ${name}: ${Math.round(cost)}`
+                        : `${name}: ${Math.round(cost)}`;
+                    if (recast_penalty > 0) {
+                        line += ` (+${Math.round(recast_penalty)} recast)`;
                     }
+                    if (qty > 1 || recast_penalty > 0) {
+                        line += ` \u2192 ${Math.round(row_total)}`;
+                    }
+                    html += `<div>${line}</div>`;
                 }
-                for (const { name, qty, cost } of grouped) {
-                    const total = cost * qty;
-                    html += qty > 1
-                        ? `<div>${qty}\u00d7 ${name}: ${Math.round(cost)} (\u2192 ${Math.round(total)})</div>`
-                        : `<div>${name}: ${Math.round(cost)}</div>`;
+                if (recast_penalty_total > 0) {
+                    html += `<div class="text-warning small">Recast penalty total: +${Math.round(recast_penalty_total)}</div>`;
                 }
                 html += '<hr class="my-1 border-secondary">';
             }

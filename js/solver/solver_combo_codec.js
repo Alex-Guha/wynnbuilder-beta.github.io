@@ -59,6 +59,9 @@ const _NODE_TO_PS_IDX = new Map([..._PS_IDX_TO_NODE].map(([k, v]) => [v, k]));
  * @returns {number} base_spell or reserved ID
  */
 function spell_to_node_id(base_spell_id, _atree_merged) {
+    // Mana Reset pseudo-spell
+    if (base_spell_id === MANA_RESET_SPELL_ID) return MANA_RESET_NODE_ID;
+
     // Powder specials: -1000 - ps_idx → reserved ID
     if (base_spell_id < 0) {
         const ps_idx = -(base_spell_id + 1000);  // -1000→0, -1001→1, -1003→3
@@ -79,6 +82,9 @@ function spell_to_node_id(base_spell_id, _atree_merged) {
  * @returns {string} spell name (matching what appears in dropdown text)
  */
 function node_id_to_spell_name(node_id, atree_merged) {
+    // Mana Reset
+    if (node_id === MANA_RESET_NODE_ID) return 'Mana Reset';
+
     // Reserved powder specials
     if (_NODE_TO_PS_IDX.has(node_id)) {
         const ps_idx = _NODE_TO_PS_IDX.get(node_id);
@@ -111,6 +117,9 @@ function node_id_to_spell_name(node_id, atree_merged) {
  * @returns {string|null} dropdown value string, or null if not found
  */
 function node_id_to_spell_value(node_id, _atree_merged) {
+    // Mana Reset
+    if (node_id === MANA_RESET_NODE_ID) return String(MANA_RESET_SPELL_ID);
+
     // Reserved melee → base_spell 0
     if (node_id === _RESERVED_SPELL_IDS.MELEE) return '0';
 

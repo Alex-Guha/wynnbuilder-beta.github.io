@@ -36,6 +36,20 @@ const MAX_RESTRICTION_ROWS = 15;
 const MAX_COMBO_ROWS = 255;
 const MAX_BLACKLIST_ROWS = 15;
 
+// ── Spell recast penalty ──────────────────────────────────────────────────────
+
+/** Mana penalty per consecutive recast of the same spell (+5 per recast). */
+const RECAST_MANA_PENALTY = 5;
+
+/**
+ * Internal spell ID for the "Mana Reset" pseudo-spell.
+ * Represents a timeout / pause that resets the recast counter.
+ */
+const MANA_RESET_SPELL_ID = -2000;
+
+/** Reserved 7-bit node ID for Mana Reset in binary URL encoding. */
+const MANA_RESET_NODE_ID = 126;
+
 // ── Solver-specific constants ────────────────────────────────────────────────
 
 /**
