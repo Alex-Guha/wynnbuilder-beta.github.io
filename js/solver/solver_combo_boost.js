@@ -219,6 +219,7 @@ function build_combo_boost_registry(atree_merged, build = null) {
                     slider_idx.set(slider_name, registry.length);
                     registry.push({
                         name: slider_name,
+                        display_label: slider_name === 'hits dealt' ? abil.display_name : undefined,
                         aliases: [],
                         type: 'slider',
                         max:  slider_total_max.get(slider_name) ?? (effect.slider_max ?? 10),

@@ -551,7 +551,7 @@ class SolverComboTotalNode extends ComputeNode {
                 wrap.className = 'd-inline-flex align-items-center gap-1 m-1';
                 const lbl = document.createElement('span');
                 lbl.className = 'text-secondary small text-nowrap';
-                lbl.textContent = entry.name + ':';
+                lbl.textContent = (entry.display_label ?? entry.name) + ':';
                 const inp = document.createElement('input');
                 inp.type = 'number';
                 inp.className = 'combo-row-input combo-row-boost-slider';
