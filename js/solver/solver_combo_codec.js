@@ -1,16 +1,17 @@
 // ── Combo data serialization ──────────────────────────────────────────────────
 
-/** Serialize [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl}] to multi-line text. */
+/** Serialize [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits}] to multi-line text. */
 function combo_data_to_text(data) {
-    return data.map(({ qty, spell_name, boost_tokens_text, mana_excl, dmg_excl }) => {
+    return data.map(({ qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits }) => {
         let line = qty + ' | ' + spell_name + ' | ' + boost_tokens_text;
-        if (mana_excl || dmg_excl) line += ' | ' + (mana_excl ? '1' : '0');
-        if (dmg_excl) line += ' | 1';
+        if (mana_excl || dmg_excl || hits !== undefined) line += ' | ' + (mana_excl ? '1' : '0');
+        if (dmg_excl || hits !== undefined) line += ' | ' + (dmg_excl ? '1' : '0');
+        if (hits !== undefined) line += ' | ' + hits;
         return line;
     }).join('\n');
 }
 
-/** Parse multi-line text to [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl}]. */
+/** Parse multi-line text to [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits}]. */
 function combo_text_to_data(text) {
     const result = [];
     for (const raw of text.split('\n')) {
@@ -23,7 +24,9 @@ function combo_text_to_data(text) {
         const boost_tokens_text = (parts[2] ?? '').trim();
         const mana_excl = (parts[3] ?? '').trim() === '1';
         const dmg_excl  = (parts[4] ?? '').trim() === '1';
-        result.push({ qty, spell_name, boost_tokens_text, mana_excl, dmg_excl });
+        const hits_str  = (parts[5] ?? '').trim();
+        const hits      = hits_str ? parseFloat(hits_str) : undefined;
+        result.push({ qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits: (hits != null && !isNaN(hits)) ? hits : undefined });
     }
     return result;
 }

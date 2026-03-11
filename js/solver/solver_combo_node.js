@@ -67,8 +67,26 @@ class SolverComboTotalNode extends ComputeNode {
                 apply_combo_row_boosts(base_stats, boost_tokens, registry);
             const mod_spell =
                 apply_spell_prop_overrides(spell, prop_overrides, atree_mg);
-            const full = computeSpellDisplayFull(stats, weapon, mod_spell, crit_chance);
-            const per_cast = full ? full.avg : 0;
+
+            // DPS spells with a Total/Max part: show per-hit damage × hits
+            // instead of the raw DPS value.
+            const dps_info = compute_dps_spell_hits_info(mod_spell);
+            let full, per_cast;
+            if (dps_info) {
+                const per_hit_spell = { ...mod_spell, display: dps_info.per_hit_name };
+                full = computeSpellDisplayFull(stats, weapon, per_hit_spell, crit_chance);
+                const hits_inp = dom_row?.querySelector('.combo-row-hits');
+                const hits = parseFloat(hits_inp?.value) || dps_info.max_hits;
+                per_cast = full ? full.avg * hits : 0;
+                // Dynamically update the max label (aspects can change hit counts).
+                const max_rounded = Math.round(dps_info.max_hits * 100) / 100;
+                const max_lbl = dom_row?.querySelector('.combo-row-hits-max');
+                if (max_lbl) max_lbl.textContent = '/' + max_rounded;
+                if (hits_inp) hits_inp.max = String(max_rounded);
+            } else {
+                full = computeSpellDisplayFull(stats, weapon, mod_spell, crit_chance);
+                per_cast = full ? full.avg : 0;
+            }
             const dmg_excluded = dom_row?.querySelector('.combo-dmg-toggle')
                 ?.classList.contains('dmg-excluded') ?? false;
             if (!dmg_excluded) total += per_cast * qty;
@@ -87,7 +105,15 @@ class SolverComboTotalNode extends ComputeNode {
             if (dmg_popup && full && full.avg > 0) {
                 const spell_cost = full.has_cost && mod_spell.cost != null
                     ? getSpellCost(stats, mod_spell) : null;
-                dmg_popup.innerHTML = renderSpellPopupHTML(full, crit_chance, spell_cost);
+                let popup_html = renderSpellPopupHTML(full, crit_chance, spell_cost);
+                if (dps_info) {
+                    const hits_inp = dom_row?.querySelector('.combo-row-hits');
+                    const hits = parseFloat(hits_inp?.value) || dps_info.max_hits;
+                    popup_html += '<div class="text-secondary small mt-1">'
+                        + '\u00d7 ' + hits + ' hits = '
+                        + Math.round(full.avg * hits).toLocaleString() + '</div>';
+                }
+                dmg_popup.innerHTML = popup_html;
                 dmg_wrap?.classList.add('has-popup');
             } else if (dmg_popup) {
                 dmg_popup.textContent = '';
@@ -200,7 +226,10 @@ class SolverComboTotalNode extends ComputeNode {
                 ?.classList.contains('mana-excluded') ?? false;
             const dmg_excl = row.querySelector('.combo-dmg-toggle')
                 ?.classList.contains('dmg-excluded') ?? false;
-            result.push({ qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl });
+            // DPS hits (only present for DPS spells with a Total/Max part).
+            const hits_inp = row.querySelector('.combo-row-hits');
+            const hits = hits_inp ? parseFloat(hits_inp.value) || 0 : undefined;
+            result.push({ qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl, hits });
         }
         return result;
     }
@@ -210,10 +239,10 @@ class SolverComboTotalNode extends ComputeNode {
         const container = document.getElementById('combo-selection-rows');
         if (!container) return;
         container.innerHTML = '';
-        for (const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl } of data) {
-            container.appendChild(
-                _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, spell_value)
-            );
+        for (const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl, hits } of data) {
+            const row = _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, spell_value);
+            if (hits !== undefined && hits !== null) row.dataset.pendingHits = String(hits);
+            container.appendChild(row);
         }
     }
 
@@ -342,9 +371,19 @@ class SolverComboTotalNode extends ComputeNode {
             const area = row.querySelector('.combo-row-boosts');
             if (!area) continue;
 
-            // Skip rows that already have controls and the registry hasn't changed.
+            // Skip rows that already have controls and the registry hasn't changed
+            // AND the spell's DPS hits status hasn't changed.
             // Always populate rows with empty boost areas (newly added or from mode switch).
-            if (!registry_changed && area.children.length > 0) continue;
+            if (!registry_changed && area.children.length > 0) {
+                let cur_spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
+                if (isNaN(cur_spell_id) && row.dataset.pendingSpellValue) {
+                    cur_spell_id = parseInt(row.dataset.pendingSpellValue);
+                }
+                const cur_spell = this._spell_map_cache?.get(cur_spell_id) ?? null;
+                const cur_dps = cur_spell ? compute_dps_spell_hits_info(cur_spell) : null;
+                const has_hits_el = !!area.querySelector('.combo-row-hits');
+                if (!!cur_dps === has_hits_el) continue;
+            }
 
             // Save existing values.
             const old_toggle = new Map();
@@ -355,8 +394,48 @@ class SolverComboTotalNode extends ComputeNode {
             for (const i of area.querySelectorAll('.combo-row-boost-slider')) {
                 old_slider.set(i.dataset.boostName, i.value);
             }
+            const old_hits = area.querySelector('.combo-row-hits')?.value ?? null;
 
             area.innerHTML = '';
+
+            // DPS hits input: render at the top when the row's spell is a
+            // DPS ability with a discoverable Total/Max aggregate.
+            // Also check pendingSpellValue for URL-restore (spell may not be set yet).
+            let spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
+            if (isNaN(spell_id) && row.dataset.pendingSpellValue) {
+                spell_id = parseInt(row.dataset.pendingSpellValue);
+            }
+            const spell = this._spell_map_cache?.get(spell_id) ?? null;
+            const dps_info = spell ? compute_dps_spell_hits_info(spell) : null;
+            if (dps_info) {
+                const wrap = document.createElement('div');
+                wrap.className = 'd-inline-flex align-items-center gap-1 m-1 combo-row-hits-wrap';
+                const lbl = document.createElement('span');
+                lbl.className = 'text-secondary small text-nowrap';
+                lbl.textContent = 'Hits:';
+                const inp = document.createElement('input');
+                inp.type = 'number';
+                inp.className = 'combo-row-input combo-row-hits';
+                inp.style.cssText = 'width:4.5em; text-align:center;';
+                inp.min = '0';
+                inp.step = 'any';
+                const max_rounded = Math.round(dps_info.max_hits * 100) / 100;
+                inp.max = String(max_rounded);
+                inp.value = old_hits ?? row.dataset.pendingHits ?? String(max_rounded);
+                if (row.dataset.pendingHits !== undefined) delete row.dataset.pendingHits;
+                const max_lbl = document.createElement('span');
+                max_lbl.className = 'text-secondary small combo-row-hits-max';
+                max_lbl.textContent = '/' + max_rounded;
+                inp.addEventListener('input', () => {
+                    _update_boost_btn_highlight(row);
+                    if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+                });
+                wrap.append(lbl, inp, max_lbl);
+                area.appendChild(wrap);
+                const sep = document.createElement('hr');
+                sep.className = 'my-1';
+                area.appendChild(sep);
+            }
 
             // Render toggles first, then sliders, with a separator between them.
             const toggles = registry.filter(e => e.type === 'toggle');
@@ -421,7 +500,7 @@ class SolverComboTotalNode extends ComputeNode {
             }
             _update_boost_btn_highlight(row);
             const boost_btn_el = row.querySelector('.combo-boost-menu-btn');
-            if (boost_btn_el) boost_btn_el.disabled = (registry.length === 0);
+            if (boost_btn_el) boost_btn_el.disabled = (registry.length === 0 && !dps_info);
         }
     }
 

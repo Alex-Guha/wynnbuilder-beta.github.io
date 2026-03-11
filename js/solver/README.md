@@ -16,7 +16,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Necessary Improvements
-- Abilities like crep ray that cast over time need to be allowed special entry so the user can enter multiple instances of it with varying focus buffs
 - Consider Warrior bloodpact in mana calc; is it even possible?
     - base hpr 3, not affected by hpr%
 - ramping mana cost for spells (problem)

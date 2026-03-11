@@ -560,6 +560,7 @@ async function init() {
                         boost_tokens_text: boost_parts.join(', '),
                         mana_excl: r.mana_excl,
                         dmg_excl: r.dmg_excl,
+                        hits: r.has_hits ? r.hits : undefined,
                     };
                 });
                 if (data.length > 0) {

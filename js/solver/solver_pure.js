@@ -212,6 +212,69 @@ function spell_has_heal(spell) {
 }
 
 /**
+ * Return true if a spell's display part is a DPS aggregate (name equals or ends with "DPS").
+ */
+function spell_is_dps(spell) {
+    if (!spell || !spell.display) return false;
+    return spell.display === 'DPS' || spell.display.endsWith(' DPS');
+}
+
+/**
+ * For a DPS spell that has a Total/Max aggregate part, return
+ * { per_hit_name, max_hits } describing the leaf damage part and
+ * the maximum number of hits derived from the total/max part's hit chain.
+ *
+ * Returns null when:
+ *  - The spell is not a DPS spell.
+ *  - No Total/Max aggregate part exists (e.g. Jasmine Bloom) — the spell
+ *    should keep its DPS display and the user uses the qty field instead.
+ */
+function compute_dps_spell_hits_info(spell) {
+    if (!spell_is_dps(spell)) return null;
+
+    const by_name = new Map(spell.parts.map(p => [p.name, p]));
+
+    // Leaf: the first part with raw damage multipliers.
+    const leaf = spell.parts.find(p => 'multipliers' in p);
+    if (!leaf) return null;
+
+    const dps_part = by_name.get(spell.display);
+    if (!dps_part || !('hits' in dps_part)) return null;
+
+    // Look for a "Total …" / "Max …" part that is NOT the DPS part itself.
+    let total_part = spell.parts.find(p =>
+        p !== dps_part && 'hits' in p && /\b(Total|Max)\b/i.test(p.name)
+    );
+
+    // Fallback: a part whose hits reference the DPS part by name.
+    if (!total_part) {
+        total_part = spell.parts.find(p =>
+            p !== dps_part && 'hits' in p && (dps_part.name in (p.hits || {}))
+        );
+    }
+
+    // No total/max discoverable — caller should fall back to DPS display.
+    if (!total_part) return null;
+
+    // Walk the hit chain from `start` down to the leaf, multiplying counts.
+    function count_hits_to_leaf(part_name) {
+        if (part_name === leaf.name) return 1;
+        const p = by_name.get(part_name);
+        if (!p || !('hits' in p)) return 0;
+        let total = 0;
+        for (const [sub, count] of Object.entries(p.hits)) {
+            total += count * count_hits_to_leaf(sub);
+        }
+        return total;
+    }
+
+    const max_hits = count_hits_to_leaf(total_part.name);
+    if (max_hits <= 0) return null;
+
+    return { per_hit_name: leaf.name, max_hits };
+}
+
+/**
  * Compute the total healing output of a spell for a given stat context.
  * Mirrors computeSpellDisplayAvg but sums heal parts instead of damage parts.
  * Returns 0 when the spell has no heal parts.

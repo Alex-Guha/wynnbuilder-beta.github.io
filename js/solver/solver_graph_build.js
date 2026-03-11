@@ -314,7 +314,12 @@ function _collect_solver_params() {
                 boosts.push({ node_id: ref.node_id, effect_pos: ref.effect_pos, has_value: true, value: Math.round(val) });
             }
 
-            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, boosts });
+            // DPS hits: read from the hits input in the boost area.
+            const hits_inp = row.querySelector('.combo-row-hits');
+            const has_hits = !!hits_inp;
+            const hits = has_hits ? (parseFloat(hits_inp.value) || 0) : 0;
+
+            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts });
         }
     }
 

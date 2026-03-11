@@ -26,8 +26,8 @@ async function loadLatestVersion() {
  */
 async function loadOlderVersion() {
     const updateMsg = 'This build was created in an older version of wynncraft '
-                + `(${wynn_version_names[wynn_version_id]} < ${wynn_version_names[WYNN_VERSION_LATEST]}). `
-                + 'Would you like to update to the latest version? Updating may break the build and ability tree.';
+        + `(${wynn_version_names[wynn_version_id]} < ${wynn_version_names[WYNN_VERSION_LATEST]}). `
+        + 'Would you like to update to the latest version? Updating may break the build and ability tree.';
 
     const decodingVersion = wynn_version_id;
     // Upgrade the build to the latest version
@@ -151,13 +151,13 @@ function decodeEquipment(cursor) {
                 break;
             }
             case DEC.EQUIPMENT_KIND.CRAFTED: {
-                let craft = decodeCraft({cursor: cursor});
+                let craft = decodeCraft({ cursor: cursor });
                 equipments.push(craft.hash);
                 break;
             }
             case DEC.EQUIPMENT_KIND.CUSTOM: {
                 const customLengthBits = cursor.advanceBy(CUSTOM_STR_LENGTH_BITLEN) * 6;
-                let custom = decodeCustom({cursor: cursor.spawn(customLengthBits)});
+                let custom = decodeCustom({ cursor: cursor.spawn(customLengthBits) });
                 equipments.push(custom.statMap.get("hash"));
                 // Skip the length of the custom because we spawned a new cursor, so the original didn't mutate.
                 cursor.skip(customLengthBits);
@@ -332,8 +332,8 @@ async function decodeHash() {
     let weaponType;
     const weaponName = equipment[8];
     switch (weaponName.slice(0, 3)) {
-        case "CI-": weaponType = decodeCustom({hash: weaponName.substring(3)}).statMap.get("type"); break;
-        case "CR-": weaponType = decodeCraft({hash: weaponName.substring(3)}).statMap.get("type"); break;
+        case "CI-": weaponType = decodeCustom({ hash: weaponName.substring(3) }).statMap.get("type"); break;
+        case "CR-": weaponType = decodeCraft({ hash: weaponName.substring(3) }).statMap.get("type"); break;
         default: weaponType = itemMap.get(weaponName).type;
     }
     const playerClass = wep_to_class.get(weaponType);
@@ -416,7 +416,7 @@ function decodePowdersLegacy(powder_info) {
         // console.log(n_blocks + " blocks");
         powder_info = powder_info.slice(1);
         for (let j = 0; j < n_blocks; ++j) {
-            let block = powder_info.slice(0,5);
+            let block = powder_info.slice(0, 5);
             let six_powders = Base64.toInt(block);
             for (let k = 0; k < 6 && six_powders != 0; ++k) {
                 powders += powderNames.get(decodePowderIdx((six_powders & 0x1f) - 1, 6));
@@ -468,8 +468,8 @@ async function decodeHashLegacy(url_tag) {
     // TODO: use filters
     if (version_number < 4) {
         let equipments = info[1];
-        for (let i = 0; i < 9; ++i ) {
-            let equipment_str = equipments.slice(i*3,i*3+3);
+        for (let i = 0; i < 9; ++i) {
+            let equipment_str = equipments.slice(i * 3, i * 3 + 3);
             equipment[i] = getItemNameFromID(Base64.toInt(equipment_str));
         }
         data_str = equipments.slice(27);
@@ -477,13 +477,13 @@ async function decodeHashLegacy(url_tag) {
     else if (version_number == 4) {
         let info_str = data_str;
         let start_idx = 0;
-        for (let i = 0; i < 9; ++i ) {
+        for (let i = 0; i < 9; ++i) {
             if (info_str.charAt(start_idx) === "-") {
-                equipment[i] = "CR-"+info_str.slice(start_idx+1, start_idx+18);
+                equipment[i] = "CR-" + info_str.slice(start_idx + 1, start_idx + 18);
                 start_idx += 18;
             }
             else {
-                let equipment_str = info_str.slice(start_idx, start_idx+3);
+                let equipment_str = info_str.slice(start_idx, start_idx + 3);
                 equipment[i] = getItemNameFromID(Base64.toInt(equipment_str));
                 start_idx += 3;
             }
@@ -493,16 +493,16 @@ async function decodeHashLegacy(url_tag) {
     else if (version_number <= 11) {
         let info_str = data_str;
         let start_idx = 0;
-        for (let i = 0; i < 9; ++i ) {
-            if (info_str.slice(start_idx,start_idx+3) === "CR-") {
-                equipment[i] = info_str.slice(start_idx, start_idx+20);
+        for (let i = 0; i < 9; ++i) {
+            if (info_str.slice(start_idx, start_idx + 3) === "CR-") {
+                equipment[i] = info_str.slice(start_idx, start_idx + 20);
                 start_idx += 20;
-            } else if (info_str.slice(start_idx+3,start_idx+6) === "CI-") {
-                let len = Base64.toInt(info_str.slice(start_idx,start_idx+3));
-                equipment[i] = info_str.slice(start_idx+3,start_idx+3+len);
-                start_idx += (3+len);
+            } else if (info_str.slice(start_idx + 3, start_idx + 6) === "CI-") {
+                let len = Base64.toInt(info_str.slice(start_idx, start_idx + 3));
+                equipment[i] = info_str.slice(start_idx + 3, start_idx + 3 + len);
+                start_idx += (3 + len);
             } else {
-                let equipment_str = info_str.slice(start_idx, start_idx+3);
+                let equipment_str = info_str.slice(start_idx, start_idx + 3);
                 equipment[i] = getItemNameFromID(Base64.toInt(equipment_str));
                 start_idx += 3;
             }
@@ -523,19 +523,19 @@ async function decodeHashLegacy(url_tag) {
         powdering = res[0];
     } else if (version_number == 2) {
         let skillpoint_info = data_str.slice(0, 10);
-        for (let i = 0; i < 5; ++i ) {
-            skillpoints[i] = Base64.toIntSigned(skillpoint_info.slice(i*2,i*2+2));
+        for (let i = 0; i < 5; ++i) {
+            skillpoints[i] = Base64.toIntSigned(skillpoint_info.slice(i * 2, i * 2 + 2));
         }
 
         let powder_info = data_str.slice(10);
         let res = decodePowdersLegacy(powder_info);
         powdering = res[0];
-    } else if (version_number <= 11){
-        level = Base64.toInt(data_str.slice(10,12));
-        setValue("level-choice",level);
+    } else if (version_number <= 11) {
+        level = Base64.toInt(data_str.slice(10, 12));
+        setValue("level-choice", level);
         let skillpoint_info = data_str.slice(0, 10);
-        for (let i = 0; i < 5; ++i ) {
-            skillpoints[i] = Base64.toIntSigned(skillpoint_info.slice(i*2,i*2+2));
+        for (let i = 0; i < 5; ++i) {
+            skillpoints[i] = Base64.toIntSigned(skillpoint_info.slice(i * 2, i * 2 + 2));
         }
 
         let powder_info = data_str.slice(12);
@@ -571,11 +571,11 @@ async function decodeHashLegacy(url_tag) {
                 num_tomes = 14;
             }
             for (let i = 0; i < num_tomes; ++i) {
-                let tome_str = data_str.slice(2*i, 2*i+2);
+                let tome_str = data_str.slice(2 * i, 2 * i + 2);
                 let tome_name = getTomeNameFromID(Base64.toInt(tome_str));
                 setValue(tomeInputs[i], tome_name);
             }
-            data_str = data_str.slice(num_tomes*2);
+            data_str = data_str.slice(num_tomes * 2);
         }
     }
 
@@ -589,14 +589,14 @@ async function decodeHashLegacy(url_tag) {
         const player_class = wep_to_class.get(item_type);
         const class_aspects_by_id = aspect_id_map.get(player_class);
         for (let i = 0; i < num_aspects; ++i) {
-            const aspect_id = Base64.toInt(data_str.slice(3*i, 3*i + 2));
-            const aspect_tier = Base64.toInt(data_str.slice(3*i+2, 3*i + 3));
+            const aspect_id = Base64.toInt(data_str.slice(3 * i, 3 * i + 2));
+            const aspect_tier = Base64.toInt(data_str.slice(3 * i + 2, 3 * i + 3));
             if (aspect_id !== none_aspect.id) {
                 setValue(aspectTierInputs[i], aspect_tier);
                 setValue(aspectInputs[i], class_aspects_by_id.get(aspect_id).displayName);
             }
         }
-        data_str = data_str.slice(num_aspects*3);
+        data_str = data_str.slice(num_aspects * 3);
     }
 
     if (version_number >= 7) {
@@ -670,7 +670,7 @@ function decodeSolverParams(b64_str) {
             console.warn('[decode] decodeSolverParams: version 0 (extension signal) not supported');
             return null;
         }
-        if (version !== 1) {
+        if (version > 2) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -679,16 +679,16 @@ function decodeSolverParams(b64_str) {
         const presence = cursor.advanceBy(10);
 
         // ── Conditional fixed fields (defaults from _SOLVER_DEFAULTS) ──
-        const roll        = (presence & (1 << 0)) ? cursor.advanceBy(7)       : _SOLVER_DEFAULTS.roll;
-        const sfree       = (presence & (1 << 1)) ? cursor.advanceBy(8)       : _SOLVER_DEFAULTS.sfree;
-        const dir_enabled = (presence & (1 << 2)) ? cursor.advanceBy(5)       : _SOLVER_DEFAULTS.dir_enabled;
-        const lvl_min     = (presence & (1 << 3)) ? cursor.advanceBy(7) + 1   : _SOLVER_DEFAULTS.lvl_min;
-        const lvl_max     = (presence & (1 << 4)) ? cursor.advanceBy(7) + 1   : max_lvl;
-        const nomaj       = (presence & (1 << 5)) ? cursor.advanceBy(1) === 1 : _SOLVER_DEFAULTS.nomaj;
-        const gtome       = (presence & (1 << 6)) ? cursor.advanceBy(2)       : _SOLVER_DEFAULTS.gtome;
-        const dtime       = (presence & (1 << 7)) ? cursor.advanceBy(1) === 1 : _SOLVER_DEFAULTS.dtime;
-        const ctime       = (presence & (1 << 8)) ? cursor.advanceBy(10)      : _SOLVER_DEFAULTS.ctime;
-        const flat_mana   = (presence & (1 << 9)) ? _decode_signed(cursor, 10) : _SOLVER_DEFAULTS.flat_mana;
+        const roll = (presence & (1 << 0)) ? cursor.advanceBy(7) : _SOLVER_DEFAULTS.roll;
+        const sfree = (presence & (1 << 1)) ? cursor.advanceBy(8) : _SOLVER_DEFAULTS.sfree;
+        const dir_enabled = (presence & (1 << 2)) ? cursor.advanceBy(5) : _SOLVER_DEFAULTS.dir_enabled;
+        const lvl_min = (presence & (1 << 3)) ? cursor.advanceBy(7) + 1 : _SOLVER_DEFAULTS.lvl_min;
+        const lvl_max = (presence & (1 << 4)) ? cursor.advanceBy(7) + 1 : max_lvl;
+        const nomaj = (presence & (1 << 5)) ? cursor.advanceBy(1) === 1 : _SOLVER_DEFAULTS.nomaj;
+        const gtome = (presence & (1 << 6)) ? cursor.advanceBy(2) : _SOLVER_DEFAULTS.gtome;
+        const dtime = (presence & (1 << 7)) ? cursor.advanceBy(1) === 1 : _SOLVER_DEFAULTS.dtime;
+        const ctime = (presence & (1 << 8)) ? cursor.advanceBy(10) : _SOLVER_DEFAULTS.ctime;
+        const flat_mana = (presence & (1 << 9)) ? _decode_signed(cursor, 10) : _SOLVER_DEFAULTS.flat_mana;
 
         // ── Restrictions (variable-width values) ──
         const restriction_count = cursor.advanceBy(4);
@@ -711,6 +711,13 @@ function decodeSolverParams(b64_str) {
             const mana_excl = cursor.advanceBy(1) === 1;
             const dmg_excl = cursor.advanceBy(1) === 1;
 
+            // v2: DPS hits field.
+            let has_hits = false, hits = 0;
+            if (version >= 2) {
+                has_hits = cursor.advanceBy(1) === 1;
+                if (has_hits) hits = cursor.advanceBy(16) / 100;
+            }
+
             const boost_count = cursor.advanceBy(4);
             const boosts = [];
             for (let j = 0; j < boost_count; j++) {
@@ -720,7 +727,7 @@ function decodeSolverParams(b64_str) {
                 const value = has_value ? cursor.advanceBy(7) : 0;
                 boosts.push({ node_id, effect_pos, has_value, value });
             }
-            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, boosts });
+            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts });
         }
 
         // ── Blacklist ──
@@ -730,8 +737,10 @@ function decodeSolverParams(b64_str) {
             blacklist_ids.push(cursor.advanceBy(14));
         }
 
-        return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
-                 flat_mana, restrictions, combo_rows, blacklist_ids };
+        return {
+            roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
+            flat_mana, restrictions, combo_rows, blacklist_ids
+        };
     } catch (e) {
         console.warn('[decode] decodeSolverParams failed:', e);
         return null;

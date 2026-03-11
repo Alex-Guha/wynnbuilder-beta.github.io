@@ -16,7 +16,7 @@ function getItemNameFromID(id) {
 
 function getTomeNameFromID(id) {
     let res = tomeIDMap.get(id);
-    if (res === undefined) { console.log('WARN: Deleting unrecognized tome, id='+id); return ""; }
+    if (res === undefined) { console.log('WARN: Deleting unrecognized tome, id=' + id); return ""; }
     return res;
 }
 
@@ -463,16 +463,16 @@ function encodeBuildLegacy(build, powders, skillpoints, atree, atree_state, aspe
 
         for (const item of build.items) {
             if (item.statMap.get("custom")) {
-                let custom = "CI-"+encodeCustom(item, true);
+                let custom = "CI-" + encodeCustom(item, true);
                 build_string += Base64.fromIntN(custom.length, 3) + custom;
                 //build_version = Math.max(build_version, 5);
             } else if (item.statMap.get("crafted")) {
-                build_string += "CR-"+encodeCraftLegacy(item);
+                build_string += "CR-" + encodeCraftLegacy(item);
             } else if (item.statMap.get("category") === "tome") {
                 let tome_id = item.statMap.get("id");
                 //if (tome_id <= 60) {
-                    // valid normal tome. ID 61-63 is for NONE tomes.
-                    //build_version = Math.max(build_version, 6);
+                // valid normal tome. ID 61-63 is for NONE tomes.
+                //build_version = Math.max(build_version, 6);
                 //}
                 tome_string += Base64.fromIntN(tome_id, 2);
             } else {
@@ -490,7 +490,7 @@ function encodeBuildLegacy(build, powders, skillpoints, atree, atree_state, aspe
             // Slice copy.
             let powderset = _powderset.slice();
             while (powderset.length != 0) {
-                let firstSix = powderset.slice(0,6).reverse();
+                let firstSix = powderset.slice(0, 6).reverse();
                 let powder_hash = 0;
                 for (const powder of firstSix) {
                     powder_hash = (powder_hash << 5) + 1 + powder; // LSB will be extracted first.
@@ -610,6 +610,8 @@ const _SOLVER_DEFAULTS = {
  *       [7]   qty (0-127)
  *       [1]   mana_excl
  *       [1]   dmg_excl
+ *       [1]   has_hits
+ *       [16]  hits×100 (only if has_hits=1, 0-655.35 hits)
  *       [4]   boost_count (0-15)
  *       Per boost:
  *         [7]   node_id
@@ -632,7 +634,7 @@ const _SOLVER_DEFAULTS = {
  * @param {number} params.ctime - Combo time in seconds (0-1023)
  * @param {number} params.flat_mana - Flat mana per cycle (-512 to 511)
  * @param {Array} params.restrictions - [{stat_index, op, value}]
- * @param {Array} params.combo_rows - [{spell_node_id, qty, mana_excl, dmg_excl, boosts: [{node_id, effect_pos, has_value, value}]}]
+ * @param {Array} params.combo_rows - [{spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts: [{node_id, effect_pos, has_value, value}]}]
  * @param {Array} params.blacklist_ids - [item_id, ...]
  * @returns {string} Base64 string for appending after SOLVER_HASH_SEP
  */
@@ -640,32 +642,32 @@ function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
     const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-    // Version: 3 bits (v1 = 001)
-    bv.append(1, 3);
+    // Version: 3 bits (v2 = 010)
+    bv.append(2, 3);
 
     // ── Presence bitmask (10 bits) ──
-    const roll      = Math.max(0, Math.min(100, params.roll || 0));
-    const sfree     = params.sfree & 0xFF;
-    const dir       = params.dir_enabled & 0x1F;
-    const lvl_min   = Math.max(0, Math.min(max_lvl - 1, (params.lvl_min || 1) - 1));
-    const lvl_max   = Math.max(0, Math.min(max_lvl - 1, (params.lvl_max || max_lvl) - 1));
-    const nomaj     = params.nomaj ? 1 : 0;
-    const gtome     = params.gtome & 0x3;
-    const dtime     = params.dtime ? 1 : 0;
-    const ctime     = Math.min(1023, Math.max(0, params.ctime || 0));
+    const roll = Math.max(0, Math.min(100, params.roll || 0));
+    const sfree = params.sfree & 0xFF;
+    const dir = params.dir_enabled & 0x1F;
+    const lvl_min = Math.max(0, Math.min(max_lvl - 1, (params.lvl_min || 1) - 1));
+    const lvl_max = Math.max(0, Math.min(max_lvl - 1, (params.lvl_max || max_lvl) - 1));
+    const nomaj = params.nomaj ? 1 : 0;
+    const gtome = params.gtome & 0x3;
+    const dtime = params.dtime ? 1 : 0;
+    const ctime = Math.min(1023, Math.max(0, params.ctime || 0));
     const flat_mana = Math.max(-512, Math.min(511, Math.round(params.flat_mana || 0)));
 
     let presence = 0;
-    if (roll      !== _SOLVER_DEFAULTS.roll)         presence |= (1 << 0);
-    if (sfree     !== _SOLVER_DEFAULTS.sfree)        presence |= (1 << 1);
-    if (dir       !== _SOLVER_DEFAULTS.dir_enabled)  presence |= (1 << 2);
-    if (lvl_min   !== (_SOLVER_DEFAULTS.lvl_min - 1)) presence |= (1 << 3);
-    if (lvl_max   !== (max_lvl - 1))                 presence |= (1 << 4);
-    if (nomaj     !== 0)                             presence |= (1 << 5);
-    if (gtome     !== _SOLVER_DEFAULTS.gtome)        presence |= (1 << 6);
-    if (dtime     !== 0)                             presence |= (1 << 7);
-    if (ctime     !== _SOLVER_DEFAULTS.ctime)        presence |= (1 << 8);
-    if (flat_mana !== _SOLVER_DEFAULTS.flat_mana)    presence |= (1 << 9);
+    if (roll !== _SOLVER_DEFAULTS.roll) presence |= (1 << 0);
+    if (sfree !== _SOLVER_DEFAULTS.sfree) presence |= (1 << 1);
+    if (dir !== _SOLVER_DEFAULTS.dir_enabled) presence |= (1 << 2);
+    if (lvl_min !== (_SOLVER_DEFAULTS.lvl_min - 1)) presence |= (1 << 3);
+    if (lvl_max !== (max_lvl - 1)) presence |= (1 << 4);
+    if (nomaj !== 0) presence |= (1 << 5);
+    if (gtome !== _SOLVER_DEFAULTS.gtome) presence |= (1 << 6);
+    if (dtime !== 0) presence |= (1 << 7);
+    if (ctime !== _SOLVER_DEFAULTS.ctime) presence |= (1 << 8);
+    if (flat_mana !== _SOLVER_DEFAULTS.flat_mana) presence |= (1 << 9);
 
     bv.append(presence, 10);
 
@@ -706,6 +708,13 @@ function encodeSolverParams(params) {
         bv.append(Math.min(127, row.qty || 0), 7);
         bv.append(row.mana_excl ? 1 : 0, 1);
         bv.append(row.dmg_excl ? 1 : 0, 1);
+
+        // v2: DPS hits field (has_hits bit + 16-bit hits×100).
+        const has_hits = row.has_hits ? 1 : 0;
+        bv.append(has_hits, 1);
+        if (has_hits) {
+            bv.append(Math.min(65535, Math.max(0, Math.round((row.hits || 0) * 100))), 16);
+        }
 
         const boosts = row.boosts || [];
         bv.append(Math.min(15, boosts.length), 4);
