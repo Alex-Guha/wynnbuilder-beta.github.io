@@ -34,7 +34,8 @@ let _cancelled = false;
 // Stats excluded from simple precheck:
 //   - 'ehp','ehp_no_agi','total_hp': derived from HP + def% + agi% + classDef + defMult (has special handling)
 //   - 'str','dex','int','def','agi': overwritten by total_sp from SP assignment
-const _PRECHECK_EXCLUDED = new Set(['ehp', 'ehp_no_agi', 'total_hp', 'ehpr', 'hpr', 'str', 'dex', 'int', 'def', 'agi']);
+const _PRECHECK_EXCLUDED = new Set(['ehp', 'ehp_no_agi', 'total_hp', 'ehpr', 'hpr', 'str', 'dex', 'int', 'def', 'agi',
+    'finalSpellCost1', 'finalSpellCost2', 'finalSpellCost3', 'finalSpellCost4']);
 let _constraint_prechecks = [];  // [{stat, adjusted_threshold}]
 let _ehp_precheck = null;        // {threshold, fixed_hp, ehp_divisor} or null
 let _ehp_no_agi_precheck = null; // {threshold, fixed_hp, ehp_divisor} or null
@@ -200,6 +201,11 @@ function _check_thresholds(stats, thresholds) {
             v = _get_def()[3]?.[0] ?? 0;
         } else if (stat === 'hpr') {
             v = _get_def()[2] ?? 0;
+        } else if (stat.startsWith('finalSpellCost')) {
+            const spell_num = parseInt(stat.charAt(stat.length - 1));
+            const base_cost = _cfg.spell_base_costs?.[spell_num];
+            if (base_cost == null) continue; // spell not available for this class
+            v = getSpellCost(stats, { cost: base_cost, base_spell: spell_num });
         } else {
             v = stats.get(stat) ?? 0;
         }
@@ -253,7 +259,7 @@ function _eval_combo_mana_check(combo_base) {
     const item_mana = combo_base.get('maxMana') ?? 0;
     const int_mana = Math.floor(skillPointsToPercentage(combo_base.get('int') ?? 0) * 100);
     const start_mana = 100 + item_mana + int_mana;
-    const mana_regen = (mr / 5) * combo_time;
+    const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * combo_time;
 
     // Mana steal: each melee-scaling hit restores ms/3/atkSpdMult mana.
     let mana_steal = 0;

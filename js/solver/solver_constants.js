@@ -158,6 +158,11 @@ const RESTRICTION_STATS = [
     { key: 'lb', label: 'Loot Bonus' },
     { key: 'lq', label: 'Loot Quality' },
     { key: 'xpb', label: 'XP Bonus' },
+    // ── Final Spell Costs (computed — depends on int, spRaw, spPct, atree) ──
+    { key: 'finalSpellCost1', label: '1st Spell Cost (Final)' },
+    { key: 'finalSpellCost2', label: '2nd Spell Cost (Final)' },
+    { key: 'finalSpellCost3', label: '3rd Spell Cost (Final)' },
+    { key: 'finalSpellCost4', label: '4th Spell Cost (Final)' },
 ];
 
 /**

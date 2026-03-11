@@ -98,6 +98,14 @@ function _build_dmg_weights(snap) {
         }
     }
 
+    // When mana sustainability is required (combo_time set, downtime not allowed),
+    // implicitly prioritize mana regen and mana steal so the search visits items
+    // that help sustain the combo earlier.
+    if (snap.combo_time && !snap.allow_downtime) {
+        add('mr', 0.5);
+        if (has_melee) add('ms', 0.5);
+    }
+
     return weights;
 }
 

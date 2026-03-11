@@ -13,3 +13,6 @@ const SP_PERCENTAGE_INPUT_CAP = 150;// SP input cap for percentage conversion
 
 // ── Player Stats ──────────────────────────────────────────────────────────────
 const MAX_PLAYER_LEVEL = 121;
+
+// ── Mana ─────────────────────────────────────────────────────────────────────
+const BASE_MANA_REGEN = 25;        // Base mana regen per 5 seconds (all classes)

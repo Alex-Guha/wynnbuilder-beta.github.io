@@ -18,13 +18,8 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 ### Necessary Improvements
 - Abilities like crep ray that cast over time need to be allowed special entry so the user can enter multiple instances of it with varying focus buffs
 - Consider Warrior bloodpact in mana calc; is it even possible?
-- Add a spell counter that only shows for large combos
-- base hpr 3, not affected by hpr%
-- base mana regen of 25/5 currently not accounted for
+    - base hpr 3, not affected by hpr%
 - ramping mana cost for spells (problem)
-- allow for restricting spell cost
-- if emboldening cry is toggled, then war scream should auto toggle on as well
-- Implicitly add MR/MS to priorities when "Allow Downtime" is not set.
 
 
 ### Improve Solver

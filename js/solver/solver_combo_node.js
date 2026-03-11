@@ -277,6 +277,12 @@ class SolverComboTotalNode extends ComputeNode {
                             }
                         }
                     }
+                    // Auto-toggle: if Emboldening Cry is on, ensure War Scream is too
+                    const ec = area.querySelector('.combo-row-boost-toggle[data-boost-name="Emboldening Cry"]');
+                    const ws = area.querySelector('.combo-row-boost-toggle[data-boost-name="War Scream"]');
+                    if (ec?.classList.contains('toggleOn') && ws && !ws.classList.contains('toggleOn')) {
+                        ws.classList.add('toggleOn');
+                    }
                 }
                 // Re-evaluate highlight now that boost state has been restored.
                 _update_boost_btn_highlight(row);
@@ -364,6 +370,16 @@ class SolverComboTotalNode extends ComputeNode {
                 if (old_toggle.get(entry.name)) btn.classList.add('toggleOn');
                 btn.addEventListener('click', () => {
                     btn.classList.toggle('toggleOn');
+                    // Auto-toggle: Emboldening Cry ON → War Scream ON
+                    if (btn.dataset.boostName === 'Emboldening Cry' && btn.classList.contains('toggleOn')) {
+                        const ws = area.querySelector('.combo-row-boost-toggle[data-boost-name="War Scream"]');
+                        if (ws && !ws.classList.contains('toggleOn')) ws.classList.add('toggleOn');
+                    }
+                    // Auto-toggle: War Scream OFF → Emboldening Cry OFF
+                    if (btn.dataset.boostName === 'War Scream' && !btn.classList.contains('toggleOn')) {
+                        const ec = area.querySelector('.combo-row-boost-toggle[data-boost-name="Emboldening Cry"]');
+                        if (ec && ec.classList.contains('toggleOn')) ec.classList.remove('toggleOn');
+                    }
                     _update_boost_btn_highlight(row);
                     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
                 });
@@ -433,8 +449,8 @@ class SolverComboTotalNode extends ComputeNode {
         const item_mana = base_stats.get('maxMana') ?? 0;
         const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
         const start_mana = 100 + item_mana + int_mana;
-        // mr is per 5 seconds; divide by 5 to get per-second rate.
-        const mana_regen = (mr / 5) * combo_time;
+        // mr is per 5 seconds; add base 25/5s regen, then divide by 5 for per-second rate.
+        const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * combo_time;
         // Mana steal: each melee-scaling hit restores ms/3/atkSpdMult mana.
         let mana_steal = 0;
         if (ms && melee_hits > 0) {
@@ -491,7 +507,7 @@ class SolverComboTotalNode extends ComputeNode {
             html +=
                 `<div>Starting mana: ${start_str}</div>` +
                 `<div>Spell costs: ${cost_str}</div>` +
-                `<div>Regen \u00d7${combo_time}s: ${fmt(mana_regen)} (${mr}/5s)</div>`;
+                `<div>Regen \u00d7${combo_time}s: ${fmt(mana_regen)} (${mr + BASE_MANA_REGEN}/5s)</div>`;
             if (mana_steal > 0) {
                 const mana_per_hit = ms / 3 / baseDamageMultiplier[
                     Math.max(0, Math.min(6,

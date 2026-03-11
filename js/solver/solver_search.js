@@ -171,6 +171,22 @@ function _build_solver_snapshot(restrictions) {
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
     const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
 
+    // Extract base spell costs for spells 1-4 (needed for final spell cost restrictions).
+    // Prefer costs from parsed_combo (user's active spells) over spell_map defaults.
+    const spell_base_costs = {};
+    if (spell_map) {
+        for (const [, spell] of spell_map) {
+            if (spell.base_spell >= 1 && spell.base_spell <= 4 && spell.cost != null) {
+                spell_base_costs[spell.base_spell] = spell.cost;
+            }
+        }
+    }
+    for (const row of parsed_combo) {
+        if (row.spell?.base_spell >= 1 && row.spell?.base_spell <= 4 && row.spell.cost != null) {
+            spell_base_costs[row.spell.base_spell] = row.spell.cost;
+        }
+    }
+
     // Serialize atree interactive state for workers
     const { button_states, slider_states } = _serialize_atree_interactive(atree_interactive_val);
 
@@ -179,7 +195,7 @@ function _build_solver_snapshot(restrictions) {
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
         restrictions, button_states, slider_states, scoring_target,
-        combo_time, allow_downtime, flat_mana,
+        combo_time, allow_downtime, flat_mana, spell_base_costs,
     };
 }
 
@@ -510,6 +526,7 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         combo_time: snap.combo_time,
         allow_downtime: snap.allow_downtime,
         flat_mana: snap.flat_mana,
+        spell_base_costs: snap.spell_base_costs,
         restrictions: snap.restrictions,
         // Global data
         sets_data: [...sets],
