@@ -147,8 +147,10 @@ function _build_solver_snapshot(restrictions) {
     const static_boosts = solver_boosts_node.value ?? new Map();
 
     let radiance_boost = 1;
-    if (document.getElementById('radiance-boost')?.classList.contains('toggleOn')) radiance_boost += 0.2;
-    if (document.getElementById('divinehonor-boost')?.classList.contains('toggleOn')) radiance_boost += 0.1;
+    if (document.getElementById('radiance-boost')?.classList.contains('toggleOn')) radiance_boost += 0.15;
+    if (document.getElementById('divinehonor-boost')?.classList.contains('toggleOn')) radiance_boost += 0.05;
+    if (document.getElementById('shine-boost')?.classList.contains('toggleOn')) radiance_boost += 0.05;
+    if (document.getElementById('judgement-boost')?.classList.contains('toggleOn')) radiance_boost = 1.4;
 
     const sp_budget = restrictions.guild_tome === 2 ? SP_GUILD_TOME_RARE :
         restrictions.guild_tome === 1 ? SP_GUILD_TOME_STD : SP_TOTAL_CAP;

@@ -447,10 +447,8 @@ function _apply_radiance_scale(statMap, boost) {
  * rejection logic.
  *
  * Key improvements over the old _sp_prefilter:
- *  - Uses effective requirements (req + own skillpoints) for non-crafted
- *    equipment, matching calculate_skillpoints' pull_req(apply_bonus=true).
- *    The old prefilter used raw reqs, systematically underestimating the
- *    required SP assignment.
+ *  - Uses raw requirements for all items, matching calculate_skillpoints'
+ *    simplified pull_req() (no apply_bonus parameter).
  *  - Excludes weapon provisions from the bonus pool (weapon SP doesn't
  *    reduce the assignment in the real calculation).
  *  - Includes an early budget reject mid-loop for fast failure.
@@ -464,10 +462,8 @@ function _apply_radiance_scale(statMap, boost) {
  */
 function _solver_sp_calc(equip_sms, weapon_sm, sp_budget) {
     // Phase 1: Accumulate bonus skillpoints, effective requirements, and set counts.
-    // In the solver all equipment items are non-crafted, but we check the flag
-    // for correctness (crafted items' SP don't count toward bonus or effective reqs).
     const bonus_sp = [0, 0, 0, 0, 0];
-    const max_eff_req = [0, 0, 0, 0, 0];
+    const max_req = [0, 0, 0, 0, 0];
     const set_counts = new Map();
 
     for (const sm of equip_sms) {
@@ -479,34 +475,27 @@ function _solver_sp_calc(equip_sms, weapon_sm, sp_budget) {
             for (let i = 0; i < 5; i++) bonus_sp[i] += skp[i];
             const set_name = sm.get('set');
             if (set_name) set_counts.set(set_name, (set_counts.get(set_name) ?? 0) + 1);
+        }
 
-            // Effective requirement: req + own skillpoints (apply_bonus=true path)
-            for (let i = 0; i < 5; i++) {
-                if (req[i] === 0) continue;
-                const eff = req[i] + skp[i];
-                if (eff > max_eff_req[i]) max_eff_req[i] = eff;
-            }
-        } else {
-            // Crafted: raw requirement, no bonus application
-            for (let i = 0; i < 5; i++) {
-                if (req[i] > max_eff_req[i]) max_eff_req[i] = req[i];
-            }
+        // Raw requirements for all items (matching simplified pull_req)
+        for (let i = 0; i < 5; i++) {
+            if (req[i] > max_req[i]) max_req[i] = req[i];
         }
     }
 
-    // Weapon: raw requirements only (apply_bonus=false), not added to bonus_sp
+    // Weapon: raw requirements, not added to bonus_sp
     const wep_req = weapon_sm.get('reqs');
     for (let i = 0; i < 5; i++) {
-        if (wep_req[i] > max_eff_req[i]) max_eff_req[i] = wep_req[i];
+        if (wep_req[i] > max_req[i]) max_req[i] = wep_req[i];
     }
 
     // Phase 2: Compute assignment with early budget check.
     const assign = [0, 0, 0, 0, 0];
     let total_assigned = 0;
     for (let i = 0; i < 5; i++) {
-        if (max_eff_req[i] === 0) continue;
-        if (max_eff_req[i] > bonus_sp[i]) {
-            const delta = max_eff_req[i] - bonus_sp[i];
+        if (max_req[i] === 0) continue;
+        if (max_req[i] > bonus_sp[i]) {
+            const delta = max_req[i] - bonus_sp[i];
             if (delta > SP_PER_ATTR_CAP) return null;
             assign[i] = delta;
             total_assigned += delta;

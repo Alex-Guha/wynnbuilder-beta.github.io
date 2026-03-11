@@ -674,34 +674,27 @@ function _run_level_enum() {
 
             if (!is_crafted) {
                 for (let i = 0; i < 5; i++) _sp_fixed_sum_prov[i] += skp[i];
-                for (let i = 0; i < 5; i++) {
-                    if (req[i] === 0) continue;
-                    const eff = req[i] + skp[i];
-                    if (eff > _sp_fixed_max_eff_req[i])
-                        _sp_fixed_max_eff_req[i] = eff;
-                }
-            } else {
-                for (let i = 0; i < 5; i++) {
-                    if (req[i] > _sp_fixed_max_eff_req[i])
-                        _sp_fixed_max_eff_req[i] = req[i];
-                }
+            }
+
+            // Raw requirements for all items (matching simplified pull_req)
+            for (let i = 0; i < 5; i++) {
+                if (req[i] > _sp_fixed_max_eff_req[i])
+                    _sp_fixed_max_eff_req[i] = req[i];
             }
         }
 
-        // Guild tome (non-crafted, adds provisions + reqs)
+        // Guild tome: adds provisions + raw reqs
         if (guild_tome_sm && !guild_tome_sm.has('NONE')) {
             const skp = guild_tome_sm.get('skillpoints');
             const req = guild_tome_sm.get('reqs');
             for (let i = 0; i < 5; i++) _sp_fixed_sum_prov[i] += skp[i];
             for (let i = 0; i < 5; i++) {
-                if (req[i] === 0) continue;
-                const eff = req[i] + skp[i];
-                if (eff > _sp_fixed_max_eff_req[i])
-                    _sp_fixed_max_eff_req[i] = eff;
+                if (req[i] > _sp_fixed_max_eff_req[i])
+                    _sp_fixed_max_eff_req[i] = req[i];
             }
         }
 
-        // Weapon: raw requirements only (apply_bonus=false), excluded from prov
+        // Weapon: raw requirements only, excluded from prov
         const wep_req = weapon_sm.get('reqs');
         for (let i = 0; i < 5; i++) {
             if (wep_req[i] > _sp_fixed_max_eff_req[i])
@@ -732,10 +725,10 @@ function _run_level_enum() {
             for (let i = 0; i < 5; i++) _sp_running_free_prov[i] += skp[i];
         }
 
+        // Raw requirements for all items (matching simplified pull_req)
         const eff = _sp_slot_eff_req[depth];
         for (let i = 0; i < 5; i++) {
-            if (req[i] === 0) { eff[i] = 0; continue; }
-            eff[i] = (!is_crafted) ? req[i] + skp[i] : req[i];
+            eff[i] = req[i];
         }
 
         for (let i = 0; i < 5; i++) {
