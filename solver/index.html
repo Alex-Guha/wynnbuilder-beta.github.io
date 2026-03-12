@@ -424,9 +424,7 @@
                         </div>
 
                         <!-- LEVEL / ROLL / RESET + action buttons -->
-                        <div class="col order-xl-0 order-1">
-                            <div class="row h-100 px-2 align-items-center">
-                                <div class="col solver-lrg-wrap">
+                        <div class="col order-xl-0 order-1 solver-lrg-wrap">
                                     <div class="solver-level-roll-grid">
                                         <!-- Row 1: Level + Copy URL -->
                                         <div class="fw-bold scaled-font solver-lrg-label">Level</div>
@@ -453,8 +451,6 @@
                                             id="copy-to-builder-btn" title="Export build to WynnBuilder">Export to
                                             Builder</button>
                                     </div>
-                                </div>
-                            </div>
                         </div>
 
                     </div><!-- /.row (item grid) -->
@@ -528,24 +524,24 @@
                         </div>
 
                         <!-- ─── Tomes ─── -->
-                        <div class="dark-6" id="tomes-dropdown" style="display: none;">
-                            <div class="row h-100 row-cols-1 row-cols-xl-2 gy-2 rounded" style="margin:0">
+                        <div class="dark-6 px-2 pb-2" id="tomes-dropdown" style="display: none;">
+                            <div class="row h-100 row-cols-1 row-cols-xl-2 gy-2 gx-0 rounded tome-grid" style="margin:0">
 
                                 <!-- Weapon Tome 1 -->
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="weaponTome1-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="weaponTome1-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="weaponTome1-img-loc">
                                             <div id="weaponTome1-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Weapon</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Weapon</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end">
                                                     <input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
@@ -557,20 +553,20 @@
                                     </div>
                                 </div>
                                 <!-- Weapon Tome 2 -->
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="weaponTome2-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="weaponTome2-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="weaponTome2-img-loc">
                                             <div id="weaponTome2-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Weapon</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Weapon</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end">
                                                     <input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
@@ -582,20 +578,20 @@
                                     </div>
                                 </div>
                                 <!-- Armor Tomes 1–4 -->
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="armorTome1-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="armorTome1-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="armorTome1-img-loc">
                                             <div id="armorTome1-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Armor</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Armor</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="armorTome1-choice" name="armorTome1-choice"
@@ -604,20 +600,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="armorTome2-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="armorTome2-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="armorTome2-img-loc">
                                             <div id="armorTome2-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Armor</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Armor</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="armorTome2-choice" name="armorTome2-choice"
@@ -626,20 +622,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="armorTome3-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="armorTome3-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="armorTome3-img-loc">
                                             <div id="armorTome3-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Armor</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Armor</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="armorTome3-choice" name="armorTome3-choice"
@@ -648,20 +644,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="armorTome4-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="armorTome4-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="armorTome4-img-loc">
                                             <div id="armorTome4-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Armor</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Armor</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="armorTome4-choice" name="armorTome4-choice"
@@ -671,20 +667,20 @@
                                     </div>
                                 </div>
                                 <!-- Marathon / Mysticism / Expertise / Guild / Lootrun Tomes -->
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="gatherXpTome1-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="gatherXpTome1-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="gatherXpTome1-img-loc">
                                             <div id="gatherXpTome1-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Marathon</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Marathon</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="gatherXpTome1-choice" name="gatherXpTome1-choice"
@@ -693,20 +689,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="gatherXpTome2-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="gatherXpTome2-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="gatherXpTome2-img-loc">
                                             <div id="gatherXpTome2-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Marathon</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Marathon</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="gatherXpTome2-choice" name="gatherXpTome2-choice"
@@ -715,20 +711,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="dungeonXpTome1-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="dungeonXpTome1-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="dungeonXpTome1-img-loc">
                                             <div id="dungeonXpTome1-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Mysticism</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Mysticism</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="dungeonXpTome1-choice" name="dungeonXpTome1-choice"
@@ -737,20 +733,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="dungeonXpTome2-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="dungeonXpTome2-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="dungeonXpTome2-img-loc">
                                             <div id="dungeonXpTome2-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Mysticism</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Mysticism</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="dungeonXpTome2-choice" name="dungeonXpTome2-choice"
@@ -759,20 +755,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="mobXpTome1-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="mobXpTome1-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="mobXpTome1-img-loc">
                                             <div id="mobXpTome1-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Expertise</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Expertise</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="mobXpTome1-choice" name="mobXpTome1-choice"
@@ -781,20 +777,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="mobXpTome2-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="mobXpTome2-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="mobXpTome2-img-loc">
                                             <div id="mobXpTome2-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Expertise</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Expertise</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="mobXpTome2-choice" name="mobXpTome2-choice"
@@ -803,20 +799,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="guildTome1-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="guildTome1-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="guildTome1-img-loc">
                                             <div id="guildTome1-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Guild</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Guild</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="guildTome1-choice" name="guildTome1-choice"
@@ -825,20 +821,20 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-auto rounded">
-                                    <div class="row h-100 dark-shadow rounded" id="lootrunTome1-dropdown">
+                                <div class="col rounded">
+                                    <div class="row h-100 rounded" id="lootrunTome1-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="lootrunTome1-img-loc">
                                             <div id="lootrunTome1-img" class="img-fluid rounded tome-image"></div>
                                         </div>
-                                        <div class="col-3">
-                                            <div class="row row-cols-1 h-100 align-items-center">
-                                                <div class="col scaled-font fw-bold gx-3">Lootrun</div>
-                                                <div class="col scaled-font fw-bold gx-3">Tome</div>
+                                        <div class="tome-label-col g-0">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
+                                                <div class="col scaled-font fw-bold">Lootrun</div>
+                                                <div class="col scaled-font fw-bold">Tome</div>
                                             </div>
                                         </div>
                                         <div class="col g-0 rounded">
-                                            <div class="row row-cols-1 h-100 align-items-center">
+                                            <div class="row row-cols-1 h-100 g-0 align-items-center">
                                                 <div class="col d-flex justify-content-end"><input
                                                         class="equipment-input border-dark text-light dark-10 rounded scaled-font form-control form-control-sm"
                                                         id="lootrunTome1-choice" name="lootrunTome1-choice"
@@ -866,17 +862,17 @@
                         </div><!-- /#atree-dropdown -->
 
                         <!-- ─── Aspects ─── -->
-                        <div class="dark-6" id="aspects-dropdown" style="display: none;">
-                            <div class="row h-100 row-cols-2 gy-2 rounded" style="margin:0">
+                        <div class="dark-6 px-2 pb-2" id="aspects-dropdown" style="display: none;">
+                            <div class="row h-100 row-cols-1 gy-2 rounded aspect-grid" style="margin:0">
                                 <!-- Aspect 1 -->
-                                <div class="col-auto rounded">
+                                <div class="col rounded">
                                     <div class="row h-100 rounded align-items-center" id="aspect1-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="aspect1-img-loc">
                                             <div id="aspect1-img" class="img-fluid rounded aspect-image"></div>
                                         </div>
                                         <div class="col-3 scaled-font fw-bold gx-3">Aspect 1</div>
-                                        <div class="col-5 rounded gx-0"><input
+                                        <div class="col rounded gx-0"><input
                                                 class="aspect-input text-light rounded scaled-font form-control form-control-sm"
                                                 id="aspect1-choice" name="aspect1-choice" placeholder="No Aspect"></div>
                                         <div class="col-2 rounded gx-0"><input
@@ -886,14 +882,14 @@
                                     </div>
                                 </div>
                                 <!-- Aspect 2 -->
-                                <div class="col-auto rounded">
+                                <div class="col rounded">
                                     <div class="row h-100 rounded align-items-center" id="aspect2-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="aspect2-img-loc">
                                             <div id="aspect2-img" class="img-fluid rounded aspect-image"></div>
                                         </div>
                                         <div class="col-3 scaled-font fw-bold gx-3">Aspect 2</div>
-                                        <div class="col-5 rounded gx-0"><input
+                                        <div class="col rounded gx-0"><input
                                                 class="aspect-input text-light rounded scaled-font form-control form-control-sm"
                                                 id="aspect2-choice" name="aspect2-choice" placeholder="No Aspect"></div>
                                         <div class="col-2 rounded gx-0"><input
@@ -903,14 +899,14 @@
                                     </div>
                                 </div>
                                 <!-- Aspect 3 -->
-                                <div class="col-auto rounded">
+                                <div class="col rounded">
                                     <div class="row h-100 rounded align-items-center" id="aspect3-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="aspect3-img-loc">
                                             <div id="aspect3-img" class="img-fluid rounded aspect-image"></div>
                                         </div>
                                         <div class="col-3 scaled-font fw-bold gx-3">Aspect 3</div>
-                                        <div class="col-5 rounded gx-0"><input
+                                        <div class="col rounded gx-0"><input
                                                 class="aspect-input text-light rounded scaled-font form-control form-control-sm"
                                                 id="aspect3-choice" name="aspect3-choice" placeholder="No Aspect"></div>
                                         <div class="col-2 rounded gx-0"><input
@@ -920,14 +916,14 @@
                                     </div>
                                 </div>
                                 <!-- Aspect 4 -->
-                                <div class="col-auto rounded">
+                                <div class="col rounded">
                                     <div class="row h-100 rounded align-items-center" id="aspect4-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="aspect4-img-loc">
                                             <div id="aspect4-img" class="img-fluid rounded aspect-image"></div>
                                         </div>
                                         <div class="col-3 scaled-font fw-bold gx-3">Aspect 4</div>
-                                        <div class="col-5 rounded gx-0"><input
+                                        <div class="col rounded gx-0"><input
                                                 class="aspect-input text-light rounded scaled-font form-control form-control-sm"
                                                 id="aspect4-choice" name="aspect4-choice" placeholder="No Aspect"></div>
                                         <div class="col-2 rounded gx-0"><input
@@ -937,14 +933,14 @@
                                     </div>
                                 </div>
                                 <!-- Aspect 5 -->
-                                <div class="col-auto rounded">
+                                <div class="col rounded">
                                     <div class="row h-100 rounded align-items-center" id="aspect5-dropdown">
                                         <div class="col-auto g-0 rounded-end my-auto text-center scaled-item-icon"
                                             id="aspect5-img-loc">
                                             <div id="aspect5-img" class="img-fluid rounded aspect-image"></div>
                                         </div>
                                         <div class="col-3 scaled-font fw-bold gx-3">Aspect 5</div>
-                                        <div class="col-5 rounded gx-0"><input
+                                        <div class="col rounded gx-0"><input
                                                 class="aspect-input text-light rounded scaled-font form-control form-control-sm"
                                                 id="aspect5-choice" name="aspect5-choice" placeholder="No Aspect"></div>
                                         <div class="col-2 rounded gx-0"><input
@@ -980,32 +976,27 @@
                     <div id="summary-stats" class="text-nowrap"></div>
                 </div>
 
-                <!-- ─── Restrictions ─── -->
+                <!-- ─── Filters / Requirements ─── -->
                 <div class="mb-2 scaled-font dark-5 rounded dark-shadow">
-                    <div class="fw-bold dark-4 rounded-top p-1 text-center">Restrictions</div>
+                    <div class="fw-bold dark-4 rounded-top p-1 text-center">Filters</div>
 
                     <!-- Build Direction -->
-                    <div class="px-2 pt-2 pb-1 d-flex align-items-center gap-2 flex-wrap">
-                        <span class="text-light small fw-bold"
-                            title="Disable to exclude items requiring that SP type from the solver's item pool">Build
-                            Direction</span>
-                        <div class="d-flex gap-1">
-                            <button class="button-boost border-0 text-white dark-8u dark-shadow-sm toggleOn"
-                                id="dir-str" onclick="toggle_build_dir('str')"
-                                title="Disable to exclude items requiring Strength">Str</button>
-                            <button class="button-boost border-0 text-white dark-8u dark-shadow-sm toggleOn"
-                                id="dir-dex" onclick="toggle_build_dir('dex')"
-                                title="Disable to exclude items requiring Dexterity">Dex</button>
-                            <button class="button-boost border-0 text-white dark-8u dark-shadow-sm toggleOn"
-                                id="dir-int" onclick="toggle_build_dir('int')"
-                                title="Disable to exclude items requiring Intelligence">Int</button>
-                            <button class="button-boost border-0 text-white dark-8u dark-shadow-sm toggleOn"
-                                id="dir-def" onclick="toggle_build_dir('def')"
-                                title="Disable to exclude items requiring Defense">Def</button>
-                            <button class="button-boost border-0 text-white dark-8u dark-shadow-sm toggleOn"
-                                id="dir-agi" onclick="toggle_build_dir('agi')"
-                                title="Disable to exclude items requiring Agility">Agi</button>
-                        </div>
+                    <div class="px-2 pt-2 pb-1 d-flex gap-1 dir-btn-row mb-1">
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
+                            id="dir-str" onclick="toggle_build_dir('str')"
+                            title="Disable to exclude items requiring Strength">Str</button>
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
+                            id="dir-dex" onclick="toggle_build_dir('dex')"
+                            title="Disable to exclude items requiring Dexterity">Dex</button>
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
+                            id="dir-int" onclick="toggle_build_dir('int')"
+                            title="Disable to exclude items requiring Intelligence">Int</button>
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
+                            id="dir-def" onclick="toggle_build_dir('def')"
+                            title="Disable to exclude items requiring Defense">Def</button>
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
+                            id="dir-agi" onclick="toggle_build_dir('agi')"
+                            title="Disable to exclude items requiring Agility">Agi</button>
                     </div>
 
                     <!-- Level Range + No Major ID -->
@@ -1018,7 +1009,7 @@
                         <input id="restr-lvl-max" type="number" min="1" max="121" value="121" placeholder="Max"
                             class="combo-row-input" style="width:3.5em; text-align:center;"
                             title="Maximum item level for solver search">
-                        <button class="button-boost border-0 text-white dark-8u dark-shadow-sm" id="restr-no-major-id"
+                        <button class="btn btn-sm btn-outline-secondary dir-btn" id="restr-no-major-id"
                             onclick="toggle_no_major_id()" title="Exclude items that have a Major ID">No Major
                             ID</button>
                     </div>
@@ -1039,11 +1030,11 @@
 
                     <!-- Stat threshold + blacklist rows -->
                     <div class="px-2 pb-2">
-                        <div id="restriction-rows" class="d-flex flex-column gap-1 mb-2"></div>
-                        <div id="blacklist-rows" class="d-flex flex-column gap-1 mb-2"></div>
-                        <div class="d-flex gap-2">
+                        <div id="restriction-rows" class="d-flex flex-column gap-1"></div>
+                        <div id="blacklist-rows" class="d-flex flex-column gap-1"></div>
+                        <div class="d-flex gap-2 mt-2">
                             <button class="btn btn-sm btn-outline-secondary" onclick="restriction_add_row()">+ Add
-                                Restriction</button>
+                                Requirement</button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="blacklist_add_row()">+ Blacklist
                                 Item</button>
                         </div>
@@ -1134,7 +1125,7 @@
                 <!-- ─── Combo ─── -->
                 <div class="rounded dark-shadow dark-6 scaled-font mb-2">
                     <!-- Header row: title -->
-                    <div class="fw-bold dark-4 rounded-top p-2">
+                    <div class="fw-bold dark-4 rounded-top p-1 text-center">
                         <span>Combo</span>
                     </div>
 
@@ -1224,6 +1215,21 @@
                 <div id="weapon-tooltip"
                     class="rounded row row-cols-1 g-0 scaled-font float-tooltip border border-3 border-dark dark-shadow p-3"
                     style="display:none;"></div>
+                <!-- Tome tooltips (hidden; used by hover popups) -->
+                <div id="weaponTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="weaponTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="armorTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="armorTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="armorTome3-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="armorTome4-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="gatherXpTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="gatherXpTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="dungeonXpTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="dungeonXpTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="mobXpTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="mobXpTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="guildTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="lootrunTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
             </div>
         </div>
 

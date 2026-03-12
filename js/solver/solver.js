@@ -445,6 +445,7 @@ async function init() {
 
     // Wire hover popups on item icons (desktop only)
     initItemHoverPopups(equipment_keys);
+    initItemHoverPopups(tome_fields);
 
     // Wire lock toggle click listeners on each equipment slot (not weapon)
     for (let i = 0; i < 8; i++) {

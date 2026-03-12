@@ -222,6 +222,47 @@ body {
     min-width: 400px;
 }
 
+/* ── Tome grid & label column ──────────────────────────────────────────── */
+
+/* Kill Bootstrap's negative-margin gutter on the inner tome rows. */
+.tome-grid .row {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Horizontal gap between the two tome columns on wide screens only.
+ * Columns sized with calc() so the gap doesn't push them to wrap. */
+@media (min-width: 1200px) {
+    .tome-grid {
+        column-gap: 1rem;
+    }
+    .tome-grid > .col {
+        flex: 0 0 calc(50% - 0.5rem);
+        max-width: calc(50% - 0.5rem);
+    }
+}
+
+/* Fixed width so all tome labels ("Weapon", "Mysticism", etc.) align.
+ * Sized to fit the widest label ("Mysticism") without extra space. */
+.tome-label-col {
+    width: 5.5em;
+    flex: 0 0 auto;
+}
+
+/* Kill Bootstrap's negative-margin gutter on the inner aspect rows. */
+#aspects-dropdown .row {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Switch aspect grid to two columns only on very wide screens. */
+@media (min-width: 1800px) {
+    .aspect-grid > .col {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+}
+
 /* ── Item slot lock toggle ──────────────────────────────────────────────── */
 
 /*
@@ -492,7 +533,12 @@ body {
     overflow-y: auto;
 }
 
-/* ── Fix .row negative-margin bleed into stat/tree boxes ─────────────────────── */
+/* ── Stat box padding & row-margin fix ────────────────────────────────────── */
+
+#summary-stats,
+#detailed-stats {
+    padding: 0 0.5rem 0.35rem;
+}
 
 /*
  * Bootstrap's .row applies negative margin-left/right to cancel out its col
@@ -505,6 +551,17 @@ body {
 #atree-active .row {
     margin-left: 0 !important;
     margin-right: 0 !important;
+}
+
+/* Strip the outer gutter from the first/last col so only the container padding
+ * provides the edge inset, while the inner gutter between columns is kept. */
+#summary-stats .row > :first-child,
+#detailed-stats .row > :first-child {
+    padding-left: 0;
+}
+#summary-stats .row > :last-child,
+#detailed-stats .row > :last-child {
+    padding-right: 0;
 }
 
 /* ── Attack selection button border ──────────────────────────────────────────── */
@@ -806,7 +863,25 @@ body {
     }
 }
 
-/* ── Restriction rows: prevent wrapping ────────────────────────────────────── */
+/* ── Item level min hint ───────────────────────────────────────────────────── */
+
+#restr-lvl-min:placeholder-shown {
+    border-color: rgba(240, 173, 78, 0.5);
+}
+
+/* ── Build direction buttons ───────────────────────────────────────────────── */
+
+.dir-btn.toggleOn {
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+    color: #fff !important;
+}
+
+.dir-btn:not(.toggleOn) {
+    opacity: 0.55;
+}
+
+/* ── Restriction / blacklist rows ─────────────────────────────────────────── */
 /*
  * Restriction rows reuse the .combo-row class but should NOT wrap.
  * Override the combo-row flex-wrap and constrain the stat input.
@@ -819,6 +894,18 @@ body {
 .restr-stat-input {
     flex: 1 1 0 !important;    /* shrink instead of overflowing */
     min-width: 5em;
+}
+
+/* Only add top margin to blacklist-rows when it has children */
+#blacklist-rows:not(:empty) {
+    margin-top: 0.5rem;
+}
+
+/* ── Restriction stat autocomplete dropdown ───────────────────────────────── */
+
+ul.search-box {
+    max-height: 40vh;
+    overflow-y: auto;
 }
 
 /* ── Phone: all component fixes ────────────────────────────────────────────── */

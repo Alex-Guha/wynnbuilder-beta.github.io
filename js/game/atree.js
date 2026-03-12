@@ -850,7 +850,7 @@ const atree_render_errors = new (class extends ComputeNode {
         this.list_elem.innerHTML = ""; //reset all atree actives - should be done in a more general way later
         // TODO: move to display?
         if (errors.length > 0) {
-            const errorbox = make_elem('div', ['rounded-bottom', 'dark-4', 'border', 'p-0', 'mx-2', 'mb-0', 'mt-4', 'dark-shadow']);
+            const errorbox = make_elem('div', ['rounded', 'dark-4', 'border', 'p-0', 'mx-2', 'mb-0', 'mt-4', 'dark-shadow']);
             this.list_elem.append(errorbox);
 
             const error_title = make_elem('b', ['warning', 'scaled-font'], { innerHTML: "ATree Error!" });
@@ -895,7 +895,7 @@ const atree_render_active = new (class extends ComputeNode {
         for (const id of to_render_id) {
             const abil = merged_abils.get(id);
 
-            const active_tooltip = make_elem('div', ['rounded-bottom', 'dark-4', 'border', 'p-0', 'mx-2', 'my-4', 'dark-shadow']);
+            const active_tooltip = make_elem('div', ['rounded', 'dark-4', 'border', 'p-0', 'mx-2', 'my-4', 'dark-shadow']);
             active_tooltip.append(make_elem('b', ['scaled-font'], { innerHTML: abil.display_name }));
 
             for (const desc of abil.desc) {
@@ -1261,7 +1261,7 @@ function render_AT(UI_elem, list_elem, tree) {
                     delete node_wrap.tooltip_elem;
                 }
 
-                node_wrap.tooltip_elem = make_elem("div", ["rounded-bottom", "dark-4", "border", "mx-2", "my-4", "dark-shadow", "text-start"], {
+                node_wrap.tooltip_elem = make_elem("div", ["rounded", "dark-4", "border", "mx-2", "my-4", "dark-shadow", "text-start"], {
                     style: {
                         position: "absolute",
                         zIndex: "100",
@@ -1279,8 +1279,7 @@ function render_AT(UI_elem, list_elem, tree) {
                 if (tooltipRect.bottom > window.innerHeight) {
                     const nodePageY = node_elem.getBoundingClientRect().top + window.pageYOffset;
                     node_wrap.tooltip_elem.style.top = (nodePageY - node_wrap.tooltip_elem.offsetHeight - 50) + "px";
-                    node_wrap.tooltip_elem.classList.remove("rounded-bottom");
-                    node_wrap.tooltip_elem.classList.add("rounded-top");
+                    // Already has `rounded` on all corners; no class swap needed.
                 }
             });
 
@@ -1306,7 +1305,7 @@ function render_AT(UI_elem, list_elem, tree) {
                         popup.remove();
                     });
 
-                    let tooltip = make_elem("div", ["rounded-bottom", "dark-4", "border", "dark-shadow", "text-start"], {"style": "width: 95vw; max-height: 80vh; overflow-y: scroll;"});
+                    let tooltip = make_elem("div", ["rounded", "dark-4", "border", "dark-shadow", "text-start"], {"style": "width: 95vw; max-height: 80vh; overflow-y: scroll;"});
                     generateTooltip(tooltip, node_elem, ability, atree_map);
                     popup.appendChild(tooltip);
 

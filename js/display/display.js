@@ -361,9 +361,13 @@ function displayExpandedItem(item, parent_id){
                     if (item.has("type")) {
                         let img = make_elem("div", [], {
                             alt: item.get("type"),
-                            style: "z-index: 1; position: relative; image-rendering: pixelated; width: 50%; height: 50%; background-position: " + itemBGPositions[item.get("type")] + ";"
+                            style: "z-index: 1; position: relative; image-rendering: pixelated; width: 50%; height: 50%; background-position: " + (itemBGPositions[item.get("type")] || "0 0") + ";"
                         });
-                        if (["potion", "scroll", "food"].includes(item.get("type"))) {
+                        if (tome_types.includes(item.get("type"))) {
+                            img.style.backgroundImage = "url('../media/items/common.png')";
+                            img.style.backgroundSize = "500% 100%";
+                            img.style.backgroundPosition = "100% 0";
+                        } else if (["potion", "scroll", "food"].includes(item.get("type"))) {
                             img.style.backgroundImage = "url('../media/items/common.png')";
                             img.style.backgroundSize = "500% 100%";
                         } else {

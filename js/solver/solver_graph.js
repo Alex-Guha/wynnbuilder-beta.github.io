@@ -47,7 +47,8 @@ function solver_graph_init() {
         solver_equip_input_nodes.push(item_node);
         solver_item_final_nodes.push(item_node);
 
-        new SolverItemDisplayNode('solver-' + eq + '-display', eq).link_to(item_node);
+        new BaseItemDisplayNode('solver-' + eq + '-display', eq).link_to(item_node);
+        new SolverItemTooltipNode('solver-' + eq + '-tooltip', eq + '-tooltip').link_to(item_node);
         solver_build_node.link_to(item_node, eq);
     }
 
