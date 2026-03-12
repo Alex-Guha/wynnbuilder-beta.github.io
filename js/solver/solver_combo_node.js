@@ -438,7 +438,12 @@ class SolverComboTotalNode extends ComputeNode {
         const container = document.getElementById('combo-selection-rows');
         if (!container) return;
 
-        const sig = registry.map(e => e.name + ':' + e.type + (e.max != null ? ':' + e.max : '')).join(',');
+        const sig = registry.map(e => {
+            let s = e.name + ':' + e.type + (e.max != null ? ':' + e.max : '');
+            if (e.stat_bonuses.length) s += '|' + e.stat_bonuses.map(b => b.key).join('+');
+            if (e.prop_bonuses.length) s += '|' + e.prop_bonuses.map(p => p.ref).join('+');
+            return s;
+        }).join(',');
         const registry_changed = sig !== this._last_registry_sig;
         if (registry_changed) this._last_registry_sig = sig;
 
@@ -447,13 +452,15 @@ class SolverComboTotalNode extends ComputeNode {
             if (!area) continue;
 
             // Skip rows that already have controls and the registry hasn't changed
-            // AND the spell's DPS hits status hasn't changed.
+            // AND the spell's DPS hits status hasn't changed AND the spell hasn't changed.
             // Always populate rows with empty boost areas (newly added or from mode switch).
-            if (!registry_changed && area.children.length > 0) {
-                let cur_spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
-                if (isNaN(cur_spell_id) && row.dataset.pendingSpellValue) {
-                    cur_spell_id = parseInt(row.dataset.pendingSpellValue);
-                }
+            let cur_spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
+            if (isNaN(cur_spell_id) && row.dataset.pendingSpellValue) {
+                cur_spell_id = parseInt(row.dataset.pendingSpellValue);
+            }
+            const cur_spell_id_str = String(cur_spell_id ?? '');
+            const spell_changed = area.dataset.renderedSpellId !== cur_spell_id_str;
+            if (!registry_changed && !spell_changed && area.children.length > 0) {
                 const cur_spell = this._spell_map_cache?.get(cur_spell_id) ?? null;
                 const cur_dps = cur_spell ? compute_dps_spell_hits_info(cur_spell) : null;
                 const has_hits_el = !!area.querySelector('.combo-row-hits');
@@ -513,8 +520,9 @@ class SolverComboTotalNode extends ComputeNode {
             }
 
             // Render toggles first, then sliders, with a separator between them.
-            const toggles = registry.filter(e => e.type === 'toggle');
-            const sliders = registry.filter(e => e.type !== 'toggle');
+            // Filter by relevance to the selected spell.
+            const toggles = registry.filter(e => e.type === 'toggle' && is_boost_relevant(e, spell));
+            const sliders = registry.filter(e => e.type !== 'toggle' && is_boost_relevant(e, spell));
 
             for (const entry of toggles) {
                 const btn = document.createElement('button');
@@ -574,8 +582,10 @@ class SolverComboTotalNode extends ComputeNode {
                 area.appendChild(wrap);
             }
             _update_boost_btn_highlight(row);
+            area.dataset.renderedSpellId = cur_spell_id_str;
             const boost_btn_el = row.querySelector('.combo-boost-menu-btn');
-            if (boost_btn_el) boost_btn_el.disabled = (registry.length === 0 && !dps_info);
+            const any_visible = toggles.length > 0 || sliders.length > 0;
+            if (boost_btn_el) boost_btn_el.disabled = (!any_visible && !dps_info);
         }
     }
 

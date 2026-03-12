@@ -291,6 +291,33 @@ function build_combo_boost_registry(atree_merged, build = null) {
         }
     }
 
+    // After building registry, scan atree for replace_spell effects to map prop refs → base_spells.
+    const prop_ref_to_spells = new Map();  // "abilId.propName" → Set of base_spell IDs
+    for (const [, abil] of atree_merged) {
+        for (const effect of abil.effects) {
+            if (effect.type !== 'replace_spell') continue;
+            for (const part of (effect.parts ?? [])) {
+                for (const val of Object.values(part.hits ?? {})) {
+                    if (typeof val === 'string') {
+                        if (!prop_ref_to_spells.has(val)) prop_ref_to_spells.set(val, new Set());
+                        prop_ref_to_spells.get(val).add(effect.base_spell);
+                    }
+                }
+            }
+        }
+    }
+    // Annotate entries that have prop_bonuses with their target spells.
+    for (const entry of registry) {
+        if (entry.prop_bonuses.length > 0) {
+            const targets = new Set();
+            for (const p of entry.prop_bonuses) {
+                const s = prop_ref_to_spells.get(p.ref);
+                if (s) for (const id of s) targets.add(id);
+            }
+            entry.prop_target_spells = targets;
+        }
+    }
+
     return registry;
 }
 

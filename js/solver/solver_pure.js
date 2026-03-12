@@ -467,6 +467,91 @@ function apply_spell_prop_overrides(spell, prop_overrides, atree_merged) {
     return clone;
 }
 
+// ── Boost relevance filtering ────────────────────────────────────────────────
+
+const _DAMAGE_STATS = new Set();
+const _SPELL_STATS = new Set();
+const _MELEE_STATS = new Set();
+for (const e of ['n', 'e', 't', 'w', 'f', 'a']) {
+    _DAMAGE_STATS.add(e + 'DamPct').add(e + 'DamRaw').add(e + 'DamAddMin').add(e + 'DamAddMax');
+    _SPELL_STATS.add(e + 'SdPct').add(e + 'SdRaw');
+    _MELEE_STATS.add(e + 'MdPct').add(e + 'MdRaw');
+}
+_DAMAGE_STATS.add('damPct').add('damRaw').add('rDamPct').add('rDamRaw');
+_SPELL_STATS.add('sdPct').add('sdRaw').add('rSdPct').add('rSdRaw');
+_MELEE_STATS.add('mdPct').add('mdRaw').add('rMdPct').add('rMdRaw');
+const _HEAL_STATS = new Set(['hp', 'hpBonus']);
+const _IRRELEVANT_STATS = new Set(['spd', 'ls', 'mr', 'ms', 'lb', 'lq', 'xpb', 'gSpd', 'gXp',
+    'hprRaw', 'hprPct', 'ref', 'thorns', 'expd', 'spRegen', 'eSteal', 'sprint', 'sprintReg']);
+
+function is_boost_relevant(entry, spell) {
+    if (!spell) return true;  // no spell selected = show all
+
+    const has_damage = spell.parts.some(p => 'multipliers' in p || 'hits' in p);
+    const has_heal = spell.parts.some(p => 'power' in p || 'hits' in p);
+
+    const use_spell = (spell.scaling ?? 'spell') === 'spell';
+
+    const part_ids = new Set();
+    for (const part of spell.parts) {
+        part_ids.add(spell.base_spell + '.' + part.name);
+    }
+
+    for (const b of entry.stat_bonuses) {
+        if (_is_stat_relevant(b.key, has_damage, has_heal, use_spell, part_ids)) return true;
+    }
+
+    if (entry.prop_target_spells && entry.prop_target_spells.has(spell.base_spell)) return true;
+
+    return false;
+}
+
+function _is_stat_relevant(key, has_damage, has_heal, use_spell, part_ids) {
+    if (key.startsWith('damMult.')) {
+        if (!has_damage) return false;
+        const sub = key.substring(8);
+        if (sub.includes(':')) {
+            const part_id = sub.split(':')[1];
+            return part_ids.has(part_id);
+        }
+        if (sub.includes(';')) {
+            const qualifier = sub.split(';')[1];
+            if (qualifier === 'm') return !use_spell;
+        }
+        return true;
+    }
+
+    if (key.startsWith('healMult.')) {
+        if (!has_heal) return false;
+        const sub = key.substring(9);
+        if (sub.includes(':')) {
+            const part_id = sub.split(':')[1];
+            return part_ids.has(part_id);
+        }
+        return true;
+    }
+
+    if (key.startsWith('defMult.')) return false;
+
+    if (key.includes('ConvBase')) {
+        if (!has_damage) return false;
+        if (key.includes(':')) {
+            const part_id = key.split(':').slice(1).join(':');
+            return part_ids.has(part_id);
+        }
+        return true;
+    }
+
+    if (_DAMAGE_STATS.has(key) || key === 'critDamPct') return has_damage;
+    if (_SPELL_STATS.has(key)) return has_damage && use_spell;
+    if (_MELEE_STATS.has(key)) return has_damage && !use_spell;
+    if (_HEAL_STATS.has(key)) return has_heal;
+    if (_IRRELEVANT_STATS.has(key)) return false;
+
+    // Unknown key — conservatively show
+    return true;
+}
+
 // ── Worker search helpers ────────────────────────────────────────────────────
 
 function _deep_clone_statmap(sm) {
