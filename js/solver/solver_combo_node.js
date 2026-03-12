@@ -52,10 +52,11 @@ class SolverComboTotalNode extends ComputeNode {
         let recast_penalty_total = 0;
         const spell_costs = []; // [{name, qty, cost_per_cast, recast_penalty}] for tooltip breakdown
 
-        // Recast tracking: first cast and first recast of the same spell are free.
-        // After that, each subsequent cast adds +RECAST_MANA_PENALTY mana, and
-        // the penalty persists across spell switches. The counter resets only
-        // when the previous spell was cast exactly once (no recast) and you switch.
+        // Recast tracking: first 2 casts of the same spell are free. After that,
+        // each subsequent cast adds cumulative +RECAST_MANA_PENALTY mana (+5, +10, …).
+        // On spell switch from a 2+-cast streak: counter increments by 1, the
+        // first cast of the new spell pays the penalty, then counter resets.
+        // On switch from a 1-cast streak: counter resets immediately (no penalty).
         // Melee (base_spell=0) doesn't affect the counter. Mana-excluded rows
         // are invisible to the recast tracker. Mana Reset resets the counter.
         let last_spell_base = null; // base_spell of the last mana-visible non-melee spell
@@ -158,38 +159,66 @@ class SolverComboTotalNode extends ComputeNode {
             if (mod_spell.cost != null && !mana_excluded) {
                 const cost_per = getSpellCost(stats, mod_spell);
 
-                // Recast penalty: first cast + first recast are free, then each
-                // subsequent cast adds penalty_counter * RECAST_MANA_PENALTY.
-                // Penalty persists across spell switches; resets only when the
-                // previous spell was cast exactly once and you switch away.
+                // Recast penalty: first 2 casts of the same spell are free, then
+                // each subsequent cast adds +RECAST_MANA_PENALTY cumulatively.
+                // On spell switch:
+                //   - From a 1-cast streak: penalty counter resets to 0.
+                //   - From a 2+-cast streak: counter increments by 1 (the switch
+                //     itself costs one penalty step), applies to the first cast of
+                //     the new spell, then resets. Remaining casts in the row get
+                //     the normal "first 2 free" treatment.
                 // Melee doesn't affect tracking.
                 let row_recast_penalty = 0;
                 const recast_base = spell.mana_derived_from ?? spell.base_spell;
                 const is_melee = recast_base === 0;
                 if (!is_melee) {
+                    let is_switch = false;
                     if (recast_base !== last_spell_base) {
-                        // Different spell — reset only if previous was cast once (no recast)
-                        if (consecutive_count === 1) penalty_counter = 0;
+                        is_switch = true;
+                        if (consecutive_count <= 1) {
+                            penalty_counter = 0;
+                        } else {
+                            // Switching away from a 2+-cast streak adds one penalty step.
+                            penalty_counter += 1;
+                        }
                         consecutive_count = 0;
                         last_spell_base = recast_base;
                     }
 
-                    if (penalty_counter > 0) {
-                        // Penalty already active — all casts in this row are penalized.
+                    if (is_switch && penalty_counter > 0) {
+                        // Switch penalty: first cast pays the accumulated penalty,
+                        // then the counter resets for the new spell.
+                        row_recast_penalty = penalty_counter * RECAST_MANA_PENALTY;
+                        penalty_counter = 0;
+                        consecutive_count = 1;
+                        // Remaining casts in this row start fresh from streak=1.
+                        const remaining = qty - 1;
+                        if (remaining > 0) {
+                            // 2nd cast (streak pos 2) is still free; 3rd+ penalized.
+                            const free_remaining = Math.min(remaining, 1);
+                            const penalty_remaining = remaining - free_remaining;
+                            if (penalty_remaining > 0) {
+                                row_recast_penalty += RECAST_MANA_PENALTY * penalty_remaining * (penalty_remaining + 1) / 2;
+                                penalty_counter = penalty_remaining;
+                            }
+                            consecutive_count += remaining;
+                        }
+                    } else if (penalty_counter > 0) {
+                        // Same spell, penalty already active — all casts penalized.
                         // sum_{i=1}^{qty} (penalty_counter + i) * RECAST_MANA_PENALTY
                         row_recast_penalty = RECAST_MANA_PENALTY * (qty * penalty_counter + qty * (qty + 1) / 2);
                         penalty_counter += qty;
+                        consecutive_count += qty;
                     } else {
-                        // First cast + first recast of same spell are free.
+                        // No penalty yet — first 2 casts of same spell are free.
                         const free_casts = Math.max(0, Math.min(qty, 2 - consecutive_count));
                         const penalty_casts = qty - free_casts;
                         if (penalty_casts > 0) {
-                            // sum_{i=1}^{penalty_casts} i * RECAST_MANA_PENALTY
                             row_recast_penalty = RECAST_MANA_PENALTY * penalty_casts * (penalty_casts + 1) / 2;
-                            penalty_counter += penalty_casts;
+                            penalty_counter = penalty_casts;
                         }
+                        consecutive_count += qty;
                     }
-                    consecutive_count += qty;
                 }
 
                 mana_cost += cost_per * qty + row_recast_penalty;
