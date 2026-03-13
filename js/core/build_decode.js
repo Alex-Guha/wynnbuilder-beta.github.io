@@ -670,7 +670,7 @@ function decodeSolverParams(b64_str) {
             console.warn('[decode] decodeSolverParams: version 0 (extension signal) not supported');
             return null;
         }
-        if (version > 2) {
+        if (version > 3) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -679,7 +679,24 @@ function decodeSolverParams(b64_str) {
         const presence = cursor.advanceBy(10);
 
         // ── Conditional fixed fields (defaults from _SOLVER_DEFAULTS) ──
-        const roll = (presence & (1 << 0)) ? cursor.advanceBy(7) : _SOLVER_DEFAULTS.roll;
+        // v2: single 7-bit roll → all groups get that value.
+        // v3: 4×7 bits → {damage, mana, healing, misc}.
+        let roll_groups;
+        if (presence & (1 << 0)) {
+            if (version <= 2) {
+                const r = cursor.advanceBy(7);
+                roll_groups = { damage: r, mana: r, healing: r, misc: r };
+            } else {
+                roll_groups = {
+                    damage:  cursor.advanceBy(7),
+                    mana:    cursor.advanceBy(7),
+                    healing: cursor.advanceBy(7),
+                    misc:    cursor.advanceBy(7),
+                };
+            }
+        } else {
+            roll_groups = { ..._SOLVER_DEFAULTS.roll_groups };
+        }
         const sfree = (presence & (1 << 1)) ? cursor.advanceBy(8) : _SOLVER_DEFAULTS.sfree;
         const dir_enabled = (presence & (1 << 2)) ? cursor.advanceBy(5) : _SOLVER_DEFAULTS.dir_enabled;
         const lvl_min = (presence & (1 << 3)) ? cursor.advanceBy(7) + 1 : _SOLVER_DEFAULTS.lvl_min;
@@ -738,7 +755,7 @@ function decodeSolverParams(b64_str) {
         }
 
         return {
-            roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
+            roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
             flat_mana, restrictions, combo_rows, blacklist_ids
         };
     } catch (e) {

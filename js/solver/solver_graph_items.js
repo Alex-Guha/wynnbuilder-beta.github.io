@@ -10,16 +10,16 @@
 class ItemInputNode extends BaseItemInputNode {
     _on_match(item) {
         // Apply roll mode: Build.initBuildStats() always reads maxRolls, so we
-        // replace maxRolls with getRolledValue(min, max) for each rolled stat.
+        // replace maxRolls with getRolledValue(min, max, statKey) for each rolled stat.
         // Preserve originals under '_origMaxRolls' so the tooltip can show true ranges.
-        if (current_roll_mode < 100) {
+        if (!_allRollsMax()) {
             const minR = item.statMap.get('minRolls');
             const maxR = item.statMap.get('maxRolls');
             if (minR && maxR) {
                 item.statMap.set('_origMaxRolls', maxR);
                 const rolledMap = new Map();
                 for (const [id, maxVal] of maxR.entries()) {
-                    rolledMap.set(id, getRolledValue(minR.get(id) ?? 0, maxVal));
+                    rolledMap.set(id, getRolledValue(minR.get(id) ?? 0, maxVal, id));
                 }
                 item.statMap.set('maxRolls', rolledMap);
             }

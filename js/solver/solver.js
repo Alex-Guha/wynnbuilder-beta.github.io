@@ -59,21 +59,134 @@ function copy_solver_url() {
 // ── Roll mode selection ───────────────────────────────────────────────────────
 
 /**
- * Sets the active roll percentage (0-100) and syncs the input UI.
+ * Syncs the main roll input display and all popup sub-inputs
+ * to match the current_roll_mode object.
+ */
+function _syncRollUI() {
+    const inp = document.getElementById('roll-mode-input');
+    if (inp && document.activeElement !== inp) inp.value = rollDisplayText();
+    // Sync popup sub-inputs
+    for (const g of ROLL_GROUP_ORDER) {
+        const sub = document.getElementById('roll-group-' + g);
+        if (sub && document.activeElement !== sub) sub.value = current_roll_mode[g];
+    }
+    // Sync "All" input: show value if uniform, clear otherwise
+    const allInp = document.getElementById('roll-group-all');
+    if (allInp && document.activeElement !== allInp) {
+        allInp.value = _isRollUniform() ? current_roll_mode.damage : '';
+    }
+}
+
+/** Whether roll values have been edited since last graph recomputation. */
+let _roll_dirty = false;
+
+/**
+ * Flushes pending roll changes: re-evaluates item nodes and updates URL.
+ * Called when the popup closes, or when the main input is committed (blur/Enter).
+ */
+function _flushRollChanges() {
+    if (!_roll_dirty) return;
+    _roll_dirty = false;
+    if (typeof solver_equip_input_nodes !== 'undefined') {
+        for (const node of solver_equip_input_nodes) node.mark_dirty();
+        for (const node of solver_equip_input_nodes) node.update();
+    }
+    _schedule_solver_hash_update();
+}
+
+/**
+ * Updates current_roll_mode values and syncs UI text (cheap).
+ * The expensive graph recomputation is deferred until _flushRollChanges().
+ */
+function _rollModeChanged() {
+    _roll_dirty = true;
+    _syncRollUI();
+}
+
+/**
+ * Sets ALL roll groups to the same percentage (0-100).
+ * Called when the user types a number into the main input or the "All" sub-input.
  */
 function setRollMode(pct) {
     pct = Math.max(0, Math.min(100, parseInt(pct) || 0));
-    current_roll_mode = pct;
-    const inp = document.getElementById('roll-mode-input');
-    if (inp && document.activeElement !== inp) inp.value = pct + '%';
+    for (const g of ROLL_GROUP_ORDER) current_roll_mode[g] = pct;
+    _rollModeChanged();
+}
 
-    // Re-evaluate all item nodes so Build picks up the new rolled values.
-    if (typeof solver_equip_input_nodes !== 'undefined') {
-        for (const node of solver_equip_input_nodes) {
-            node.mark_dirty().update();
-        }
+/**
+ * Sets a single roll group's percentage (0-100).
+ */
+function setRollGroupMode(group, pct) {
+    pct = Math.max(0, Math.min(100, parseInt(pct) || 0));
+    current_roll_mode[group] = pct;
+    _rollModeChanged();
+}
+
+// ── Roll group popup ─────────────────────────────────────────────────────────
+
+let _roll_popup_open = false;
+
+function toggleRollGroupPopup() {
+    const popup = document.getElementById('roll-group-popup');
+    if (!popup) return;
+    if (_roll_popup_open) {
+        // Closing — flush any pending changes
+        _closeRollGroupPopup();
+        return;
     }
-    _schedule_solver_hash_update();
+    _roll_popup_open = true;
+    popup.style.display = '';
+    _syncRollUI();
+}
+
+function _closeRollGroupPopup() {
+    if (!_roll_popup_open) return;
+    _roll_popup_open = false;
+    const popup = document.getElementById('roll-group-popup');
+    if (popup) popup.style.display = 'none';
+    _syncRollUI();
+    _flushRollChanges();
+}
+
+// Close popup on click outside or Escape
+document.addEventListener('mousedown', (e) => {
+    if (!_roll_popup_open) return;
+    const popup = document.getElementById('roll-group-popup');
+    const inp = document.getElementById('roll-mode-input');
+    if (popup && !popup.contains(e.target) && e.target !== inp) {
+        _closeRollGroupPopup();
+    }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _roll_popup_open) _closeRollGroupPopup();
+});
+
+/**
+ * Focus handler for the main roll input.
+ * Clears "Default"/"Custom" so user can type a number.
+ */
+function rollInputFocus(el) {
+    const txt = el.value;
+    if (txt === 'Default' || txt === 'Custom') {
+        el.value = '';
+    } else {
+        el.value = txt.replace('%', '');
+    }
+}
+
+/**
+ * Blur handler for the main roll input.
+ * If a number was entered, set all groups and flush immediately.
+ * Otherwise revert to display text.
+ */
+function rollInputBlur(el) {
+    const val = el.value.trim();
+    if (val !== '' && !isNaN(parseInt(val))) {
+        setRollMode(val);
+        _flushRollChanges();
+    } else {
+        el.value = rollDisplayText();
+    }
 }
 
 // ── Exclusive panel toggle (Tomes / Ability Tree / Aspects) ──────────────────
@@ -222,13 +335,15 @@ function resetSolverFields() {
     if (downtime_btn) downtime_btn.classList.remove('toggleOn');
 
     setValue("level-choice", String(MAX_PLAYER_LEVEL));
-    setRollMode(ROLL_DEFAULT);
+    // Reset roll groups to defaults
+    Object.assign(current_roll_mode, ROLL_GROUP_DEFAULTS);
+    _syncRollUI();
+    _closeRollGroupPopup();
 
     // Re-propagate graph to clear displays
     if (solver_equip_input_nodes.length) {
-        for (const node of solver_equip_input_nodes) {
-            node.mark_dirty().update();
-        }
+        for (const node of solver_equip_input_nodes) node.mark_dirty();
+        for (const node of solver_equip_input_nodes) node.update();
     }
     if (typeof solver_boosts_node !== 'undefined') {
         solver_boosts_node.mark_dirty().update();
@@ -298,11 +413,10 @@ async function init() {
     }
 
     if (solver_params) {
-        // Roll percentage
-        if (solver_params.roll !== undefined && solver_params.roll >= 0 && solver_params.roll <= 100) {
-            current_roll_mode = solver_params.roll;
-            const inp = document.getElementById('roll-mode-input');
-            if (inp) inp.value = solver_params.roll + '%';
+        // Roll groups (per-group roll percentages)
+        if (solver_params.roll_groups) {
+            Object.assign(current_roll_mode, solver_params.roll_groups);
+            _syncRollUI();
         }
 
         // Build direction: disable any SP types not set in the bitmask

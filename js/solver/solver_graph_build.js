@@ -226,8 +226,8 @@ function _do_solver_hash_update() {
  * suitable for encodeSolverParams().
  */
 function _collect_solver_params() {
-    // Roll mode
-    const roll = current_roll_mode;
+    // Roll mode (per-group)
+    const roll_groups = { ...current_roll_mode };
 
     // sfree mask
     const sfree = typeof _solver_free_mask !== 'undefined' ? _solver_free_mask : 0;
@@ -336,6 +336,6 @@ function _collect_solver_params() {
         }
     }
 
-    return { roll, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
+    return { roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
              flat_mana, restrictions, combo_rows, blacklist_ids };
 }

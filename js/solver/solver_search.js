@@ -22,13 +22,13 @@ let _solver_filling_ui = false;
 // ── Roll-mode helper ─────────────────────────────────────────────────────────
 
 function _apply_roll_mode_to_item(item) {
-    if (current_roll_mode >= 100) return item;
+    if (_allRollsMax()) return item;
     const minR = item.statMap.get('minRolls');
     const maxR = item.statMap.get('maxRolls');
     if (!minR || !maxR) return item;
     for (const [k, maxVal] of maxR) {
         const minVal = minR.get(k) ?? maxVal;
-        maxR.set(k, getRolledValue(minVal, maxVal));
+        maxR.set(k, getRolledValue(minVal, maxVal, k));
     }
     return item;
 }

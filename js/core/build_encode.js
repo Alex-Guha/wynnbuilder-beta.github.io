@@ -554,7 +554,8 @@ function _restr_size_class(value) {
  * Fields matching their default are omitted from the binary via a presence bitmask.
  */
 const _SOLVER_DEFAULTS = {
-    roll: 85,            // ROLL_DEFAULT
+    roll: 85,            // ROLL_DEFAULT (v2 backward compat)
+    roll_groups: { damage: 85, mana: 100, healing: 85, misc: 85 },
     sfree: 0,
     dir_enabled: 0x1F,   // all 5 SP directions enabled
     lvl_min: 1,
@@ -571,9 +572,9 @@ const _SOLVER_DEFAULTS = {
  * Version 1 binary format — compact binary with default elision.
  *
  * Binary layout (EncodingBitVector):
- *   [3]   version (001 = v1)
+ *   [3]   version (011 = v3)
  *   [10]  field_present bitmask (1 = non-default, field encoded below)
- *          bit 0: roll       (default 85)
+ *          bit 0: roll_groups (default {85,100,85,85})
  *          bit 1: sfree      (default 0)
  *          bit 2: dir        (default 0x1F)
  *          bit 3: lvl_min    (default 1)
@@ -588,7 +589,7 @@ const _SOLVER_DEFAULTS = {
  *         solver_constants.js (e.g. CTIME_MAX, FLAT_MANA_MIN/MAX,
  *         COMBO_QTY_MAX, BOOST_SLIDER_MAX, MAX_RESTRICTION_ROWS,
  *         MAX_COMBO_ROWS, MAX_BLACKLIST_ROWS). Keep them in sync.
- *   [7]   roll percentage (0-100)
+ *   [28]  roll_groups: 4×7 bits (damage, mana, healing, misc) each 0-100
  *   [8]   sfree mask
  *   [5]   dir_enabled bitmask
  *   [7]   lvl_min - 1 (0 to MAX_PLAYER_LEVEL-1)
@@ -623,7 +624,7 @@ const _SOLVER_DEFAULTS = {
  *       [14]  item_id (0-16383)
  *
  * @param {Object} params
- * @param {number} params.roll - Roll percentage (0-100)
+ * @param {Object} params.roll_groups - Per-group roll percentages {damage, mana, healing, misc} (0-100 each)
  * @param {number} params.sfree - Bitmask of solver-free slots (8 bits)
  * @param {number} params.dir_enabled - Bitmask of enabled SP directions (5 bits)
  * @param {number} params.lvl_min - Minimum item level (1-MAX_PLAYER_LEVEL)
@@ -642,11 +643,16 @@ function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
     const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-    // Version: 3 bits (v2 = 010)
-    bv.append(2, 3);
+    // Version: 3 bits (v3 = 011)
+    bv.append(3, 3);
 
     // ── Presence bitmask (10 bits) ──
-    const roll = Math.max(0, Math.min(100, params.roll || 0));
+    // v3: bit 0 → roll_groups (4×7 bits), replaces v2's single roll field
+    const rg = params.roll_groups || _SOLVER_DEFAULTS.roll_groups;
+    const roll_dmg  = Math.max(0, Math.min(100, rg.damage  ?? 85));
+    const roll_mana = Math.max(0, Math.min(100, rg.mana    ?? 100));
+    const roll_heal = Math.max(0, Math.min(100, rg.healing ?? 85));
+    const roll_misc = Math.max(0, Math.min(100, rg.misc    ?? 85));
     const sfree = params.sfree & 0xFF;
     const dir = params.dir_enabled & 0x1F;
     const lvl_min = Math.max(0, Math.min(max_lvl - 1, (params.lvl_min || 1) - 1));
@@ -658,7 +664,8 @@ function encodeSolverParams(params) {
     const flat_mana = Math.max(-512, Math.min(511, Math.round(params.flat_mana || 0)));
 
     let presence = 0;
-    if (roll !== _SOLVER_DEFAULTS.roll) presence |= (1 << 0);
+    const rd = _SOLVER_DEFAULTS.roll_groups;
+    if (roll_dmg !== rd.damage || roll_mana !== rd.mana || roll_heal !== rd.healing || roll_misc !== rd.misc) presence |= (1 << 0);
     if (sfree !== _SOLVER_DEFAULTS.sfree) presence |= (1 << 1);
     if (dir !== _SOLVER_DEFAULTS.dir_enabled) presence |= (1 << 2);
     if (lvl_min !== (_SOLVER_DEFAULTS.lvl_min - 1)) presence |= (1 << 3);
@@ -672,7 +679,12 @@ function encodeSolverParams(params) {
     bv.append(presence, 10);
 
     // ── Conditional fixed fields ──
-    if (presence & (1 << 0)) bv.append(roll, 7);
+    if (presence & (1 << 0)) {
+        bv.append(roll_dmg, 7);
+        bv.append(roll_mana, 7);
+        bv.append(roll_heal, 7);
+        bv.append(roll_misc, 7);
+    }
     if (presence & (1 << 1)) bv.append(sfree, 8);
     if (presence & (1 << 2)) bv.append(dir, 5);
     if (presence & (1 << 3)) bv.append(lvl_min, 7);

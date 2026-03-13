@@ -62,7 +62,90 @@ const MANA_RESET_NODE_ID = 126;
  */
 const ROLL_DEFAULT = 85;
 
-let current_roll_mode = ROLL_DEFAULT;
+/** Per-group default roll percentages. */
+const ROLL_GROUP_DEFAULTS = { damage: 85, mana: 100, healing: 85, misc: 85 };
+
+/** Ordered list of roll group keys (used for encoding/iteration). */
+const ROLL_GROUP_ORDER = ['damage', 'mana', 'healing', 'misc'];
+
+/** Display labels for each roll group. */
+const ROLL_GROUP_LABELS = { damage: 'Damage', mana: 'Mana', healing: 'Healing', misc: 'Misc' };
+
+/**
+ * Mapping from stat key → roll group name.
+ * Stats not listed here fall into 'misc'.
+ */
+const ROLL_STAT_GROUP = (() => {
+    const m = {};
+    // Damage stats
+    for (const k of [
+        'sdPct', 'mdPct', 'sdRaw', 'mdRaw', 'damPct', 'damRaw', 'critDamPct', 'poison', 'atkTier',
+        'nDamPct', 'nDamRaw', 'rDamPct', 'rDamRaw',
+    ]) m[k] = 'damage';
+    for (const e of ['e','t','w','f','a']) {
+        m[e+'DamPct'] = 'damage'; m[e+'DamRaw'] = 'damage';
+        m[e+'SdPct'] = 'damage'; m[e+'SdRaw'] = 'damage';
+        m[e+'MdPct'] = 'damage'; m[e+'MdRaw'] = 'damage';
+        m[e+'DamAddMin'] = 'damage'; m[e+'DamAddMax'] = 'damage';
+    }
+    for (const e of ['n','r','']) {
+        m[e+'DamAddMin'] = 'damage'; m[e+'DamAddMax'] = 'damage';
+    }
+    for (const e of ['n','r']) {
+        m[e+'SdPct'] = 'damage'; m[e+'SdRaw'] = 'damage';
+        m[e+'MdPct'] = 'damage'; m[e+'MdRaw'] = 'damage';
+    }
+    // Mana stats
+    for (const k of [
+        'mr', 'ms', 'maxMana',
+        'spPct1', 'spPct2', 'spPct3', 'spPct4',
+        'spRaw1', 'spRaw2', 'spRaw3', 'spRaw4',
+        'spPct1Final', 'spPct2Final', 'spPct3Final', 'spPct4Final',
+    ]) m[k] = 'mana';
+    // Healing stats
+    for (const k of ['hprPct', 'hprRaw', 'healPct', 'ls', 'hpBonus']) m[k] = 'healing';
+    return m;
+})();
+
+/** Look up the roll group for a given stat key. */
+function _get_roll_group(statKey) {
+    return ROLL_STAT_GROUP[statKey] || 'misc';
+}
+
+/**
+ * Per-group roll mode. Each key is a group name, value is 0-100.
+ * Replaces the old scalar `current_roll_mode`.
+ */
+let current_roll_mode = { ...ROLL_GROUP_DEFAULTS };
+
+/** Returns true if all roll groups match their defaults. */
+function isRollDefault() {
+    for (const g of ROLL_GROUP_ORDER) {
+        if (current_roll_mode[g] !== ROLL_GROUP_DEFAULTS[g]) return false;
+    }
+    return true;
+}
+
+/** Returns true if all groups share the same value. */
+function _isRollUniform() {
+    const v = current_roll_mode[ROLL_GROUP_ORDER[0]];
+    return ROLL_GROUP_ORDER.every(g => current_roll_mode[g] === v);
+}
+
+/**
+ * Returns display text for the roll mode input.
+ * "Default" when at defaults, "N%" when uniform non-default, "Custom" otherwise.
+ */
+function rollDisplayText() {
+    if (isRollDefault()) return 'Default';
+    if (_isRollUniform()) return current_roll_mode.damage + '%';
+    return 'Custom';
+}
+
+/** Returns true if ALL groups are >= 100 (i.e. no rolling needed). */
+function _allRollsMax() {
+    return ROLL_GROUP_ORDER.every(g => current_roll_mode[g] >= 100);
+}
 
 /**
  * Stats available for use in restriction threshold rows.
@@ -183,10 +266,12 @@ const RESTRICTION_STATS = [
  * Returns the effective rolled value for a stat given the current roll percentage.
  * @param {number} minVal
  * @param {number} maxVal
+ * @param {string} [statKey] - stat identifier to look up the roll group (optional; defaults to 'misc')
  * @returns {number}
  */
-function getRolledValue(minVal, maxVal) {
-    if (current_roll_mode >= 100) return maxVal;
-    if (current_roll_mode <= 0) return minVal;
-    return Math.round(minVal + (current_roll_mode / 100) * (maxVal - minVal));
+function getRolledValue(minVal, maxVal, statKey) {
+    const pct = current_roll_mode[_get_roll_group(statKey)] ?? current_roll_mode.misc ?? 100;
+    if (pct >= 100) return maxVal;
+    if (pct <= 0) return minVal;
+    return Math.round(minVal + (pct / 100) * (maxVal - minVal));
 }

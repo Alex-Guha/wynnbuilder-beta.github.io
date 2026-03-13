@@ -440,12 +440,54 @@
                                             onclick="resetSolverFields()">Reset</button>
                                         <!-- Row 2: Roll + Export -->
                                         <div class="fw-bold scaled-font solver-lrg-label">Roll</div>
-                                        <input type="text"
-                                            class="equipment-input text-light form-control form-control-sm"
-                                            id="roll-mode-input" value="85%"
-                                            onfocus="this.value=this.value.replace('%','')"
-                                            onblur="setRollMode(this.value)"
-                                            onkeydown="if(event.key==='Enter')this.blur()">
+                                        <div style="position:relative">
+                                            <input type="text"
+                                                class="equipment-input text-light form-control form-control-sm"
+                                                id="roll-mode-input" value="Default"
+                                                onclick="toggleRollGroupPopup()"
+                                                onfocus="rollInputFocus(this)"
+                                                onblur="rollInputBlur(this)"
+                                                onkeydown="if(event.key==='Enter')this.blur()">
+                                            <div id="roll-group-popup" class="roll-group-popup" style="display:none">
+                                                <div class="roll-group-row">
+                                                    <label class="roll-group-label" for="roll-group-all">All</label>
+                                                    <input type="number" id="roll-group-all" class="roll-group-input" min="0" max="100"
+                                                        placeholder="—"
+                                                        oninput="setRollMode(this.value)"
+                                                        onkeydown="if(event.key==='Enter')this.blur()">
+                                                    <span class="roll-group-suffix">%</span>
+                                                </div>
+                                                <hr class="roll-group-divider">
+                                                <div class="roll-group-row">
+                                                    <label class="roll-group-label" for="roll-group-damage">Damage</label>
+                                                    <input type="number" id="roll-group-damage" class="roll-group-input" min="0" max="100"
+                                                        oninput="setRollGroupMode('damage',this.value)"
+                                                        onkeydown="if(event.key==='Enter')this.blur()">
+                                                    <span class="roll-group-suffix">%</span>
+                                                </div>
+                                                <div class="roll-group-row">
+                                                    <label class="roll-group-label" for="roll-group-mana">Mana</label>
+                                                    <input type="number" id="roll-group-mana" class="roll-group-input" min="0" max="100"
+                                                        oninput="setRollGroupMode('mana',this.value)"
+                                                        onkeydown="if(event.key==='Enter')this.blur()">
+                                                    <span class="roll-group-suffix">%</span>
+                                                </div>
+                                                <div class="roll-group-row">
+                                                    <label class="roll-group-label" for="roll-group-healing">Healing</label>
+                                                    <input type="number" id="roll-group-healing" class="roll-group-input" min="0" max="100"
+                                                        oninput="setRollGroupMode('healing',this.value)"
+                                                        onkeydown="if(event.key==='Enter')this.blur()">
+                                                    <span class="roll-group-suffix">%</span>
+                                                </div>
+                                                <div class="roll-group-row">
+                                                    <label class="roll-group-label" for="roll-group-misc">Misc</label>
+                                                    <input type="number" id="roll-group-misc" class="roll-group-input" min="0" max="100"
+                                                        oninput="setRollGroupMode('misc',this.value)"
+                                                        onkeydown="if(event.key==='Enter')this.blur()">
+                                                    <span class="roll-group-suffix">%</span>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <button
                                             class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
                                             id="copy-to-builder-btn" title="Export build to WynnBuilder">Export to

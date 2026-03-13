@@ -149,6 +149,70 @@
     text-align: center;
 }
 
+/* ── Roll-group popup ────────────────────────────────────────────────────── */
+
+.roll-group-popup {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    min-width: 160px;
+    background: #1a1d21;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 6px 8px;
+    z-index: 1050;
+    font-size: 0.8125rem;
+}
+
+.roll-group-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 2px 0;
+}
+
+.roll-group-label {
+    flex: 1 0 0;
+    color: #adb5bd;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+}
+
+.roll-group-input {
+    width: 3.5em;
+    text-align: center;
+    padding: 1px 4px;
+    font-size: 0.8125rem;
+    color: #fff;
+    background-color: #212529;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0.25rem;
+    outline: none;
+}
+
+.roll-group-input:focus {
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Hide number input spin buttons */
+.roll-group-input::-webkit-inner-spin-button,
+.roll-group-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.roll-group-input { -moz-appearance: textfield; }
+
+.roll-group-suffix {
+    color: #6c757d;
+    font-size: 0.8125rem;
+}
+
+.roll-group-divider {
+    margin: 4px 0;
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
 /* ── Roll-mode select ────────────────────────────────────────────────────── */
 
 select.solver-select {
