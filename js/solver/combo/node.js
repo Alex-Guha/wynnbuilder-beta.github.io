@@ -52,8 +52,10 @@ class SolverComboTotalNode extends ComputeNode {
         const spell_to_spell_mode = this._health_config?.hp_casting ?? false;
 
         // Auto-fill combo time from spell sequence (count non-melee spell casts).
+        // Only auto-fill in spell-to-spell mode (Blood Pact / HP casting builds).
         const ctime_inp = document.getElementById('combo-time');
-        if (ctime_inp && ctime_inp.dataset.auto === 'true') {
+        if (ctime_inp) ctime_inp.placeholder = spell_to_spell_mode ? 'auto' : 'sec';
+        if (ctime_inp && ctime_inp.dataset.auto === 'true' && spell_to_spell_mode) {
             let auto_time = 0;
             for (const { qty, spell } of rows) {
                 if (spell && spell.cost != null) {

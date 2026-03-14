@@ -28,7 +28,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 #### Combo
-- Refactor the blood pact/bakal's grasp stuff into the atree somehow
 - Add healing stuff to atree (Intoxicating Blood, Rejuvenating Skin, that kind of stuff)
 
 

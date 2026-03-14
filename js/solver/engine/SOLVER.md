@@ -250,10 +250,6 @@ Because both rings draw from the same pool and the pair is unordered, rings are 
 ### Memory consumption
 Browser memory usage rises significantly the longer the solver runs, easily into the gigs. A user reported a browser crash for a large search, as well.
 
-### Investigate the slow down over time
-Could be an issue with the workers, where some might finish and then do nothing instead of grabbing more work.
-Or it could be that because of the item weighting, the first million combinations are largely impossible skill point wise and don't have to go to the damage/mana calculation phase, so getting through them is much faster.
-
 ### Intelligent priority scoring
 Order items by whatever is needed most in the build, focusing on fulfilling constraints first
 i.e. (target ehp - current ehp) / current ehp vs (target MR - current MR) / current MR
