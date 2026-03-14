@@ -586,7 +586,7 @@ const _SOLVER_DEFAULTS = {
  *          bit 9: flat_mana  (default 0)
  *   --- conditional fixed fields (only if presence bit = 1) ---
  *   NOTE: Bit widths below have corresponding range constants in
- *         solver_constants.js (e.g. CTIME_MAX, FLAT_MANA_MIN/MAX,
+ *         constants.js (e.g. CTIME_MAX, FLAT_MANA_MIN/MAX,
  *         COMBO_QTY_MAX, BOOST_SLIDER_MAX, MAX_RESTRICTION_ROWS,
  *         MAX_COMBO_ROWS, MAX_BLACKLIST_ROWS). Keep them in sync.
  *   [28]  roll_groups: 4×7 bits (damage, mana, healing, misc) each 0-100

@@ -3,7 +3,7 @@
  *
  * This file defines equipment slot names, tome/aspect field IDs,
  * derived input-element IDs, and slot-category groupings.
- * It must be loaded BEFORE builder_constants.js or solver_constants.js.
+ * It must be loaded BEFORE builder_constants.js or constants.js.
  */
 
 // ── Item slot definitions ────────────────────────────────────────────────────

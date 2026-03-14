@@ -19,10 +19,14 @@
 // ── Spell damage helpers ─────────────────────────────────────────────────────
 
 /**
- * Computes the average damage per cast of a spell's primary display part,
- * weighted by crit chance. Returns 0 for non-damage spells.
+ * Shared spell part evaluator used by both computeSpellDisplayAvg and
+ * computeSpellDisplayFull.  Recursively evaluates all parts of a spell,
+ * returning the array of evaluated results.
+ *
+ * When `detailed` is true, damage results include per-element breakdowns
+ * (damages_results, multiplied_conversions) for the popup display.
  */
-function computeSpellDisplayAvg(stats, weapon, spell, crit_chance) {
+function _eval_spell_parts(stats, weapon, spell, detailed) {
     const use_speed = spell.use_atkspd !== false;
     const use_spell = (spell.scaling ?? 'spell') === 'spell';
     const spell_result_map = new Map();
@@ -44,6 +48,10 @@ function computeSpellDisplayAvg(stats, weapon, spell, crit_chance) {
                 stats, weapon, part.multipliers, use_spell, !use_speed,
                 part_id, !use_str, ignored_mults);
             result = { type: 'damage', normal_total: raw[0], crit_total: raw[1] };
+            if (detailed) {
+                result.damages_results        = raw[2]; // per-element [norm_min, norm_max, crit_min, crit_max]
+                result.multiplied_conversions = raw[3]; // effective % per element after mults
+            }
         } else if ('power' in part) {
             const mult_map = stats.get('healMult');
             let heal_mult = 1;
@@ -73,14 +81,30 @@ function computeSpellDisplayAvg(stats, weapon, spell, crit_chance) {
         return result;
     }
 
-    const all_results = spell.parts.map(p => eval_part(p.name));
-    // Find the display part: the one matching spell.display, or the last displayed damage part.
+    return { all_results: spell.parts.map(p => eval_part(p.name)), use_spell };
+}
+
+/**
+ * Find the primary display result from evaluated spell parts.
+ * Returns the result matching spell.display, or the last displayed damage part.
+ */
+function _find_display_result(spell, all_results) {
     let display_result = spell.display
         ? all_results.find(r => r?.name === spell.display)
         : null;
     if (!display_result) {
         display_result = [...all_results].reverse().find(r => r?.display && r?.type === 'damage');
     }
+    return display_result;
+}
+
+/**
+ * Computes the average damage per cast of a spell's primary display part,
+ * weighted by crit chance. Returns 0 for non-damage spells.
+ */
+function computeSpellDisplayAvg(stats, weapon, spell, crit_chance) {
+    const { all_results } = _eval_spell_parts(stats, weapon, spell, false);
+    const display_result = _find_display_result(spell, all_results);
     if (!display_result || display_result.type !== 'damage') return 0;
 
     const non_crit_avg = (display_result.normal_total[0] + display_result.normal_total[1]) / 2;
@@ -94,68 +118,8 @@ function computeSpellDisplayAvg(stats, weapon, spell, crit_chance) {
  * Returns null when the spell has no damage parts.
  */
 function computeSpellDisplayFull(stats, weapon, spell, crit_chance) {
-    const use_speed = spell.use_atkspd !== false;
-    const use_spell = (spell.scaling ?? 'spell') === 'spell';
-    const spell_result_map = new Map();
-    for (const part of spell.parts) {
-        spell_result_map.set(part.name, { type: 'need_eval', store_part: part });
-    }
-
-    function eval_part(part_name) {
-        const dat = spell_result_map.get(part_name);
-        if (!dat || dat.type !== 'need_eval') return dat;
-        const part    = dat.store_part;
-        const part_id = spell.base_spell + '.' + part.name;
-        let result;
-        if ('multipliers' in part) {
-            const use_str       = part.use_str !== false;
-            const ignored_mults = part.ignored_mults || [];
-            const raw = calculateSpellDamage(
-                stats, weapon, part.multipliers, use_spell, !use_speed,
-                part_id, !use_str, ignored_mults);
-            result = {
-                type: 'damage',
-                normal_total: raw[0],
-                crit_total:   raw[1],
-                damages_results:        raw[2], // per-element [norm_min, norm_max, crit_min, crit_max]
-                multiplied_conversions: raw[3], // effective % per element after mults
-            };
-        } else if ('power' in part) {
-            const mult_map = stats.get('healMult');
-            let heal_mult = 1;
-            for (const [k, v] of mult_map.entries()) {
-                if (!k.includes(':') || k.split(':')[1] === part_id) heal_mult *= (1 + v / 100);
-            }
-            result = { type: 'heal', heal_amount: part.power * getDefenseStats(stats)[0] * heal_mult };
-        } else {
-            result = { type: null, normal_total: [0, 0], crit_total: [0, 0], heal_amount: 0 };
-            for (const [sub_name, hits] of Object.entries(part.hits)) {
-                const sub = eval_part(sub_name);
-                if (!sub) continue;
-                if (!result.type) result.type = sub.type;
-                if (sub.type === 'damage') {
-                    result.normal_total[0] += sub.normal_total[0] * hits;
-                    result.normal_total[1] += sub.normal_total[1] * hits;
-                    result.crit_total[0]   += sub.crit_total[0]   * hits;
-                    result.crit_total[1]   += sub.crit_total[1]   * hits;
-                } else if (sub.type === 'heal') {
-                    result.heal_amount += sub.heal_amount * hits;
-                }
-            }
-        }
-        result.name    = part.name;
-        result.display = part.display !== false;
-        spell_result_map.set(part_name, result);
-        return result;
-    }
-
-    const all_results = spell.parts.map(p => eval_part(p.name));
-    let display_result = spell.display
-        ? all_results.find(r => r?.name === spell.display)
-        : null;
-    if (!display_result) {
-        display_result = [...all_results].reverse().find(r => r?.display && r?.type === 'damage');
-    }
+    const { all_results, use_spell } = _eval_spell_parts(stats, weapon, spell, true);
+    const display_result = _find_display_result(spell, all_results);
     if (!display_result || display_result.type !== 'damage') return null;
 
     const non_crit_avg = (display_result.normal_total[0] + display_result.normal_total[1]) / 2;

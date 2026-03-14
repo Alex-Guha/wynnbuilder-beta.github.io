@@ -1,6 +1,6 @@
 # Solver Search — Logic Flow
 
-This document describes the abstract logic of the WynnSolver search pipeline, from user click to ranked results. The code spans three files: `solver_search.js` (main thread orchestration), `solver_worker.js` (per-worker DFS), and `solver_worker_shims.js` (DOM-free utility copies).
+This document describes the abstract logic of the WynnSolver search pipeline, from user click to ranked results. The code spans three files: `engine/search.js` (main thread orchestration), `engine/worker.js` (per-worker DFS), and `engine/worker_shims.js` (DOM-free utility copies).
 
 The current solver essentially searches through a priority-ordered tree for builds that maximize the solver target. Item priority is determined by solver constraints and item damage stats. This helps to ensure that the best builds are more likely to appear early.
 
@@ -259,7 +259,7 @@ Order items by whatever is needed most in the build, focusing on fulfilling cons
 i.e. (target ehp - current ehp) / current ehp vs (target MR - current MR) / current MR
 
 ### Tune item pool ordering
-Develop a testing suite for `_build_dmg_weights` in `solver_search.js`.
+Develop a testing suite for `_build_dmg_weights` in `engine/search.js`.
 
 ### Make dominance pruning a bit more aggressive
 Exclude stats that don't factor into the calc (depending on which those are), like poison or walk speed or mana steal, etc.

@@ -4976,7 +4976,8 @@
                 "icon": "node_3"
             },
             "properties": {
-                "cooldown": 15
+                "cooldown": 15,
+                "suppress_healing": true
             },
             "effects": [
                 {
@@ -5169,7 +5170,8 @@
             },
             "properties": {
                 "health_cost": 0.35,
-                "damage_boost": 25
+                "damage_boost": 25,
+                "damage_boost_min": 15
             },
             "effects": [
                 {
@@ -5472,7 +5474,9 @@
                 "col": 0,
                 "icon": "node_1"
             },
-            "properties": {},
+            "properties": {
+                "corruption_exit_heal": 0.30
+            },
             "effects": []
         },
         {
@@ -5618,7 +5622,10 @@
                 "col": 1,
                 "icon": "node_1"
             },
-            "properties": {},
+            "properties": {
+                "corruption_exit_heal_per_hit": 0.025,
+                "corruption_exit_heal_hit_cooldown": 0.45
+            },
             "effects": []
         },
         {
@@ -5731,7 +5738,10 @@
                 "col": 8,
                 "icon": "node_4"
             },
-            "properties": {},
+            "properties": {
+                "damage_regen_pct": 0.30,
+                "damage_regen_duration": 15
+            },
             "effects": []
         },
         {

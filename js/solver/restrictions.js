@@ -7,7 +7,7 @@
  */
 function _wire_encoding_cap(input, min_val, max_val) {
     // Set native HTML min/max so the browser's built-in validation stays in sync
-    // with the JS constants (single source of truth in solver_constants.js).
+    // with the JS constants (single source of truth in constants.js).
     if (input.type === 'number') {
         input.min = String(min_val);
         input.max = String(max_val);

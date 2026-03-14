@@ -131,7 +131,7 @@ if __name__ == "__main__":
         ]
     }
 
-    with open("../js/builder/aspects.json", "r") as aspects_data_file:
+    with open("../js/game/aspects.json", "r") as aspects_data_file:
         old_aspect_data = json.load(aspects_data_file)
     
     try:

@@ -1,6 +1,8 @@
 *.swp
 *.bat
 *.json
+!data/2.2.*/*.json
+!js/game/*.json
 sets/
 
 .idea/

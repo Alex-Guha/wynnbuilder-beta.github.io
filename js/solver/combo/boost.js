@@ -1,5 +1,5 @@
 // SpellDamageCalcNode and SpellDisplayNode are defined in shared_spell_nodes.js.
-// computeSpellDisplayAvg, computeSpellDisplayFull are defined in solver_pure.js.
+// computeSpellDisplayAvg, computeSpellDisplayFull are defined in pure.js.
 
 /**
  * Builds the inner HTML for the per-spell damage breakdown popup.
@@ -191,14 +191,14 @@ function build_combo_boost_registry(atree_merged, build = null) {
                     toggle_seen.add(toggle_name);
                     // Blood Pact: convert to 'calculated' type — the bonus % is
                     // auto-computed by the spell-to-spell simulation engine.
-                    const is_blood_pact = stat_bonuses.some(b => b.key === 'damMult.BloodPact');
+                    const is_blood_pact = abil.properties?.health_cost != null;
                     if (is_blood_pact) {
                         registry.push({
                             name: toggle_name, aliases: [], type: 'calculated',
                             stat_bonuses, prop_bonuses,
                             calc_key: 'blood_pact',
-                            damage_boost_min: BLOOD_PACT_BONUS_MIN,
-                            damage_boost_max: BLOOD_PACT_BONUS_MAX,
+                            damage_boost_min: abil.properties?.damage_boost_min ?? 15,
+                            damage_boost_max: abil.properties?.damage_boost ?? 25,
                         });
                     } else {
                         registry.push({ name: toggle_name, aliases: [], type: 'toggle', stat_bonuses, prop_bonuses });
@@ -335,7 +335,7 @@ function build_combo_boost_registry(atree_merged, build = null) {
 }
 
 // find_all_matching_boosts, apply_combo_row_boosts, apply_spell_prop_overrides,
-// spell_has_damage, spell_has_heal, computeSpellHealingTotal are defined in solver_pure.js.
+// spell_has_damage, spell_has_heal, computeSpellHealingTotal are defined in pure.js.
 
 /**
  * Parse the boost column of a combo row (comma-separated boost tokens).

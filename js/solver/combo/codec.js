@@ -55,10 +55,9 @@ const _NODE_TO_PS_IDX = new Map([..._PS_IDX_TO_NODE].map(([k, v]) => [v, k]));
  * Regular spells encode as their base_spell directly (0-119).
  * Powder specials encode as reserved IDs (121-125).
  * @param {number} base_spell_id - From sel.value (0+ for spells, negative for powder)
- * @param {Map} _atree_merged - (unused, kept for call-site compat)
  * @returns {number} base_spell or reserved ID
  */
-function spell_to_node_id(base_spell_id, _atree_merged) {
+function spell_to_node_id(base_spell_id) {
     // Pseudo-spells
     if (base_spell_id === MANA_RESET_SPELL_ID) return MANA_RESET_NODE_ID;
     if (base_spell_id === CANCEL_BAKALS_SPELL_ID) return CANCEL_BAKALS_NODE_ID;
@@ -115,10 +114,9 @@ function node_id_to_spell_name(node_id, atree_merged) {
 /**
  * Map encoded spell ID back to the dropdown <select> value.
  * @param {number} node_id - base_spell value or reserved ID (powder/melee)
- * @param {Map} _atree_merged - (unused, kept for call-site compat)
  * @returns {string|null} dropdown value string, or null if not found
  */
-function node_id_to_spell_value(node_id, _atree_merged) {
+function node_id_to_spell_value(node_id) {
     // Pseudo-spells
     if (node_id === MANA_RESET_NODE_ID) return String(MANA_RESET_SPELL_ID);
     if (node_id === CANCEL_BAKALS_NODE_ID) return String(CANCEL_BAKALS_SPELL_ID);

@@ -7,14 +7,14 @@
 'use strict';
 
 importScripts(
-    '../core/utils.js',
-    '../game/game_rules.js',
-    '../game/build_utils.js',
-    '../game/powders.js',
-    '../game/damage_calc.js',
-    '../game/shared_game_stats.js',
-    './solver_pure.js',
-    './solver_worker_shims.js'
+    '../../core/utils.js',
+    '../../game/game_rules.js',
+    '../../game/build_utils.js',
+    '../../game/powders.js',
+    '../../game/damage_calc.js',
+    '../../game/shared_game_stats.js',
+    '../pure.js',
+    './worker_shims.js'
 );
 
 // ── Globals set during init ─────────────────────────────────────────────────
@@ -219,12 +219,18 @@ function _eval_combo_damage(combo_base) {
     const wep_sm = _cfg.weapon_sm;
     const crit = skillPointsToPercentage(combo_base.get('dex') || 0);
     let total = 0;
-    for (const { qty, spell, boost_tokens, dmg_excl } of _cfg.parsed_combo) {
+    for (const { qty, spell, boost_tokens, dmg_excl, dps_per_hit_name, dps_hits } of _cfg.parsed_combo) {
         if (dmg_excl) continue;
         const { stats, prop_overrides } =
             apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry);
         const mod_spell = apply_spell_prop_overrides(spell, prop_overrides, _cfg.atree_merged);
-        total += computeSpellDisplayAvg(stats, wep_sm, mod_spell, crit) * qty;
+        if (dps_per_hit_name) {
+            // DPS spell: compute per-hit damage × hit count (matching main thread).
+            const per_hit_spell = { ...mod_spell, display: dps_per_hit_name };
+            total += computeSpellDisplayAvg(stats, wep_sm, per_hit_spell, crit) * dps_hits * qty;
+        } else {
+            total += computeSpellDisplayAvg(stats, wep_sm, mod_spell, crit) * qty;
+        }
     }
     return total;
 }

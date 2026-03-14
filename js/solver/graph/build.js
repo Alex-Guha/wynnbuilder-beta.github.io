@@ -291,7 +291,7 @@ function _collect_solver_params() {
             const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
             if (isNaN(spell_id)) continue;
 
-            const spell_node_id = spell_to_node_id(spell_id, atree_mg);
+            const spell_node_id = spell_to_node_id(spell_id);
 
             const mana_excl = row.querySelector('.combo-mana-toggle')
                 ?.classList.contains('mana-excluded') ?? false;

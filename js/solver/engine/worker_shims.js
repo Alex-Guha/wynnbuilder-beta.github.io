@@ -10,7 +10,7 @@
 //   - damage_calc.js: calculateSpellDamage
 //   - shared_game_stats.js: damageMultipliers, specialNames, radiance_affected,
 //                           getDefenseStats
-//   - solver_pure.js: computeSpellDisplayAvg, find_all_matching_boosts,
+//   - pure.js: computeSpellDisplayAvg, find_all_matching_boosts,
 //                     apply_combo_row_boosts,
 //                     apply_spell_prop_overrides, spell_has_heal,
 //                     computeSpellHealingTotal, _deep_clone_statmap, _merge_into,

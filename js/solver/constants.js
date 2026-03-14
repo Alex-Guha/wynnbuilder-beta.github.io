@@ -59,20 +59,6 @@ const CANCEL_BAKALS_SPELL_ID = -2001;
 /** Reserved 7-bit node ID for Cancel Bak'al's Grasp in binary URL encoding. */
 const CANCEL_BAKALS_NODE_ID = 119;
 
-// ── Blood Pact / Bak'al's Grasp ability IDs ─────────────────────────────────
-
-const BLOOD_PACT_ABIL_ID = 31;
-const BAKALS_GRASP_ABIL_ID = 25;
-const EXHILARATE_ABIL_ID = 39;
-const HAEMORRHAGE_ABIL_ID = 75;
-
-/** Blood Pact bonus damage range (min when all mana, max when all health). */
-const BLOOD_PACT_BONUS_MIN = 15;
-const BLOOD_PACT_BONUS_MAX = 25;
-
-/** War Scream base_spell ID — triggers Bak'al's Grasp corruption. */
-const WAR_SCREAM_BASE_SPELL = 4;
-
 // ── Solver-specific constants ────────────────────────────────────────────────
 
 /**
@@ -105,18 +91,18 @@ const ROLL_STAT_GROUP = (() => {
         'sdPct', 'mdPct', 'sdRaw', 'mdRaw', 'damPct', 'damRaw', 'critDamPct', 'poison', 'atkTier',
         'nDamPct', 'nDamRaw', 'rDamPct', 'rDamRaw',
     ]) m[k] = 'damage';
-    for (const e of ['e','t','w','f','a']) {
-        m[e+'DamPct'] = 'damage'; m[e+'DamRaw'] = 'damage';
-        m[e+'SdPct'] = 'damage'; m[e+'SdRaw'] = 'damage';
-        m[e+'MdPct'] = 'damage'; m[e+'MdRaw'] = 'damage';
-        m[e+'DamAddMin'] = 'damage'; m[e+'DamAddMax'] = 'damage';
+    for (const e of ['e', 't', 'w', 'f', 'a']) {
+        m[e + 'DamPct'] = 'damage'; m[e + 'DamRaw'] = 'damage';
+        m[e + 'SdPct'] = 'damage'; m[e + 'SdRaw'] = 'damage';
+        m[e + 'MdPct'] = 'damage'; m[e + 'MdRaw'] = 'damage';
+        m[e + 'DamAddMin'] = 'damage'; m[e + 'DamAddMax'] = 'damage';
     }
-    for (const e of ['n','r','']) {
-        m[e+'DamAddMin'] = 'damage'; m[e+'DamAddMax'] = 'damage';
+    for (const e of ['n', 'r', '']) {
+        m[e + 'DamAddMin'] = 'damage'; m[e + 'DamAddMax'] = 'damage';
     }
-    for (const e of ['n','r']) {
-        m[e+'SdPct'] = 'damage'; m[e+'SdRaw'] = 'damage';
-        m[e+'MdPct'] = 'damage'; m[e+'MdRaw'] = 'damage';
+    for (const e of ['n', 'r']) {
+        m[e + 'SdPct'] = 'damage'; m[e + 'SdRaw'] = 'damage';
+        m[e + 'MdPct'] = 'damage'; m[e + 'MdRaw'] = 'damage';
     }
     // Mana stats
     for (const k of [

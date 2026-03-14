@@ -370,150 +370,100 @@ function resetSolverFields() {
     location.hash = "";
 }
 
-// ── Initialisation ────────────────────────────────────────────────────────────
+// ── Initialisation helpers ────────────────────────────────────────────────────
 
-async function init() {
+/** Restore solver-specific URL params (restrictions, rolls, directions, etc.). */
+function _restore_from_url(solver_params) {
+    if (!solver_params) return;
 
-    // Disable thread count options that exceed the browser-reported logical CPU count.
-    const hw = navigator.hardwareConcurrency;
-    if (hw) {
-        const tsel = document.getElementById('solver-thread-count');
-        if (tsel) {
-            for (const opt of tsel.options) {
-                if (opt.value !== 'auto' && parseInt(opt.value) > hw) {
-                    opt.disabled = true;
-                    opt.title = `Your CPU reports ${hw} logical cores`;
-                }
+    // Roll groups (per-group roll percentages)
+    if (solver_params.roll_groups) {
+        Object.assign(current_roll_mode, solver_params.roll_groups);
+        _syncRollUI();
+    }
+
+    // Build direction: disable any SP types not set in the bitmask
+    const sp_keys = ['str', 'dex', 'int', 'def', 'agi'];
+    const dir = solver_params.dir_enabled;
+    if (dir !== undefined) {
+        for (let i = 0; i < 5; i++) {
+            if (!(dir & (1 << i))) {
+                const btn = document.getElementById('dir-' + sp_keys[i]);
+                if (btn) btn.classList.remove('toggleOn');
+                _dir_user_overrides.add(sp_keys[i]);
             }
         }
     }
 
-    // decodeHash() loads all game data (items, tomes, aspects, atree, encoding constants)
-    // and, when a URL hash is present, populates all input fields from the encoded build.
-    let decoded_sp = null;
-    try {
-        decoded_sp = await decodeHash();
-    } catch (e) {
-        console.error("[solver] decodeHash failed:", e);
-        return;
+    // Level range
+    if (solver_params.lvl_min && solver_params.lvl_min !== 1) {
+        const inp = document.getElementById('restr-lvl-min');
+        if (inp) inp.value = solver_params.lvl_min;
+    }
+    if (solver_params.lvl_max && solver_params.lvl_max !== MAX_PLAYER_LEVEL) {
+        const inp = document.getElementById('restr-lvl-max');
+        if (inp) inp.value = solver_params.lvl_max;
     }
 
-    // ── Restore solver params from URL hash ─────────────────────────────────────
-    // All solver state is encoded in the hash after the '_' separator:
-    //   #<build_b64>_<solver_b64>
-    const full_hash = window.location.hash.slice(1);
-    const sep_idx = full_hash.indexOf(SOLVER_HASH_SEP);
-    let solver_params = null;
-    if (sep_idx >= 0) {
-        try {
-            solver_params = decodeSolverParams(full_hash.substring(sep_idx + 1));
-        } catch (e) {
-            console.warn('[solver] decodeSolverParams failed:', e);
-        }
+    // No Major ID
+    if (solver_params.nomaj) {
+        const btn = document.getElementById('restr-no-major-id');
+        if (btn) btn.classList.add('toggleOn');
     }
 
-    if (solver_params) {
-        // Roll groups (per-group roll percentages)
-        if (solver_params.roll_groups) {
-            Object.assign(current_roll_mode, solver_params.roll_groups);
-            _syncRollUI();
-        }
+    // Guild tome
+    if (solver_params.gtome) {
+        const sel = document.getElementById('restr-guild-tome');
+        if (sel) sel.value = String(solver_params.gtome);
+    }
 
-        // Build direction: disable any SP types not set in the bitmask
-        const sp_keys = ['str', 'dex', 'int', 'def', 'agi'];
-        const dir = solver_params.dir_enabled;
-        if (dir !== undefined) {
-            for (let i = 0; i < 5; i++) {
-                if (!(dir & (1 << i))) {
-                    const btn = document.getElementById('dir-' + sp_keys[i]);
-                    if (btn) btn.classList.remove('toggleOn');
-                    _dir_user_overrides.add(sp_keys[i]);
-                }
+    // Stat threshold rows (binary: structured array of {stat_index, op, value})
+    if (solver_params.restrictions && solver_params.restrictions.length > 0) {
+        for (const r of solver_params.restrictions) {
+            const stat_obj = RESTRICTION_STATS[r.stat_index];
+            if (!stat_obj) continue;
+            const row = restriction_add_row();
+            if (!row) continue;
+            const stat_input = row.querySelector('.restr-stat-input');
+            const op_select = row.querySelector('select');
+            const val_input = row.querySelector('input[type="number"]');
+            if (stat_input) {
+                stat_input.value = stat_obj.label;
+                stat_input.dataset.statKey = stat_obj.key;
             }
-        }
-
-        // Level range
-        if (solver_params.lvl_min && solver_params.lvl_min !== 1) {
-            const inp = document.getElementById('restr-lvl-min');
-            if (inp) inp.value = solver_params.lvl_min;
-        }
-        if (solver_params.lvl_max && solver_params.lvl_max !== MAX_PLAYER_LEVEL) {
-            const inp = document.getElementById('restr-lvl-max');
-            if (inp) inp.value = solver_params.lvl_max;
-        }
-
-        // No Major ID
-        if (solver_params.nomaj) {
-            const btn = document.getElementById('restr-no-major-id');
-            if (btn) btn.classList.add('toggleOn');
-        }
-
-        // Guild tome
-        if (solver_params.gtome) {
-            const sel = document.getElementById('restr-guild-tome');
-            if (sel) sel.value = String(solver_params.gtome);
-        }
-
-        // Stat threshold rows (binary: structured array of {stat_index, op, value})
-        if (solver_params.restrictions && solver_params.restrictions.length > 0) {
-            for (const r of solver_params.restrictions) {
-                const stat_obj = RESTRICTION_STATS[r.stat_index];
-                if (!stat_obj) continue;
-                const row = restriction_add_row();
-                if (!row) continue;
-                const stat_input = row.querySelector('.restr-stat-input');
-                const op_select = row.querySelector('select');
-                const val_input = row.querySelector('input[type="number"]');
-                if (stat_input) {
-                    stat_input.value = stat_obj.label;
-                    stat_input.dataset.statKey = stat_obj.key;
-                }
-                if (op_select) op_select.value = r.op === 1 ? 'le' : 'ge';
-                if (val_input) val_input.value = r.value;
-            }
-        }
-
-        // Blacklist rows (binary: array of item IDs)
-        if (solver_params.blacklist_ids && solver_params.blacklist_ids.length > 0) {
-            for (let item_id of solver_params.blacklist_ids) {
-                // Follow redirectMap if this ID was remapped to a new one
-                if (typeof redirectMap !== 'undefined' && redirectMap && redirectMap.has(item_id)) {
-                    item_id = redirectMap.get(item_id);
-                }
-                const name = idMap.get(item_id);
-                if (!name || !itemMap.has(name)) continue;
-                const row = blacklist_add_row();
-                if (!row) continue;
-                const input = row.querySelector('.bl-item-input');
-                if (input) input.value = name;
-            }
-        }
-
-        // Solver-free slot mask (explicit from URL — sets dataset for the default block below)
-        if (solver_params.sfree !== undefined) {
-            for (let i = 0; i < 8; i++) {
-                const input = document.getElementById(equipment_fields[i] + '-choice');
-                if (!input) continue;
-                input.dataset.solverFilled = (solver_params.sfree & (1 << i)) ? 'true' : 'false';
-            }
+            if (op_select) op_select.value = r.op === 1 ? 'le' : 'ge';
+            if (val_input) val_input.value = r.value;
         }
     }
 
-    // Default lock state for slots not set by URL: filled → locked, empty → free
-    _solver_free_mask = 0;
-    for (let i = 0; i < 8; i++) {
-        const input = document.getElementById(equipment_fields[i] + '-choice');
-        if (!input) continue;
-        if (input.dataset.solverFilled === undefined || input.dataset.solverFilled === '') {
-            if (input.value) {
-                input.dataset.solverFilled = 'false';
-            } else {
-                input.dataset.solverFilled = 'true';
+    // Blacklist rows (binary: array of item IDs)
+    if (solver_params.blacklist_ids && solver_params.blacklist_ids.length > 0) {
+        for (let item_id of solver_params.blacklist_ids) {
+            // Follow redirectMap if this ID was remapped to a new one
+            if (typeof redirectMap !== 'undefined' && redirectMap && redirectMap.has(item_id)) {
+                item_id = redirectMap.get(item_id);
             }
+            const name = idMap.get(item_id);
+            if (!name || !itemMap.has(name)) continue;
+            const row = blacklist_add_row();
+            if (!row) continue;
+            const input = row.querySelector('.bl-item-input');
+            if (input) input.value = name;
         }
-        if (input.dataset.solverFilled === 'true') _solver_free_mask |= (1 << i);
     }
 
+    // Solver-free slot mask (explicit from URL — sets dataset for the default block below)
+    if (solver_params.sfree !== undefined) {
+        for (let i = 0; i < 8; i++) {
+            const input = document.getElementById(equipment_fields[i] + '-choice');
+            if (!input) continue;
+            input.dataset.solverFilled = (solver_params.sfree & (1 << i)) ? 'true' : 'false';
+        }
+    }
+}
+
+/** Wire all event listeners for restriction inputs, equipment slots, tooltips, and locks. */
+function _wire_event_listeners() {
     // Wire static restriction inputs so URL stays in sync as user edits them
     const restr_lvl_min = document.getElementById('restr-lvl-min');
     if (restr_lvl_min) restr_lvl_min.addEventListener('input', _schedule_solver_hash_update);
@@ -572,19 +522,10 @@ async function init() {
             toggleSlotLock(i);
         });
     }
+}
 
-    try {
-        init_autocomplete();
-    } catch (e) {
-        console.error("[solver] init_autocomplete failed:", e, e.stack);
-    }
-
-    solver_graph_init();
-
-    // Auto-disable build directions for SP types with negative net provision
-    // across locked items.  Runs after graph init so item nodes have values.
-    auto_update_build_directions();
-
+/** Restore ability tree, skill points, and combo rows from URL state. */
+function _restore_atree_and_combo(decoded_sp, solver_params) {
     // Restore ability tree from URL hash (mirrors builder_graph.js post-decode logic).
     // atree_data is set by decodeHash(); atree_node.value is set once the weapon populates
     // the class, which happens synchronously during solver_graph_init()'s update() cascade.
@@ -666,7 +607,7 @@ async function init() {
 
                 const data = solver_params.combo_rows.map(r => {
                     const spell_name = node_id_to_spell_name(r.spell_node_id, atree_mg);
-                    const spell_value = node_id_to_spell_value(r.spell_node_id, atree_mg);
+                    const spell_value = node_id_to_spell_value(r.spell_node_id);
                     const boost_parts = r.boosts.map(b => {
                         const name = node_ref_to_boost_name(b.node_id, b.effect_pos, atree_mg);
                         return b.has_value ? name + ' ' + b.value : name;
@@ -688,6 +629,80 @@ async function init() {
             } catch (e) { console.warn('[solver] combo restore failed:', e); }
         }
     }
+}
+
+// ── Initialisation ────────────────────────────────────────────────────────────
+
+async function init() {
+
+    // Disable thread count options that exceed the browser-reported logical CPU count.
+    const hw = navigator.hardwareConcurrency;
+    if (hw) {
+        const tsel = document.getElementById('solver-thread-count');
+        if (tsel) {
+            for (const opt of tsel.options) {
+                if (opt.value !== 'auto' && parseInt(opt.value) > hw) {
+                    opt.disabled = true;
+                    opt.title = `Your CPU reports ${hw} logical cores`;
+                }
+            }
+        }
+    }
+
+    // decodeHash() loads all game data (items, tomes, aspects, atree, encoding constants)
+    // and, when a URL hash is present, populates all input fields from the encoded build.
+    let decoded_sp = null;
+    try {
+        decoded_sp = await decodeHash();
+    } catch (e) {
+        console.error("[solver] decodeHash failed:", e);
+        return;
+    }
+
+    // Decode solver params from URL hash (after the '_' separator).
+    const full_hash = window.location.hash.slice(1);
+    const sep_idx = full_hash.indexOf(SOLVER_HASH_SEP);
+    let solver_params = null;
+    if (sep_idx >= 0) {
+        try {
+            solver_params = decodeSolverParams(full_hash.substring(sep_idx + 1));
+        } catch (e) {
+            console.warn('[solver] decodeSolverParams failed:', e);
+        }
+    }
+
+    _restore_from_url(solver_params);
+
+    // Default lock state for slots not set by URL: filled → locked, empty → free
+    _solver_free_mask = 0;
+    for (let i = 0; i < 8; i++) {
+        const input = document.getElementById(equipment_fields[i] + '-choice');
+        if (!input) continue;
+        if (input.dataset.solverFilled === undefined || input.dataset.solverFilled === '') {
+            if (input.value) {
+                input.dataset.solverFilled = 'false';
+            } else {
+                input.dataset.solverFilled = 'true';
+            }
+        }
+        if (input.dataset.solverFilled === 'true') _solver_free_mask |= (1 << i);
+    }
+
+    _wire_event_listeners();
+
+    try {
+        init_autocomplete();
+    } catch (e) {
+        console.error("[solver] init_autocomplete failed:", e, e.stack);
+    }
+
+    solver_graph_init();
+
+    // Auto-disable build directions for SP types with negative net provision
+    // across locked items.  Runs after graph init so item nodes have values.
+    auto_update_build_directions();
+
+    _restore_atree_and_combo(decoded_sp, solver_params);
 }
 
 window.onerror = function (message, source, lineno, colno, error) {

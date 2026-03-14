@@ -227,7 +227,7 @@ for tome in old_tomes:
     tome_value_map[tome['name']] = tome
 
 # TODO hack pull the major id file
-major_ids_filename = "../js/builder/major_ids_clean.json"
+major_ids_filename = "../js/game/major_ids_clean.json"
 with open(major_ids_filename, 'r') as major_ids_file:
     major_ids_map = json.load(major_ids_file)
     major_ids_reverse_map = { v['displayName'] : k for k, v in major_ids_map.items() }
@@ -394,7 +394,7 @@ with open("../tome_map.json","w") as tome_map_file:
 with open('item_out.json', "w") as out_file:
     json.dump(old_data, out_file, ensure_ascii=False, separators=(',', ':'))
 
-with open('../js/builder/major_ids_clean.json', 'w') as major_ids_outfile:
+with open('../js/game/major_ids_clean.json', 'w') as major_ids_outfile:
     json.dump(major_ids_map, major_ids_outfile, ensure_ascii=False, indent=4)
 
 with open('ing_out.json', "w") as out_file:

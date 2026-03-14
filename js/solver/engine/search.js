@@ -1,17 +1,17 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let _solver_running = false;
-let _solver_top5 = [];   // [{score, items:[Item×8], base_sp, total_sp, assigned_sp}]
-let _solver_checked = 0;
-let _solver_feasible = 0;
-let _solver_start = 0;
-let _solver_last_ui = 0;
-let _solver_total = 0;
-let _solver_last_eta = 0;
-
-// Web Worker state
-let _solver_workers = [];        // [{worker, done, checked, feasible, top5}]
-let _solver_progress_timer = 0;  // setInterval handle
+const _solver_state = {
+    running: false,
+    top5: [],              // [{score, items:[Item×8], base_sp, total_sp, assigned_sp}]
+    checked: 0,
+    feasible: 0,
+    start: 0,
+    last_ui: 0,
+    total: 0,
+    last_eta: 0,
+    workers: [],           // [{worker, done, checked, feasible, top5}]
+    progress_timer: 0,     // setInterval handle
+};
 
 // Bitmask tracking which equipment slots were last filled by the solver.
 let _solver_free_mask = 0;
@@ -108,15 +108,27 @@ function _parse_combo_for_search(spell_map, weapon) {
     }
     const rows = solver_combo_total_node._read_combo_rows(aug);
     return rows
-        .map(r => ({
-            qty: r.qty,
-            spell: r.spell,
-            boost_tokens: r.boost_tokens,
-            dmg_excl: r.dom_row?.querySelector('.combo-dmg-toggle')
-                ?.classList.contains('dmg-excluded') ?? false,
-            mana_excl: r.dom_row?.querySelector('.combo-mana-toggle')
-                ?.classList.contains('mana-excluded') ?? false,
-        }))
+        .map(r => {
+            const entry = {
+                qty: r.qty,
+                spell: r.spell,
+                boost_tokens: r.boost_tokens,
+                dmg_excl: r.dom_row?.querySelector('.combo-dmg-toggle')
+                    ?.classList.contains('dmg-excluded') ?? false,
+                mana_excl: r.dom_row?.querySelector('.combo-mana-toggle')
+                    ?.classList.contains('mana-excluded') ?? false,
+            };
+            // DPS spells with a Total/Max part: pass per-hit display name and
+            // hit count so the worker computes total damage (per-hit × hits)
+            // instead of the raw DPS value.
+            const dps_info = compute_dps_spell_hits_info(r.spell);
+            if (dps_info) {
+                entry.dps_per_hit_name = dps_info.per_hit_name;
+                const hits_inp = r.dom_row?.querySelector('.combo-row-hits');
+                entry.dps_hits = parseFloat(hits_inp?.value) || dps_info.max_hits;
+            }
+            return entry;
+        })
         .filter(r => r.qty > 0 && r.spell && (spell_has_damage(r.spell) || spell_has_heal(r.spell) || r.spell.cost != null));
 }
 
@@ -172,7 +184,12 @@ function _build_solver_snapshot(restrictions) {
     const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
 
     // Blood Pact: when active, spells are paid with HP, so skip mana gating in workers.
-    const hp_casting = !!(atree_mgd?.get(BLOOD_PACT_ABIL_ID)?.display_name === 'Blood Pact');
+    let hp_casting = false;
+    if (atree_mgd) {
+        for (const [, abil] of atree_mgd) {
+            if (abil.properties?.health_cost != null) { hp_casting = true; break; }
+        }
+    }
 
     // Extract base spell costs for spells 1-4 (needed for final spell cost restrictions).
     // Prefer costs from parsed_combo (user's active spells) over spell_map defaults.
@@ -205,9 +222,50 @@ function _build_solver_snapshot(restrictions) {
 // ── Top-5 heap ────────────────────────────────────────────────────────────────
 
 function _insert_top5(candidate) {
-    _solver_top5.push(candidate);
-    _solver_top5.sort((a, b) => b.score - a.score);
-    if (_solver_top5.length > 5) _solver_top5.length = 5;
+    _solver_state.top5.push(candidate);
+    _solver_state.top5.sort((a, b) => b.score - a.score);
+    if (_solver_state.top5.length > 5) _solver_state.top5.length = 5;
+}
+
+/**
+ * Merge top-5 results from all workers into _solver_state.top5.
+ * When include_interim is true, also includes each worker's in-flight
+ * partition results (_cur_top5) — used during progress updates and
+ * when stopping mid-search.
+ */
+function _merge_worker_top5(workers, include_interim) {
+    _solver_state.top5 = [];
+    for (const w of workers) {
+        const sources = include_interim
+            ? [w.top5 ?? [], w._cur_top5 ?? []]
+            : [w.top5 ?? []];
+        for (const src of sources) {
+            for (const r of src) {
+                if (!r.item_names) continue;
+                const items = _reconstruct_result_items(r.item_names);
+                _insert_top5({
+                    score: r.score,
+                    items,
+                    base_sp: r.base_sp ?? [0, 0, 0, 0, 0],
+                    total_sp: r.total_sp ?? [0, 0, 0, 0, 0],
+                    assigned_sp: r.assigned_sp ?? 0,
+                });
+            }
+        }
+    }
+}
+
+/**
+ * Format the solver summary status text shown after completion or stop.
+ */
+function _format_solver_summary(completed, elapsed_s) {
+    if (completed) {
+        return `Solved \u2014 Checked: ${_solver_state.checked.toLocaleString()}, Feasible: ${_solver_state.feasible.toLocaleString()}, Time: ${_format_duration(elapsed_s)}`;
+    }
+    const rate_ms = _solver_state.checked > 0 ? (elapsed_s * 1000 / _solver_state.checked) : 0;
+    const rem_s = rate_ms > 0 ? Math.ceil(rate_ms * (_solver_state.total - _solver_state.checked) / 1000) : null;
+    const rem_str = rem_s !== null ? `, Est. Remaining: ${_format_duration(rem_s)}` : '';
+    return `Stopped \u2014 Checked: ${_solver_state.checked.toLocaleString()} / ${_solver_state.total.toLocaleString()}, Feasible: ${_solver_state.feasible.toLocaleString()}, Time: ${_format_duration(elapsed_s)}${rem_str}`;
 }
 
 // ── Solver target metadata ─────────────────────────────────────────────────
@@ -247,19 +305,19 @@ function _update_solver_progress_ui() {
     const el_elapsed = document.getElementById('solver-elapsed-text');
     const el_total = document.getElementById('solver-total-count');
     const el_remaining = document.getElementById('solver-remaining-text');
-    if (el_checked) el_checked.textContent = _solver_checked.toLocaleString();
-    if (el_feasible) el_feasible.textContent = _solver_feasible.toLocaleString();
-    if (el_total) el_total.textContent = _solver_total.toLocaleString();
+    if (el_checked) el_checked.textContent = _solver_state.checked.toLocaleString();
+    if (el_feasible) el_feasible.textContent = _solver_state.feasible.toLocaleString();
+    if (el_total) el_total.textContent = _solver_state.total.toLocaleString();
     const now = Date.now();
-    const elapsed_ms = now - _solver_start;
+    const elapsed_ms = now - _solver_state.start;
     if (el_elapsed) el_elapsed.textContent = _format_duration(elapsed_ms / 1000);
 
-    if (now - _solver_last_eta >= 1000) {
-        _solver_last_eta = now;
+    if (now - _solver_state.last_eta >= 1000) {
+        _solver_state.last_eta = now;
         const el_warn = document.getElementById('solver-eta-warning');
-        if (_solver_checked > 0 && _solver_total > _solver_checked) {
-            const rate = elapsed_ms / _solver_checked;
-            const remaining_s = Math.ceil(rate * (_solver_total - _solver_checked) / 1000);
+        if (_solver_state.checked > 0 && _solver_state.total > _solver_state.checked) {
+            const rate = elapsed_ms / _solver_state.checked;
+            const remaining_s = Math.ceil(rate * (_solver_state.total - _solver_state.checked) / 1000);
             if (el_remaining) el_remaining.textContent = _format_duration(remaining_s) + ' left';
             if (el_warn) el_warn.style.display = remaining_s > 1200 ? '' : 'none';
         } else {
@@ -268,37 +326,12 @@ function _update_solver_progress_ui() {
         }
     }
     // Every 5 s: merge interim top-5 from workers, refresh result panel and fill best build
-    if (now - _solver_last_ui >= 5000) {
-        _solver_last_ui = now;
-        // Rebuild _solver_top5 from worker cumulative + current-partition data
-        _solver_top5 = [];
-        for (const w of _solver_workers) {
-            // Cumulative top5 from completed partitions
-            for (const r of (w.top5 ?? [])) {
-                if (!r.item_names) continue;
-                const items = _reconstruct_result_items(r.item_names);
-                _insert_top5({
-                    score: r.score, items,
-                    base_sp: r.base_sp ?? [0, 0, 0, 0, 0],
-                    total_sp: r.total_sp ?? [0, 0, 0, 0, 0],
-                    assigned_sp: r.assigned_sp ?? 0,
-                });
-            }
-            // Interim top5 from current in-flight partition
-            for (const r of (w._cur_top5 ?? [])) {
-                if (!r.item_names) continue;
-                const items = _reconstruct_result_items(r.item_names);
-                _insert_top5({
-                    score: r.score, items,
-                    base_sp: r.base_sp ?? [0, 0, 0, 0, 0],
-                    total_sp: r.total_sp ?? [0, 0, 0, 0, 0],
-                    assigned_sp: r.assigned_sp ?? 0,
-                });
-            }
-        }
-        if (_solver_top5.length > 0) {
-            _fill_build_into_ui(_solver_top5[0]);
-            _display_solver_results(_solver_top5);
+    if (now - _solver_state.last_ui >= 5000) {
+        _solver_state.last_ui = now;
+        _merge_worker_top5(_solver_state.workers, true);
+        if (_solver_state.top5.length > 0) {
+            _fill_build_into_ui(_solver_state.top5[0]);
+            _display_solver_results(_solver_state.top5);
         }
     }
 }
@@ -363,12 +396,18 @@ function _display_solver_results(top5) {
         let new_tab_link = '';
         if (result_hash) {
             const url = new URL(window.location.href);
-            url.hash = result_hash;
+            // Preserve solver params (combo, restrictions, roll, etc.) from the
+            // current hash.  The full hash format is <build_b64>_<solver_b64>.
+            const current_hash = window.location.hash.slice(1);
+            const sep = current_hash.indexOf(SOLVER_HASH_SEP);
+            url.hash = sep >= 0
+                ? result_hash + current_hash.substring(sep)
+                : result_hash;
             url.searchParams.delete('sfree');
             new_tab_link = `<a class="solver-result-newtab" href="${url.toString()}" ` +
                 `target="_blank" title="Open in new tab" onclick="event.stopPropagation()">\u2197</a>`;
         }
-        return `<div class="solver-result-row" title="${item_names.join(' | ')}" onclick="_fill_build_into_ui(_solver_top5[${i}])">` +
+        return `<div class="solver-result-row" title="${item_names.join(' | ')}" onclick="_fill_build_into_ui(_solver_state.top5[${i}])">` +
             `<span class="solver-result-rank">#${i + 1}</span>` +
             `<span class="solver-result-score">${score_str}</span>` +
             `<span class="solver-result-items small">${names_str}</span>` +
@@ -577,23 +616,23 @@ function _reconstruct_result_items(item_names) {
 // ── Worker orchestration ────────────────────────────────────────────────────
 
 function _stop_solver() {
-    _solver_running = false;
+    _solver_state.running = false;
     // Snapshot final counts (cumulative + in-flight) before terminating
-    _solver_checked = 0;
-    _solver_feasible = 0;
-    for (const w of _solver_workers) {
-        _solver_checked += w.checked + (w._cur_checked ?? 0);
-        _solver_feasible += w.feasible + (w._cur_feasible ?? 0);
+    _solver_state.checked = 0;
+    _solver_state.feasible = 0;
+    for (const w of _solver_state.workers) {
+        _solver_state.checked += w.checked + (w._cur_checked ?? 0);
+        _solver_state.feasible += w.feasible + (w._cur_feasible ?? 0);
     }
     // Terminate all workers
-    for (const w of _solver_workers) {
+    for (const w of _solver_state.workers) {
         try { w.worker.terminate(); } catch (e) { }
     }
-    _solver_workers = [];
+    _solver_state.workers = [];
     // Clear progress timer
-    if (_solver_progress_timer) {
-        clearInterval(_solver_progress_timer);
-        _solver_progress_timer = 0;
+    if (_solver_state.progress_timer) {
+        clearInterval(_solver_state.progress_timer);
+        _solver_state.progress_timer = 0;
     }
 }
 
@@ -632,31 +671,18 @@ function _compute_sp_overflow_warnings() {
 }
 
 function _on_all_workers_done(workers_snapshot) {
-    const search_completed = _solver_running;  // true only if finished naturally
-    const elapsed_s = Math.floor((Date.now() - _solver_start) / 1000);
+    const search_completed = _solver_state.running;  // true only if finished naturally
+    const elapsed_s = Math.floor((Date.now() - _solver_state.start) / 1000);
 
-    // Aggregate final stats before stopping (which clears _solver_workers)
-    _solver_checked = 0;
-    _solver_feasible = 0;
+    // Aggregate final stats before stopping (which clears _solver_state.workers)
+    _solver_state.checked = 0;
+    _solver_state.feasible = 0;
     for (const w of workers_snapshot) {
-        _solver_checked += w.checked;
-        _solver_feasible += w.feasible;
+        _solver_state.checked += w.checked;
+        _solver_state.feasible += w.feasible;
     }
 
-    // Merge top-5 from all workers
-    _solver_top5 = [];
-    for (const w of workers_snapshot) {
-        for (const r of w.top5) {
-            const items = _reconstruct_result_items(r.item_names);
-            _insert_top5({
-                score: r.score,
-                items,
-                base_sp: r.base_sp,
-                total_sp: r.total_sp,
-                assigned_sp: r.assigned_sp,
-            });
-        }
-    }
+    _merge_worker_top5(workers_snapshot, false);
 
     _stop_solver();
 
@@ -670,24 +696,17 @@ function _on_all_workers_done(workers_snapshot) {
 
     const _sum_el = document.getElementById('solver-summary-text');
     if (_sum_el) {
-        if (search_completed) {
-            _sum_el.textContent = `Solved \u2014 Checked: ${_solver_checked.toLocaleString()}, Feasible: ${_solver_feasible.toLocaleString()}, Time: ${_format_duration(elapsed_s)}`;
-        } else {
-            const _rate_ms = _solver_checked > 0 ? (elapsed_s * 1000 / _solver_checked) : 0;
-            const _rem_s = _rate_ms > 0 ? Math.ceil(_rate_ms * (_solver_total - _solver_checked) / 1000) : null;
-            const _rem_str = _rem_s !== null ? `, Est. Remaining: ${_format_duration(_rem_s)}` : '';
-            _sum_el.textContent = `Stopped \u2014 Checked: ${_solver_checked.toLocaleString()} / ${_solver_total.toLocaleString()}, Feasible: ${_solver_feasible.toLocaleString()}, Time: ${_format_duration(elapsed_s)}${_rem_str}`;
-        }
+        _sum_el.textContent = _format_solver_summary(search_completed, elapsed_s);
     }
 
     _update_solver_progress_ui();
-    _display_solver_results(_solver_top5);
-    if (_solver_top5.length > 0) {
-        _fill_build_into_ui(_solver_top5[0]);
+    _display_solver_results(_solver_state.top5);
+    if (_solver_state.top5.length > 0) {
+        _fill_build_into_ui(_solver_state.top5[0]);
     } else if (search_completed) {
         const panel = document.getElementById('solver-results-panel');
         if (panel) {
-            if (_solver_feasible === 0) {
+            if (_solver_state.feasible === 0) {
                 let html = '<div class="text-warning small">'
                     + 'No builds satisfied the skill point requirements. Try relaxing restrictions or enabling guild tomes.';
                 const sp_warnings = _compute_sp_overflow_warnings();
@@ -727,7 +746,7 @@ function _run_solver_search_workers(pools, locked, snap) {
     let next_partition_id = 0;
     let active_count = 0;
 
-    _solver_workers = [];
+    _solver_state.workers = [];
 
     function _insert_wstate_top5(wstate, entry) {
         wstate.top5.push(entry);
@@ -737,7 +756,7 @@ function _run_solver_search_workers(pools, locked, snap) {
 
     // Send a lightweight 'run' message for subsequent partitions (no heavy data)
     function _dispatch_next(wstate) {
-        if (partition_queue.length === 0 || !_solver_running) return false;
+        if (partition_queue.length === 0 || !_solver_state.running) return false;
         const partition = partition_queue.shift();
         wstate.done = false;
         wstate._cur_checked = 0;
@@ -770,7 +789,7 @@ function _run_solver_search_workers(pools, locked, snap) {
         if (!_dispatch_next(wstate)) {
             // No more work — check if all workers are idle
             if (active_count === 0) {
-                _on_all_workers_done(_solver_workers);
+                _on_all_workers_done(_solver_state.workers);
             }
         }
     }
@@ -781,12 +800,12 @@ function _run_solver_search_workers(pools, locked, snap) {
     // Spawn workers: send heavy 'init' with first partition, then 'run' for subsequent
     const actual_workers = Math.min(num_workers, partitions.length);
     for (let i = 0; i < actual_workers; i++) {
-        const w = new Worker('../js/solver/solver_worker.js?v=3');
+        const w = new Worker('../js/solver/engine/worker.js?v=3');
         const wstate = {
             worker: w, done: true, checked: 0, feasible: 0, top5: [],
             _cur_checked: 0, _cur_feasible: 0, _cur_top5: [],
         };
-        _solver_workers.push(wstate);
+        _solver_state.workers.push(wstate);
 
         w.onmessage = (e) => {
             const msg = e.data;
@@ -804,7 +823,7 @@ function _run_solver_search_workers(pools, locked, snap) {
             wstate.done = true;
             active_count--;
             if (active_count === 0 && partition_queue.length === 0) {
-                _on_all_workers_done(_solver_workers);
+                _on_all_workers_done(_solver_state.workers);
             }
         };
 
@@ -823,14 +842,14 @@ function _run_solver_search_workers(pools, locked, snap) {
     }
 
     // Start progress timer
-    _solver_progress_timer = setInterval(() => {
-        if (!_solver_running) return;
+    _solver_state.progress_timer = setInterval(() => {
+        if (!_solver_state.running) return;
         // Aggregate stats: cumulative completed + current in-flight partition
-        _solver_checked = 0;
-        _solver_feasible = 0;
-        for (const w of _solver_workers) {
-            _solver_checked += w.checked + (w._cur_checked ?? 0);
-            _solver_feasible += w.feasible + (w._cur_feasible ?? 0);
+        _solver_state.checked = 0;
+        _solver_state.feasible = 0;
+        for (const w of _solver_state.workers) {
+            _solver_state.checked += w.checked + (w._cur_checked ?? 0);
+            _solver_state.feasible += w.feasible + (w._cur_feasible ?? 0);
         }
         _update_solver_progress_ui();
     }, 500);
@@ -839,9 +858,9 @@ function _run_solver_search_workers(pools, locked, snap) {
 // ── Top-level orchestrator ────────────────────────────────────────────────────
 
 function toggle_solver() {
-    if (_solver_running) {
+    if (_solver_state.running) {
         // Save worker references before _stop_solver clears them
-        const saved_workers = [..._solver_workers];
+        const saved_workers = [..._solver_state.workers];
         _stop_solver();
         const btn = document.getElementById('solver-run-btn');
         btn.textContent = 'Solve';
@@ -850,35 +869,16 @@ function toggle_solver() {
         const _warn_el = document.getElementById('solver-eta-warning');
         if (_warn_el) _warn_el.style.display = 'none';
         // Show stopped summary
-        const elapsed_s = Math.floor((Date.now() - _solver_start) / 1000);
+        const elapsed_s = Math.floor((Date.now() - _solver_state.start) / 1000);
         const _sum_el = document.getElementById('solver-summary-text');
         if (_sum_el) {
-            const _rate_ms = _solver_checked > 0 ? (elapsed_s * 1000 / _solver_checked) : 0;
-            const _rem_s = _rate_ms > 0 ? Math.ceil(_rate_ms * (_solver_total - _solver_checked) / 1000) : null;
-            const _rem_str = _rem_s !== null ? `, Est. Remaining: ${_format_duration(_rem_s)}` : '';
-            _sum_el.textContent = `Stopped \u2014 Checked: ${_solver_checked.toLocaleString()} / ${_solver_total.toLocaleString()}, Feasible: ${_solver_feasible.toLocaleString()}, Time: ${_format_duration(elapsed_s)}${_rem_str}`;
+            _sum_el.textContent = _format_solver_summary(false, elapsed_s);
         }
         // Reconstruct and display any top-5 results we have
         // Include both cumulative (completed partitions) and interim (in-flight partition)
-        _solver_top5 = [];
-        for (const w of saved_workers) {
-            for (const src of [w.top5 ?? [], w._cur_top5 ?? []]) {
-                for (const r of src) {
-                    const item_names = r.item_names;
-                    if (!item_names) continue;
-                    const items = _reconstruct_result_items(item_names);
-                    _insert_top5({
-                        score: r.score,
-                        items,
-                        base_sp: r.base_sp ?? [0, 0, 0, 0, 0],
-                        total_sp: r.total_sp ?? [0, 0, 0, 0, 0],
-                        assigned_sp: r.assigned_sp ?? 0,
-                    });
-                }
-            }
-        }
-        _display_solver_results(_solver_top5);
-        if (_solver_top5.length > 0) _fill_build_into_ui(_solver_top5[0]);
+        _merge_worker_top5(saved_workers, true);
+        _display_solver_results(_solver_state.top5);
+        if (_solver_state.top5.length > 0) _fill_build_into_ui(_solver_state.top5[0]);
         return;
     }
     start_solver_search();
@@ -945,16 +945,16 @@ function start_solver_search() {
                 total *= n;
             }
         }
-        _solver_total = Math.round(total);
+        _solver_state.total = Math.round(total);
     }
 
-    _solver_running = true;
-    _solver_top5 = [];
-    _solver_checked = 0;
-    _solver_feasible = 0;
-    _solver_start = Date.now();
-    _solver_last_ui = Date.now();
-    _solver_last_eta = Date.now();
+    _solver_state.running = true;
+    _solver_state.top5 = [];
+    _solver_state.checked = 0;
+    _solver_state.feasible = 0;
+    _solver_state.start = Date.now();
+    _solver_state.last_ui = Date.now();
+    _solver_state.last_eta = Date.now();
 
     const _sum_el = document.getElementById('solver-summary-text');
     if (_sum_el) _sum_el.textContent = '';
