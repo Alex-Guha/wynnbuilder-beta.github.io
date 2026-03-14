@@ -7,10 +7,12 @@ function _update_boost_btn_highlight(row) {
     const any_toggle = row.querySelector('.combo-row-boost-toggle.toggleOn') !== null;
     const any_slider = [...row.querySelectorAll('.combo-row-boost-slider')]
         .some(inp => (parseFloat(inp.value) || 0) > 0);
+    const any_calc = [...row.querySelectorAll('.combo-row-boost-calc')]
+        .some(inp => (parseFloat(inp.value) || 0) > 0);
     // Highlight when DPS hits is customized (differs from max).
     const hits_inp = row.querySelector('.combo-row-hits');
     const any_hits = hits_inp && hits_inp.value !== hits_inp.max;
-    btn.classList.toggle('toggleOn', any_toggle || any_slider || !!any_hits);
+    btn.classList.toggle('toggleOn', any_toggle || any_slider || any_calc || !!any_hits);
 }
 
 // ── Combo row builder ─────────────────────────────────────────────────────────

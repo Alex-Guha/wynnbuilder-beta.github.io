@@ -171,6 +171,9 @@ function _build_solver_snapshot(restrictions) {
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
     const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
 
+    // Blood Pact: when active, spells are paid with HP, so skip mana gating in workers.
+    const hp_casting = !!(atree_mgd?.get(BLOOD_PACT_ABIL_ID)?.display_name === 'Blood Pact');
+
     // Extract base spell costs for spells 1-4 (needed for final spell cost restrictions).
     // Prefer costs from parsed_combo (user's active spells) over spell_map defaults.
     const spell_base_costs = {};
@@ -195,7 +198,7 @@ function _build_solver_snapshot(restrictions) {
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
         restrictions, button_states, slider_states, scoring_target,
-        combo_time, allow_downtime, flat_mana, spell_base_costs,
+        combo_time, allow_downtime, flat_mana, hp_casting, spell_base_costs,
     };
 }
 
@@ -526,6 +529,7 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         combo_time: snap.combo_time,
         allow_downtime: snap.allow_downtime,
         flat_mana: snap.flat_mana,
+        hp_casting: snap.hp_casting,
         spell_base_costs: snap.spell_base_costs,
         restrictions: snap.restrictions,
         // Global data
@@ -550,6 +554,15 @@ function _reconstruct_result_items(item_names) {
             const it = new Item(none_items[i]);
             it.statMap.set('NONE', true);
             return it;
+        }
+        // Handle crafted/custom items (CR-/CI- hashes) that aren't in itemMap
+        if (name.slice(0, 3) === 'CR-') {
+            const craft = decodeCraft({hash: name.substring(3)});
+            if (craft) return _apply_roll_mode_to_item(craft);
+        }
+        if (name.slice(0, 3) === 'CI-') {
+            const custom = decodeCustom({hash: name.substring(3)});
+            if (custom) return _apply_roll_mode_to_item(custom);
         }
         const item_obj = itemMap.get(name);
         if (!item_obj) {

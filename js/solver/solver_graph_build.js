@@ -250,8 +250,9 @@ function _collect_solver_params() {
     // Guild tome
     const gtome = parseInt(document.getElementById('restr-guild-tome')?.value) || 0;
 
-    // Combo time
-    const ctime = parseInt(document.getElementById('combo-time')?.value) || 0;
+    // Combo time (only encode if manually set — auto is recomputed on load)
+    const ctime_el = document.getElementById('combo-time');
+    const ctime = (ctime_el?.dataset.auto === 'true') ? 0 : (parseInt(ctime_el?.value) || 0);
 
     // Allow Downtime
     const dtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;

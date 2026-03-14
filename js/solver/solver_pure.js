@@ -342,6 +342,14 @@ function find_all_matching_boosts(token_name, token_value, is_pct, registry) {
 
         if (entry.type === 'toggle') {
             if (exact_match) results.push({ entry, effective_value: 1 });
+        } else if (entry.type === 'calculated') {
+            // Calculated boost (e.g. Blood Pact): the token value IS the final
+            // percentage, applied as a direct override to the stat_bonuses value.
+            // effective_value is set so that value * effective_value = token_value.
+            if (exact_match && is_pct) {
+                const base_val = entry.stat_bonuses[0]?.value || 1;
+                results.push({ entry, effective_value: token_value / base_val });
+            }
         } else {
             // slider
             if (exact_match) {

@@ -16,3 +16,12 @@ const MAX_PLAYER_LEVEL = 121;
 
 // ── Mana ─────────────────────────────────────────────────────────────────────
 const BASE_MANA_REGEN = 25;        // Base mana regen per 5 seconds (all classes)
+const MANA_TICK_SECONDS = 5;       // Mana regen tick period (seconds)
+
+// ── Health ───────────────────────────────────────────────────────────────────
+const HIDDEN_BASE_HPR = 3;         // Hidden base HP regen per tick (not affected by hprPct)
+const HPR_TICK_SECONDS = 4;        // HP regen tick period (seconds)
+
+// ── Spell Timing ─────────────────────────────────────────────────────────────
+const SPELL_CAST_TIME = 0.3;       // Spell cast time (seconds)
+const SPELL_CAST_DELAY = 0.1;      // Delay between spell casts (seconds)

@@ -189,7 +189,20 @@ function build_combo_boost_registry(atree_merged, build = null) {
                 }
                 if (stat_bonuses.length > 0 || prop_bonuses.length > 0) {
                     toggle_seen.add(toggle_name);
-                    registry.push({ name: toggle_name, aliases: [], type: 'toggle', stat_bonuses, prop_bonuses });
+                    // Blood Pact: convert to 'calculated' type — the bonus % is
+                    // auto-computed by the spell-to-spell simulation engine.
+                    const is_blood_pact = stat_bonuses.some(b => b.key === 'damMult.BloodPact');
+                    if (is_blood_pact) {
+                        registry.push({
+                            name: toggle_name, aliases: [], type: 'calculated',
+                            stat_bonuses, prop_bonuses,
+                            calc_key: 'blood_pact',
+                            damage_boost_min: BLOOD_PACT_BONUS_MIN,
+                            damage_boost_max: BLOOD_PACT_BONUS_MAX,
+                        });
+                    } else {
+                        registry.push({ name: toggle_name, aliases: [], type: 'toggle', stat_bonuses, prop_bonuses });
+                    }
                 }
             } else if (effect.type === 'stat_scaling' && effect.slider === true) {
                 const slider_name = effect.slider_name;

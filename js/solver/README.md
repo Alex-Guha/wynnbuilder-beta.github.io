@@ -16,8 +16,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Necessary Improvements
-- Consider Warrior bloodpact in mana calc; is it even possible?
-    - base hpr 3, not affected by hpr%
 
 
 ### Improve Solver
@@ -30,6 +28,8 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 #### Combo
+- Refactor the blood pact/bakal's grasp stuff into the atree somehow
+- Add healing stuff to atree (Intoxicating Blood, Rejuvenating Skin, that kind of stuff)
 
 
 ### Testing
@@ -41,5 +41,8 @@ The combo damage calculation has been tested against WynnBuilder output for some
 #### Combo Mana Calculation
 
 ### Long term
-- Advanced mode, where the per-spell cast time and durations and spell hits and what not can be specified
 - Automatic combo sequencing - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a per-spell state machine for each ability interaction. This is a significant undertaking and was deferred from the initial design.
+- Advanced mode, where the per-spell cast time and durations and spell hits and what not can be specified
+- Consider Warrior bloodpact in mana calc; is it even possible?
+    - Could make the mana calculate spell to spell in combo order, but then you have to assume a cast time and delay between spells
+    - base hpr 3, not affected by hpr%

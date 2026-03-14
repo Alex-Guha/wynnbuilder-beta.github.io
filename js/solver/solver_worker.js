@@ -238,6 +238,7 @@ function _eval_combo_damage(combo_base) {
  * Mirrors _update_mana_display() in solver_combo_node.js.
  */
 function _eval_combo_mana_check(combo_base) {
+    if (_cfg.hp_casting) return true;   // Blood Pact: spells paid with HP, skip mana gating
     const combo_time = _cfg.combo_time ?? 0;
     if (!combo_time) return true;
 

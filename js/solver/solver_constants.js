@@ -50,6 +50,29 @@ const MANA_RESET_SPELL_ID = -2000;
 /** Reserved 7-bit node ID for Mana Reset in binary URL encoding. */
 const MANA_RESET_NODE_ID = 126;
 
+/**
+ * Internal spell ID for the "Cancel Bak'al's Grasp" pseudo-spell.
+ * Ends corruption state; if Exhilarate is taken, heals 30% of corruption bar.
+ */
+const CANCEL_BAKALS_SPELL_ID = -2001;
+
+/** Reserved 7-bit node ID for Cancel Bak'al's Grasp in binary URL encoding. */
+const CANCEL_BAKALS_NODE_ID = 119;
+
+// ── Blood Pact / Bak'al's Grasp ability IDs ─────────────────────────────────
+
+const BLOOD_PACT_ABIL_ID = 31;
+const BAKALS_GRASP_ABIL_ID = 25;
+const EXHILARATE_ABIL_ID = 39;
+const HAEMORRHAGE_ABIL_ID = 75;
+
+/** Blood Pact bonus damage range (min when all mana, max when all health). */
+const BLOOD_PACT_BONUS_MIN = 15;
+const BLOOD_PACT_BONUS_MAX = 25;
+
+/** War Scream base_spell ID — triggers Bak'al's Grasp corruption. */
+const WAR_SCREAM_BASE_SPELL = 4;
+
 // ── Solver-specific constants ────────────────────────────────────────────────
 
 /**

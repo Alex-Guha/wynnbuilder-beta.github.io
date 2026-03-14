@@ -87,6 +87,11 @@
     min-width: 8em;
 }
 
+/* Warning border for rows where HP < cost or mana < cost without Blood Pact */
+.combo-row-spell.combo-row-warning {
+    border-color: orange !important;
+}
+
 /* Boosts wrapper and button stay at natural (content) width. */
 .combo-boost-btn-wrap {
     flex-shrink: 0;

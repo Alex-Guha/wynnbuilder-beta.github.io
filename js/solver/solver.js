@@ -642,7 +642,10 @@ async function init() {
     if (solver_params) {
         if (solver_params.ctime) {
             const time_inp = document.getElementById('combo-time');
-            if (time_inp) time_inp.value = solver_params.ctime;
+            if (time_inp) {
+                time_inp.value = solver_params.ctime;
+                time_inp.dataset.auto = 'false';  // URL-provided = manual
+            }
         }
 
         if (solver_params.dtime) {
