@@ -812,7 +812,7 @@ function _run_solver_search_workers(pools, locked, snap) {
             if (msg.type === 'progress') {
                 wstate._cur_checked = msg.checked;
                 wstate._cur_feasible = msg.feasible;
-                wstate._cur_top5 = msg.top5_names ?? [];
+                if (msg.top5_names) wstate._cur_top5 = msg.top5_names;
             } else if (msg.type === 'done') {
                 _on_partition_done(wstate, msg);
             }
@@ -924,12 +924,16 @@ function start_solver_search() {
         Object.entries(pools).map(([k, v]) => [k, v.length])
     ));
 
+    // Pre-compute weights once for both pruning and priority sorting.
+    const dmg_weights = _build_dmg_weights(snap);
+    const constraint_weights = _build_constraint_weights(restrictions);
+
     // Remove dominated items before sorting; smaller pools benefit search and sort.
-    _prune_dominated_items(pools, snap, restrictions);
+    _prune_dominated_items(pools, dmg_weights, restrictions);
 
     // Sort each pool by damage/constraint relevance so level-0 visits the
     // best build first. NONE items are moved to the end of each pool.
-    _prioritize_pools(pools, snap, restrictions);
+    _prioritize_pools(pools, dmg_weights, constraint_weights);
 
     // Compute total candidate count
     {

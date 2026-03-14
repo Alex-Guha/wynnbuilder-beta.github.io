@@ -46,16 +46,30 @@ const _SOLVER_WORKER_DEBUG = false;
 
 // ── Search state ────────────────────────────────────────────────────────────
 
-const PROGRESS_INTERVAL = 500;
+const PROGRESS_INTERVAL = 5000;
 let _checked = 0;
 let _feasible = 0;
 let _top5 = [];
+let _top5_version = 0;
+let _last_sent_top5_version = 0;
 
 function _insert_top5(candidate) {
     _top5.push(candidate);
     _top5.sort((a, b) => b.score - a.score);
     if (_top5.length > 5) _top5.length = 5;
+    _top5_version++;
 }
+
+// ── Pre-allocated scratch Maps (reused across leaves to eliminate GC churn) ──
+
+const _scratch_finalize = new Map();
+const _scratch_pre_scale = new Map();
+const _scratch_pre_scale_nested = { damMult: new Map(), defMult: new Map(), healMult: new Map() };
+const _scratch_combo_base = new Map();
+const _scratch_combo_base_nested = { damMult: new Map(), defMult: new Map(), healMult: new Map() };
+const _scratch_thresh = new Map();
+const _scratch_thresh_nested = { damMult: new Map(), defMult: new Map(), healMult: new Map() };
+const _scratch_row = { stats: new Map(), damMult: new Map(), defMult: new Map(), prop_overrides: new Map() };
 
 /**
  * Build constraint prechecks from the restriction thresholds.
@@ -165,25 +179,25 @@ function _fast_ehp_precheck(running_sm) {
 // ── Per-candidate stat assembly ─────────────────────────────────────────────
 
 function _assemble_combo_stats(build_sm, total_sp, weapon_sm) {
-    const pre_scale = _deep_clone_statmap(build_sm);
+    _deep_clone_statmap_into(_scratch_pre_scale, build_sm, _scratch_pre_scale_nested);
     for (let i = 0; i < skp_order.length; i++) {
-        pre_scale.set(skp_order[i], total_sp[i]);
+        _scratch_pre_scale.set(skp_order[i], total_sp[i]);
     }
     const weaponType = weapon_sm.get('type');
-    if (weaponType) pre_scale.set('classDef', classDefenseMultipliers.get(weaponType) || 1.0);
-    _merge_into(pre_scale, _cfg.atree_raw);
-    const radiance_scaled = _apply_radiance_scale(pre_scale, _cfg.radiance_boost);
+    if (weaponType) _scratch_pre_scale.set('classDef', classDefenseMultipliers.get(weaponType) || 1.0);
+    _merge_into(_scratch_pre_scale, _cfg.atree_raw);
+    _apply_radiance_scale_inplace(_scratch_pre_scale, _cfg.radiance_boost);
     const [, atree_scaled_stats] = worker_atree_scaling(
-        _cfg.atree_merged, radiance_scaled, _cfg.button_states, _cfg.slider_states);
-    const combo_base = _deep_clone_statmap(radiance_scaled);
-    _merge_into(combo_base, atree_scaled_stats);
-    _merge_into(combo_base, _cfg.static_boosts);
-    return combo_base;
+        _cfg.atree_merged, _scratch_pre_scale, _cfg.button_states, _cfg.slider_states);
+    _deep_clone_statmap_into(_scratch_combo_base, _scratch_pre_scale, _scratch_combo_base_nested);
+    _merge_into(_scratch_combo_base, atree_scaled_stats);
+    _merge_into(_scratch_combo_base, _cfg.static_boosts);
+    return _scratch_combo_base;
 }
 
 function _assemble_threshold_stats(combo_base) {
     // static_boosts are already merged into combo_base by _assemble_combo_stats.
-    return _deep_clone_statmap(combo_base);
+    return _deep_clone_statmap_into(_scratch_thresh, combo_base, _scratch_thresh_nested);
 }
 
 function _check_thresholds(stats, thresholds) {
@@ -222,7 +236,7 @@ function _eval_combo_damage(combo_base) {
     for (const { qty, spell, boost_tokens, dmg_excl, dps_per_hit_name, dps_hits } of _cfg.parsed_combo) {
         if (dmg_excl) continue;
         const { stats, prop_overrides } =
-            apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry);
+            apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry, _scratch_row);
         const mod_spell = apply_spell_prop_overrides(spell, prop_overrides, _cfg.atree_merged);
         if (dps_per_hit_name) {
             // DPS spell: compute per-hit damage × hit count (matching main thread).
@@ -290,7 +304,7 @@ function _eval_combo_mana_check(combo_base) {
 function _eval_combo_healing(combo_base) {
     let total = 0;
     for (const { qty, spell, boost_tokens } of _cfg.parsed_combo) {
-        const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry);
+        const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry, _scratch_row);
         total += computeSpellHealingTotal(stats, spell) * qty;
     }
     return total;
@@ -475,16 +489,21 @@ function _run_level_enum() {
 
     function _maybe_progress() {
         if (_checked % PROGRESS_INTERVAL === 0) {
-            postMessage({
+            const msg = {
                 type: 'progress',
                 worker_id: _cfg.worker_id,
                 checked: _checked,
                 feasible: _feasible,
-                top5_names: _top5.map(r => ({
+            };
+            // Only include top5 data when it has actually changed
+            if (_top5_version !== _last_sent_top5_version) {
+                msg.top5_names = _top5.map(r => ({
                     score: r.score, item_names: r.item_names,
                     base_sp: r.base_sp, total_sp: r.total_sp, assigned_sp: r.assigned_sp,
-                })),
-            });
+                }));
+                _last_sent_top5_version = _top5_version;
+            }
+            postMessage(msg);
         }
     }
 
@@ -591,7 +610,7 @@ function _run_level_enum() {
         // Build stat assembly from running statMap (incremental accumulation)
         const t0 = _dbg ? performance.now() : 0;
         const all_equip_sms = [...equip_8_sms, ...tome_sms, weapon_sm];
-        const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, all_equip_sms);
+        const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, all_equip_sms, _scratch_finalize);
 
         // Greedily assign any remaining SP budget to maximise the scoring target
         const final_assigned = _greedy_allocate_sp(build_sm, base_sp, total_sp, assigned_sp, weapon_sm);
@@ -994,6 +1013,8 @@ self.onmessage = function (e) {
             _checked = 0;
             _feasible = 0;
             _top5 = [];
+            _top5_version = 0;
+            _last_sent_top5_version = 0;
             try {
                 _run_level_enum();
             } catch (err) {
@@ -1014,6 +1035,8 @@ self.onmessage = function (e) {
         _checked = 0;
         _feasible = 0;
         _top5 = [];
+        _top5_version = 0;
+        _last_sent_top5_version = 0;
         _cancelled = false;
 
         try {

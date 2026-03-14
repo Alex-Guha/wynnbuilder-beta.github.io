@@ -6,9 +6,11 @@
 // Set to true to log priority scores and pool ordering to the console.
 const _SOLVER_DEBUG_PRIORITY = false;
 
-// ── Item stat helpers ────────────────────────────────────────────────────────
+// Stats that are computed from the full build (not direct item stats) —
+// excluded from constraint weights and dominance check_stats.
+const _INDIRECT_CONSTRAINT_STATS = new Set(['ehp', 'ehp_no_agi', 'total_hp', 'ehpr', 'hpr']);
 
-const _WEAPON_ELEM = { spear: 'e', wand: 'w', bow: 'a', dagger: 't', relik: 'f' };
+// ── Item stat helpers ────────────────────────────────────────────────────────
 
 /**
  * Read a stat's contribution from an item statMap.
@@ -117,8 +119,8 @@ function _build_dmg_weights(snap) {
 function _build_constraint_weights(restrictions) {
     const weights = [];
     for (const { stat, op, value } of restrictions.stat_thresholds ?? []) {
-        // Only ge constraints on direct stats (not computed ehp/ehp_no_agi/total_hp/ehpr/hpr — too indirect)
-        if (op !== 'ge' || stat === 'ehp' || stat === 'ehp_no_agi' || stat === 'total_hp' || stat === 'ehpr' || stat === 'hpr' || value <= 0) continue;
+        // Only ge constraints on direct stats (not computed — too indirect)
+        if (op !== 'ge' || _INDIRECT_CONSTRAINT_STATS.has(stat) || value <= 0) continue;
         // A full threshold's worth of this stat on one item ≈ 25 priority points
         weights.push({ stat, per_unit: 25 / value });
     }
@@ -150,9 +152,7 @@ function _score_item_priority(item_sm, dmg_weights, constraint_weights) {
  * so the first complete builds found are likely to be strong ones. This
  * makes interim UI updates much more useful without changing search correctness.
  */
-function _prioritize_pools(pools, snap, restrictions) {
-    const dmg_weights = _build_dmg_weights(snap);
-    const constraint_weights = _build_constraint_weights(restrictions);
+function _prioritize_pools(pools, dmg_weights, constraint_weights) {
 
     if (_SOLVER_DEBUG_PRIORITY) {
         console.log('[solver] damage weights:', Object.fromEntries(dmg_weights));
@@ -215,17 +215,16 @@ function _prioritize_pools(pools, snap, restrictions) {
  *
  * @returns {number} Total items pruned across all pools.
  */
-function _prune_dominated_items(pools, snap, restrictions) {
-    const dmg_weights = _build_dmg_weights(snap);
-
+function _prune_dominated_items(pools, dmg_weights, restrictions) {
     // Stats to compare: all scoring-relevant stats + stat-threshold stats
     // (threshold constraints are ge-only, so higher is always at least as good).
-    const check_stats = [...dmg_weights.keys()];
+    const check_stats_set = new Set(dmg_weights.keys());
     for (const { stat, op } of (restrictions.stat_thresholds ?? [])) {
-        if (op === 'ge' && stat !== 'ehp' && stat !== 'ehp_no_agi' && stat !== 'total_hp' && stat !== 'ehpr' && stat !== 'hpr' && !check_stats.includes(stat)) {
-            check_stats.push(stat);
+        if (op === 'ge' && !_INDIRECT_CONSTRAINT_STATS.has(stat)) {
+            check_stats_set.add(stat);
         }
     }
+    const check_stats = [...check_stats_set];
 
     let total_pruned = 0;
 

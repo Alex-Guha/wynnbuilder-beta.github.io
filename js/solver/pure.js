@@ -331,15 +331,29 @@ function find_all_matching_boosts(token_name, token_value, is_pct, registry) {
  * Apply per-row boost tokens to a clone of base_stats.
  * Returns { stats: modified_stats, prop_overrides: Map<'abilId.prop', value> }.
  */
-function apply_combo_row_boosts(base_stats, boost_tokens, registry) {
-    // Shallow-clone outer map; deep-clone the nested damMult / defMult Maps.
-    const stats   = new Map(base_stats);
-    const damMult = new Map(base_stats.get('damMult') ?? []);
-    const defMult = new Map(base_stats.get('defMult') ?? []);
+function apply_combo_row_boosts(base_stats, boost_tokens, registry, scratch) {
+    let stats, damMult, defMult;
+    if (scratch) {
+        // Reuse pre-allocated Maps (zero allocation for the outer + nested Maps)
+        stats = scratch.stats;   stats.clear();
+        for (const [k, v] of base_stats) stats.set(k, v);
+        damMult = scratch.damMult; damMult.clear();
+        const dm = base_stats.get('damMult');
+        if (dm) for (const [k, v] of dm) damMult.set(k, v);
+        defMult = scratch.defMult; defMult.clear();
+        const dfm = base_stats.get('defMult');
+        if (dfm) for (const [k, v] of dfm) defMult.set(k, v);
+    } else {
+        // Allocating path (main thread / non-worker callers)
+        stats   = new Map(base_stats);
+        damMult = new Map(base_stats.get('damMult') ?? []);
+        defMult = new Map(base_stats.get('defMult') ?? []);
+    }
     stats.set('damMult', damMult);
     stats.set('defMult', defMult);
 
-    const prop_overrides = new Map();
+    const prop_overrides = scratch?.prop_overrides ?? new Map();
+    if (scratch?.prop_overrides) prop_overrides.clear();
 
     for (const { name, value, is_pct } of boost_tokens) {
         const matches = find_all_matching_boosts(name, value, !!is_pct, registry);
@@ -535,6 +549,30 @@ function _deep_clone_statmap(sm) {
     return ret;
 }
 
+/**
+ * Clone a statmap into a pre-allocated target Map (zero allocation for the outer Map).
+ * When nested_targets is provided ({damMult, defMult, healMult} Maps), nested Maps
+ * are also cloned into pre-allocated targets, eliminating all Map allocations.
+ */
+function _deep_clone_statmap_into(target, sm, nested_targets) {
+    target.clear();
+    for (const [k, v] of sm) {
+        if (v instanceof Map) {
+            const nt = nested_targets?.[k];
+            if (nt) {
+                nt.clear();
+                for (const [mk, mv] of v) nt.set(mk, mv);
+                target.set(k, nt);
+            } else {
+                target.set(k, new Map(v));
+            }
+        } else {
+            target.set(k, v);
+        }
+    }
+    return target;
+}
+
 function _merge_into(target, source) {
     if (!source) return;
     for (const [k, v] of source) {
@@ -558,6 +596,19 @@ function _apply_radiance_scale(statMap, boost) {
         }
     }
     return ret;
+}
+
+/** In-place radiance scaling (no allocation). */
+function _apply_radiance_scale_inplace(statMap, boost) {
+    if (boost === 1) return;
+    for (const id of radiance_affected) {
+        const val = statMap.get(id) || 0;
+        if (reversedIDs.includes(id)) {
+            if (val < 0) statMap.set(id, Math.floor(val * boost));
+        } else {
+            if (val > 0) statMap.set(id, Math.floor(val * boost));
+        }
+    }
 }
 
 /**

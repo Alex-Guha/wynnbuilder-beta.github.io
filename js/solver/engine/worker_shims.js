@@ -206,8 +206,15 @@ function _init_running_statmap(level, fixed_item_sms) {
  * Applies set bonuses, sets up damMult/defMult/healMult/majorIDs.
  * Finalizes all stats at the leaf level of the search tree.
  */
-function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map, all_equip_sms) {
-    const sm = new Map(running_sm);
+function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map, all_equip_sms, target) {
+    let sm;
+    if (target) {
+        sm = target;
+        sm.clear();
+        for (const [k, v] of running_sm) sm.set(k, v);
+    } else {
+        sm = new Map(running_sm);
+    }
 
     // Apply set bonuses (non-SP bonuses only; SP bonuses are in total_sp)
     for (const [setName, count] of activeSetCounts) {
