@@ -25,6 +25,13 @@ const SOLVER_DEBUG_DOMINANCE = false;
 // rejection counts, feasible leaf timing, and best score found.  [worker.js]
 const SOLVER_DEBUG_WORKER = false;
 
+// ── Sensitivity weight computation (main thread) ─────────────────────────────
+
+// Log sensitivity weight computation: baseline stats, per-stat sensitivities
+// sorted by magnitude, SP sensitivities, constraint/mana bonuses, and
+// dominance classification.  [item_priority.js]
+const SOLVER_DEBUG_SENSITIVITY = false;
+
 // ── Combo damage (main thread + Web Worker) ─────────────────────────────────
 
 // Log detailed combo damage computation on the page (node.js) and re-evaluate

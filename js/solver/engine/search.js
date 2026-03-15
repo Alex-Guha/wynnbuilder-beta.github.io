@@ -313,8 +313,10 @@ function _build_solver_snapshot(restrictions) {
     // Serialize atree interactive state for workers
     const { button_states, slider_states } = _serialize_atree_interactive(atree_interactive_val);
 
+    const weapon_sm = weapon?.statMap ?? new Map();
+
     return {
-        weapon, level, tomes, atree_raw, atree_mgd,
+        weapon, weapon_sm, level, tomes, atree_raw, atree_mgd,
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
         restrictions, button_states, slider_states, scoring_target,
@@ -1124,9 +1126,8 @@ function start_solver_search() {
         Object.entries(pools).map(([k, v]) => [k, v.length])
     ));
 
-    // Pre-compute weights once for both pruning and priority sorting.
-    const dmg_weights = _build_dmg_weights(snap);
-    const constraint_weights = _build_constraint_weights(restrictions);
+    // Pre-compute sensitivity-based weights for pruning and priority sorting.
+    const dmg_weights = _build_dmg_weights(snap, locked, pools);
 
     // Remove dominated items before sorting; smaller pools benefit search and sort.
     const dominance_stats = _build_dominance_stats(snap, dmg_weights, restrictions);
@@ -1134,7 +1135,7 @@ function start_solver_search() {
 
     // Sort each pool by damage/constraint relevance so level-0 visits the
     // best build first. NONE items are moved to the end of each pool.
-    _prioritize_pools(pools, dmg_weights, constraint_weights);
+    _prioritize_pools(pools, dmg_weights);
 
     // Compute total candidate count
     {

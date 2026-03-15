@@ -247,19 +247,21 @@ Because both rings draw from the same pool and the pair is unordered, rings are 
 
 ## High priority improvements
 
-### Intelligent priority scoring
-Order items by whatever is needed most in the build, focusing on fulfilling constraints first
-i.e. (target ehp - current ehp) / current ehp vs (target MR - current MR) / current MR
+### Build priority
+Ensure build combinations are iterated through in order of combined priority instead of just (1, 1, 1, 1) -> (1, 1, 1, N) -> (1, 1, 2, 1) -> (1, 1, 2, N).
 
-### Tune item pool ordering
-Develop a testing suite for `_build_dmg_weights` in `engine/item_priority.js`.
+### Target Function
+On solver start, convert the solver target into a clean function with all the relevant stats as inputs and the target as the output. This will save the solver workers from having to propogate changes to the entire combo for every build combination, but could be quite complicated when we have to factor in mana and even hp. What I have envisioned is the entire combo and damage calculation getting converted into a massive formula.
+
+### Optimize.
+Feasible leaf calculations are incredibly slow right now.
+
+### Integrate rings into generic slot ordering
+Move ring iteration into the main `enumerate()` loop (treating rings as a single "ring pair" slot with a pool of `(i, j)` pairs). This would unify the three ring-case code paths, allow rings to participate in the smallest-first slot ordering and level-based enumeration, and simplify partitioning. The `i ≤ j` constraint and pool-level duplicate filtering would need to be encoded in the pair pool.
 
 ---
 
 ## Potential Improvements
-
-### Integrate rings into generic slot ordering
-Move ring iteration into the main `enumerate()` loop (treating rings as a single "ring pair" slot with a pool of `(i, j)` pairs). This would unify the three ring-case code paths, allow rings to participate in the smallest-first slot ordering and level-based enumeration, and simplify partitioning. The `i ≤ j` constraint and pool-level duplicate filtering would need to be encoded in the pair pool.
 
 ### Weighted multi-objective scoring
 Replace the single combo-damage score with a weighted sum of multiple objectives: `w₁ × damage + w₂ × EHP + w₃ × mana_sustain + ...`. Users specify weights. This makes the solver useful for tank, support, or hybrid builds without changing the search algorithm — only the leaf scoring function changes.

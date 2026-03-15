@@ -24,16 +24,16 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 ### Polish
 #### UI
-
+- Report when we've passed the "optimal likely already found" point.
 
 #### Combo
 - Add healing stuff to atree (Intoxicating Blood, Rejuvenating Skin, that kind of stuff)
 
 
 ### Testing
-
-- Verify that the mana calc handles tier drop and that the solver looks at these when optimizing. I.e. if mana steal is present, then it may be more optimal to add tier drop than more MS.
+- Test tstack builds
 - Add more complicated scenarios to test_dominance.js
+- Add more tests
 
 #### Archetypes/Combos
 
