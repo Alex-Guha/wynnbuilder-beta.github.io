@@ -531,15 +531,19 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
         const ratio = total_mana_cost > 0 ? Math.min(1, Math.max(0, deficit / total_mana_cost)) : 0;
         const mana_bonus = max_abs * _MANA_WEIGHT_FRACTION * ratio;
 
+        const has_melee = (snap.parsed_combo ?? []).some(r => (r.spell?.scaling ?? 'spell') === 'melee');
         if (mana_bonus > 0) {
             weights._priority_only.set('mr', (weights._priority_only.get('mr') ?? 0) + mana_bonus);
-            weights._priority_only.set('ms', (weights._priority_only.get('ms') ?? 0) + mana_bonus * 0.5);
+            if (has_melee) {
+                weights._priority_only.set('ms', (weights._priority_only.get('ms') ?? 0) + mana_bonus * 0.5);
+            }
             weights._priority_only.set('maxMana', (weights._priority_only.get('maxMana') ?? 0) + mana_bonus * 0.3);
             // Boost int SP sensitivity for mana
             weights._sp_sensitivities[2] += mana_bonus * 0.5; // int is index 2
 
             if (SOLVER_DEBUG_SENSITIVITY) {
-                console.log(`[solver][sensitivity] mana bonus: ratio=${ratio.toFixed(2)}, mr+=${mana_bonus.toFixed(2)}, ms+=${(mana_bonus * 0.5).toFixed(2)}`);
+                console.log(`[solver][sensitivity] mana bonus: ratio=${ratio.toFixed(2)}, mr+=${mana_bonus.toFixed(2)}` +
+                    (has_melee ? `, ms+=${(mana_bonus * 0.5).toFixed(2)}` : ', ms=0 (no melee)'));
             }
         }
     }

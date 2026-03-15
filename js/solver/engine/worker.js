@@ -64,6 +64,8 @@ function _insert_top5(candidate) {
 
 // ── Pre-allocated scratch Maps (reused across leaves to eliminate GC churn) ──
 
+let _cached_hp_sim = null;  // cached simulate_combo_mana_hp result (avoids double-sim)
+
 const _scratch_finalize = new Map();
 const _scratch_pre_scale = new Map();
 const _scratch_pre_scale_nested = { damMult: new Map(), defMult: new Map(), healMult: new Map() };
@@ -246,8 +248,9 @@ function _eval_combo_damage(combo_base, debug) {
 
     if (hp_tracking) {
         const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-        const sim = simulate_combo_mana_hp(
+        const sim = _cached_hp_sim ?? simulate_combo_mana_hp(
             _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry);
+        _cached_hp_sim = null;  // consume cache
 
         if (debug) {
             console.log('[COMBO-DEBUG][WORKER] sim results:', JSON.stringify(sim.row_results.map((r, i) => ({
@@ -295,7 +298,18 @@ function _eval_combo_damage(combo_base, debug) {
  * Mirrors _update_mana_display() in solver_combo_node.js.
  */
 function _eval_combo_mana_check(combo_base) {
-    if (_cfg.hp_casting) return true;   // Blood Pact: spells paid with HP, skip mana gating
+    _cached_hp_sim = null;
+    if (_cfg.hp_casting) {
+        // Blood Pact: spells paid with HP, skip mana gating but check HP viability.
+        const hc = _cfg.health_config;
+        if (!hc) return true;
+        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
+        const sim = simulate_combo_mana_hp(
+            _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry);
+        _cached_hp_sim = sim;
+        // Reject if any row would kill the player (HP insufficient for blood cost)
+        return !sim.row_results.some(r => r.hp_warning);
+    }
     const combo_time = _cfg.combo_time ?? 0;
     if (!combo_time) return true;
 
@@ -432,6 +446,7 @@ function _run_level_enum() {
     let _dbg_sp_reject = 0;
     let _dbg_threshold_reject = 0;
     let _dbg_mana_reject = 0;
+    let _dbg_hp_reject = 0;
     let _dbg_scored = 0;
     let _dbg_leaf_time = 0;  // cumulative ms for feasible leaf processing
 
@@ -440,14 +455,31 @@ function _run_level_enum() {
     // Wrap NONE statMaps into the same {statMap, _illegalSet, _illegalSetName} format
     const none_items_wrapped = none_item_sms.map(sm => ({ statMap: sm, _illegalSet: null, _illegalSetName: null }));
 
-    // Determine free armor/accessory slots, sorted by pool size ascending (smallest first)
-    const free_armor_slots = [];
+    // Determine all free slots (armor/accessory + rings), sorted by pool size ascending.
+    // Rings are included in the unified level enumeration for combined-priority ordering.
+    const free_slots = [];
     for (const slot of ['helmet', 'chestplate', 'leggings', 'boots', 'bracelet', 'necklace']) {
-        if (!locked[slot]) free_armor_slots.push(slot);
+        if (!locked[slot]) free_slots.push(slot);
     }
-    free_armor_slots.sort((a, b) => (pools[a]?.length ?? 0) - (pools[b]?.length ?? 0));
+    if (!ring1_locked) free_slots.push('ring1');
+    if (!ring2_locked) free_slots.push('ring2');
 
-    const rings_free = !ring1_locked || !ring2_locked;
+    // Pool lookup: ring1/ring2 share ring_pool; armor slots use pools[slot].
+    const _get_pool = (slot) =>
+        (slot === 'ring1' || slot === 'ring2') ? ring_pool : pools[slot];
+
+    free_slots.sort((a, b) => {
+        const diff = (_get_pool(a)?.length ?? 0) - (_get_pool(b)?.length ?? 0);
+        if (diff !== 0) return diff;
+        // Ensure ring1 before ring2 (same pool size) for symmetry constraint.
+        if (a === 'ring1' && b === 'ring2') return -1;
+        if (a === 'ring2' && b === 'ring1') return 1;
+        return 0;
+    });
+
+    // Depth indices for ring slots (-1 if locked). Used for symmetry & partition logic.
+    const ring1_depth = free_slots.indexOf('ring1');
+    const ring2_depth = free_slots.indexOf('ring2');
 
     // partial: holds item wrapper objects for each of the 8 equipment positions
     const partial = {
@@ -474,17 +506,17 @@ function _run_level_enum() {
         pools[partition.slot] = pools[partition.slot].slice(partition.start, partition.end);
     }
 
-    const N_free = free_armor_slots.length;
+    const N_free = free_slots.length;
 
     // ── Mid-tree SP pruning precomputation ─────────────────────────────────
     //
-    // For each free armor slot's pool, the element-wise max provision across
+    // For each free slot's pool, the element-wise max provision across
     // all items.  Used to compute an optimistic upper bound on bonus SP from
     // remaining (unplaced) slots.
 
     const _sp_max_pool_prov = [];  // _sp_max_pool_prov[depth_idx] = [5]
     for (let d = 0; d < N_free; d++) {
-        const pool = pools[free_armor_slots[d]];
+        const pool = _get_pool(free_slots[d]);
         const maxp = [0, 0, 0, 0, 0];
         if (pool) {
             for (const item of pool) {
@@ -672,9 +704,10 @@ function _run_level_enum() {
             }
         }
 
-        // Mana constraint check (only when combo_time is set)
-        if (!_eval_combo_mana_check(combo_base)) {
-            _dbg_mana_reject++;
+        // Mana / HP constraint check
+        const mana_hp_result = _eval_combo_mana_check(combo_base);
+        if (!mana_hp_result) {
+            if (_cfg.hp_casting) _dbg_hp_reject++; else _dbg_mana_reject++;
             if (_dbg) _dbg_leaf_time += performance.now() - t0;
             _maybe_progress();
             return;
@@ -706,8 +739,8 @@ function _run_level_enum() {
 
     // Compute the maximum achievable level (sum of pool sizes - 1 per slot)
     let L_max = 0;
-    for (const slot of free_armor_slots) {
-        const p = pools[slot];
+    for (const slot of free_slots) {
+        const p = _get_pool(slot);
         if (p) L_max += p.length - 1;
     }
 
@@ -730,14 +763,14 @@ function _run_level_enum() {
     const _sp_running_free_prov = [0, 0, 0, 0, 0];
 
     /**
-     * Compute SP baseline from all fixed items (locked equips, placed rings,
-     * guild tome, weapon).  Called once per ring combination.
+     * Compute SP baseline from all fixed items (locked equips, guild tome,
+     * weapon).  Called once before the unified level enumeration.
      */
     function _sp_compute_fixed_baseline() {
         _sp_fixed_max_eff_req.fill(0);
         _sp_fixed_sum_prov.fill(0);
 
-        const free_set = new Set(free_armor_slots);
+        const free_set = new Set(free_slots);
         for (const [slot, item] of Object.entries(partial)) {
             if (free_set.has(slot)) continue;
             if (!item || !item.statMap || item.statMap.has('NONE')) continue;
@@ -778,9 +811,9 @@ function _run_level_enum() {
 
     /**
      * Reset running SP state and compute fixed baseline.
-     * Called before each run_armor_levels().
+     * Called once before the unified level enumeration.
      */
-    function _sp_reset_for_armor_enum() {
+    function _sp_reset() {
         _sp_compute_fixed_baseline();
         _sp_running_free_prov.fill(0);
         for (let i = 0; i < 5; i++)
@@ -788,7 +821,7 @@ function _run_level_enum() {
     }
 
     /**
-     * Update running SP state when placing a free armor item at a given depth.
+     * Update running SP state when placing a free item at a given depth.
      */
     function _sp_place_free_item(sm, depth) {
         const skp = sm.get('skillpoints');
@@ -812,7 +845,7 @@ function _run_level_enum() {
     }
 
     /**
-     * Restore running SP state when unplacing a free armor item at a given depth.
+     * Restore running SP state when unplacing a free item at a given depth.
      */
     function _sp_unplace_free_item(sm, depth) {
         if (!sm.get('crafted')) {
@@ -852,6 +885,9 @@ function _run_level_enum() {
         return true;
     }
 
+    // Track ring1's placed offset for ring2 symmetry constraint (ring2 offset >= ring1 offset).
+    let _ring1_placed_offset = 0;
+
     function enumerate(slot_idx, remaining_L) {
         if (_cancelled) return;
 
@@ -860,15 +896,36 @@ function _run_level_enum() {
             return;
         }
 
-        const slot = free_armor_slots[slot_idx];
-        const pool = pools[slot];
+        const slot = free_slots[slot_idx];
+        const pool = _get_pool(slot);
         if (!pool) { enumerate(slot_idx + 1, remaining_L); return; }
+
+        const is_ring1 = (slot_idx === ring1_depth);
+        const is_ring2 = (slot_idx === ring2_depth);
+
+        // Compute offset bounds for this slot.
+        let min_offset = 0;
+        let pool_max = pool.length - 1;
+
+        // Ring2 symmetry: offset >= ring1's offset (deduplicates symmetric pairs).
+        if (is_ring2 && ring1_depth >= 0) {
+            min_offset = _ring1_placed_offset;
+        }
+        // Ring partition: restrict ring1 (or single free ring) offset range.
+        if (is_ring1 && partition?.type === 'ring') {
+            min_offset = Math.max(min_offset, partition.start);
+            pool_max = Math.min(pool_max, partition.end - 1);
+        }
+        if ((is_ring1 || is_ring2) && partition?.type === 'ring_single') {
+            min_offset = Math.max(min_offset, partition.start);
+            pool_max = Math.min(pool_max, partition.end - 1);
+        }
 
         // For the last free slot, we must place an item at exactly offset=remaining_L.
         // This ensures each combination is visited at exactly one level (level == sum of offsets),
         // preventing duplicates where lower-sum combinations were re-evaluated at every higher L.
         if (slot_idx === N_free - 1) {
-            if (remaining_L <= pool.length - 1) {
+            if (remaining_L >= min_offset && remaining_L <= pool_max) {
                 const item = pool[remaining_L];
                 const is = item._illegalSet;
                 const iname = item._illegalSetName;
@@ -885,9 +942,9 @@ function _run_level_enum() {
             return;
         }
 
-        const max_offset = Math.min(remaining_L, pool.length - 1);
+        const max_offset = Math.min(remaining_L, pool_max);
 
-        for (let offset = 0; offset <= max_offset; offset++) {
+        for (let offset = min_offset; offset <= max_offset; offset++) {
             if (_cancelled) return;
             const item = pool[offset];
             const is = item._illegalSet;
@@ -898,6 +955,8 @@ function _run_level_enum() {
             partial[slot] = item;
             _place_item(item.statMap);
             _sp_place_free_item(item.statMap, slot_idx);
+
+            if (is_ring1) _ring1_placed_offset = offset;
 
             if (_sp_mid_tree_feasible(slot_idx + 1)) {
                 enumerate(slot_idx + 1, remaining_L - offset);
@@ -912,94 +971,23 @@ function _run_level_enum() {
         partial[slot] = locked[slot] ?? none_items_wrapped[_cfg.none_idx_map[slot]];
     }
 
-    // Iterate armor/accessory slots by level for each fixed ring context.
-    function run_armor_levels() {
-        if (N_free === 0) {
-            _evaluate_leaf();
-            return;
-        }
+    // ── Unified level enumeration over all free slots (armor + rings) ────────
+
+    _sp_reset();
+    if (N_free === 0) {
+        _evaluate_leaf();
+    } else {
         for (let L = 0; L <= L_max && !_cancelled; L++) {
             enumerate(0, L);
-        }
-    }
-
-    // ── Ring iteration ────────────────────────────────────────────────────────
-
-    if (!rings_free) {
-        _sp_reset_for_armor_enum();
-        run_armor_levels();
-    } else if (ring1_locked) {
-        const rp = ring_pool;
-        const rp_start = (partition?.type === 'ring_single') ? partition.start : 0;
-        const rp_end = (partition?.type === 'ring_single') ? partition.end : rp.length;
-        for (let j = rp_start; j < rp_end; j++) {
-            if (_cancelled) break;
-            const r2 = rp[j];
-            const is = r2._illegalSet;
-            if (tracker.blocks(is, r2._illegalSetName)) continue;
-            if (is) tracker.add(is, r2._illegalSetName);
-            partial.ring2 = r2;
-            _place_item(r2.statMap);
-            _sp_reset_for_armor_enum();
-            run_armor_levels();
-            _unplace_item(r2.statMap);
-            if (is) tracker.remove(is, r2._illegalSetName);
-        }
-    } else if (ring2_locked) {
-        const rp = ring_pool;
-        const rp_start = (partition?.type === 'ring_single') ? partition.start : 0;
-        const rp_end = (partition?.type === 'ring_single') ? partition.end : rp.length;
-        for (let j = rp_start; j < rp_end; j++) {
-            if (_cancelled) break;
-            const r1 = rp[j];
-            const is = r1._illegalSet;
-            if (tracker.blocks(is, r1._illegalSetName)) continue;
-            if (is) tracker.add(is, r1._illegalSetName);
-            partial.ring1 = r1;
-            _place_item(r1.statMap);
-            _sp_reset_for_armor_enum();
-            run_armor_levels();
-            _unplace_item(r1.statMap);
-            if (is) tracker.remove(is, r1._illegalSetName);
-        }
-    } else {
-        // Both rings free — enumerate (i, j) with i <= j
-        const rp = ring_pool;
-        const rp_start = (partition?.type === 'ring') ? partition.start : 0;
-        const rp_end = (partition?.type === 'ring') ? partition.end : rp.length;
-        for (let i = rp_start; i < rp_end; i++) {
-            if (_cancelled) break;
-            const r1 = rp[i];
-            const is1 = r1._illegalSet;
-            if (tracker.blocks(is1, r1._illegalSetName)) continue;
-            if (is1) tracker.add(is1, r1._illegalSetName);
-            partial.ring1 = r1;
-            _place_item(r1.statMap);
-            for (let j = i; j < rp.length; j++) {
-                if (_cancelled) break;
-                const r2 = rp[j];
-                const is2 = r2._illegalSet;
-                if (tracker.blocks(is2, r2._illegalSetName)) continue;
-                if (is2) tracker.add(is2, r2._illegalSetName);
-                partial.ring2 = r2;
-                _place_item(r2.statMap);
-                _sp_reset_for_armor_enum();
-                run_armor_levels();
-                _unplace_item(r2.statMap);
-                if (is2) tracker.remove(is2, r2._illegalSetName);
-            }
-            _unplace_item(r1.statMap);
-            if (is1) tracker.remove(is1, r1._illegalSetName);
         }
     }
 
     if (_dbg) {
         const pool_sizes = Object.fromEntries(
             Object.entries(pools).map(([k, v]) => [k, v.length]));
-        console.log('[w0] enum setup | free:', free_armor_slots,
+        console.log('[w0] enum setup | free:', free_slots,
             '| pools:', pool_sizes,
             '| L_max:', L_max,
-            '| rings_free:', rings_free,
             '| ring_pool:', ring_pool?.length,
             '| partition:', JSON.stringify(partition));
         console.log('[w0] leaf breakdown | checked:', _checked,
@@ -1010,6 +998,7 @@ function _run_level_enum() {
             '| feasible:', _feasible,
             '| threshold_reject:', _dbg_threshold_reject,
             '| mana_reject:', _dbg_mana_reject,
+            '| hp_reject:', _dbg_hp_reject,
             '| scored:', _dbg_scored);
         if (_feasible > 0) {
             console.log('[w0] perf | avg feasible leaf:',
