@@ -10,16 +10,18 @@ importScripts(
     '../../core/utils.js',
     '../../game/game_rules.js',
     '../../game/build_utils.js',
+    '../../game/skillpoints.js',
     '../../game/powders.js',
     '../../game/damage_calc.js',
     '../../game/shared_game_stats.js',
+    '../debug_toggles.js',
     '../pure.js',
     './worker_shims.js'
 );
 
 // ── Globals set during init ─────────────────────────────────────────────────
 
-let sets = new Map();   // needed by _solver_sp_calc (set bonus tracking)
+let sets = new Map();   // needed by calculate_skillpoints (set bonus tracking)
 let _cfg = null;        // full config from init message
 let _cancelled = false;
 
@@ -41,8 +43,8 @@ let _ehp_precheck = null;        // {threshold, fixed_hp, ehp_divisor} or null
 let _ehp_no_agi_precheck = null; // {threshold, fixed_hp, ehp_divisor} or null
 let _total_hp_precheck = null;   // {threshold, fixed_hp} or null
 
-// ── Debug logging (worker 0 only) ───────────────────────────────────────────
-const _SOLVER_WORKER_DEBUG = false;
+// Debug toggles: SOLVER_DEBUG_WORKER, SOLVER_DEBUG_COMBO
+// (defined in js/solver/debug_toggles.js, loaded via importScripts)
 
 // ── Search state ────────────────────────────────────────────────────────────
 
@@ -187,7 +189,7 @@ function _assemble_combo_stats(build_sm, total_sp, weapon_sm) {
     if (weaponType) _scratch_pre_scale.set('classDef', classDefenseMultipliers.get(weaponType) || 1.0);
     _merge_into(_scratch_pre_scale, _cfg.atree_raw);
     _apply_radiance_scale_inplace(_scratch_pre_scale, _cfg.radiance_boost);
-    const [, atree_scaled_stats] = worker_atree_scaling(
+    const [, atree_scaled_stats] = atree_compute_scaling(
         _cfg.atree_merged, _scratch_pre_scale, _cfg.button_states, _cfg.slider_states);
     _deep_clone_statmap_into(_scratch_combo_base, _scratch_pre_scale, _scratch_combo_base_nested);
     _merge_into(_scratch_combo_base, atree_scaled_stats);
@@ -229,24 +231,59 @@ function _check_thresholds(stats, thresholds) {
     return true;
 }
 
-function _eval_combo_damage(combo_base) {
-    const wep_sm = _cfg.weapon_sm;
+function _eval_combo_damage(combo_base, debug) {
     const crit = skillPointsToPercentage(combo_base.get('dex') || 0);
-    let total = 0;
-    for (const { qty, spell, boost_tokens, dmg_excl, dps_per_hit_name, dps_hits } of _cfg.parsed_combo) {
-        if (dmg_excl) continue;
-        const { stats, prop_overrides } =
-            apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry, _scratch_row);
-        const mod_spell = apply_spell_prop_overrides(spell, prop_overrides, _cfg.atree_merged);
-        if (dps_per_hit_name) {
-            // DPS spell: compute per-hit damage × hit count (matching main thread).
-            const per_hit_spell = { ...mod_spell, display: dps_per_hit_name };
-            total += computeSpellDisplayAvg(stats, wep_sm, per_hit_spell, crit) * dps_hits * qty;
-        } else {
-            total += computeSpellDisplayAvg(stats, wep_sm, mod_spell, crit) * qty;
+
+    // If Blood Pact is active, run shared mana+HP simulation kernel.
+    // This fixes 4 bugs vs the old inline tracking:
+    //   1. Uses boosted stats for spell cost (via apply_combo_row_boosts)
+    //   2. Tracks HP pool (max_hp, HP cost deduction, HP death detection)
+    //   3. Tracks HP regen ticks (elapsed time, HPR_TICK_SECONDS)
+    //   4. Applies Exhilarate heal on Cancel Bak'al
+    const hc = _cfg.health_config;
+    const hp_tracking = _cfg.hp_casting && hc;
+    let damage_rows = _cfg.parsed_combo;
+
+    if (hp_tracking) {
+        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
+        const sim = simulate_combo_mana_hp(
+            _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry);
+
+        if (debug) {
+            console.log('[COMBO-DEBUG][WORKER] sim results:', JSON.stringify(sim.row_results.map((r, i) => ({
+                row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
+                corruption: Math.round(r.corruption_pct), hp_warn: r.hp_warning,
+            }))));
+            console.log('[COMBO-DEBUG][WORKER] sim end_mana:', sim.end_mana,
+                'end_hp:', Math.round(sim.end_hp), 'max_hp:', sim.max_hp,
+                'start_mana:', sim.start_mana);
+        }
+
+        // Inject simulation-derived boost tokens (blood pact bonus, corruption %)
+        const bp_name = _cfg.bp_entry_name;
+        const corr_name = _cfg.corruption_slider_name;
+        damage_rows = [];
+        for (let i = 0; i < _cfg.parsed_combo.length; i++) {
+            const row = _cfg.parsed_combo[i];
+            const res = sim.row_results[i];
+            const has_bp = res.blood_pact_bonus > 0 && bp_name;
+            const has_corr = corr_name && res.corruption_pct > 0;
+            if (!has_bp && !has_corr) {
+                damage_rows.push(row);
+                continue;
+            }
+            const extra = [];
+            if (has_bp) extra.push({ name: bp_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
+            if (has_corr) extra.push({ name: corr_name, value: Math.round(res.corruption_pct), is_pct: false });
+            damage_rows.push({ ...row, boost_tokens: [...row.boost_tokens, ...extra] });
         }
     }
-    return total;
+
+    const result = compute_combo_damage_totals(
+        combo_base, _cfg.weapon_sm, damage_rows, crit,
+        _cfg.boost_registry, _cfg.atree_merged,
+        { detailed: false, scratch_row: _scratch_row, debug, debug_label: '[WORKER]' });
+    return result.total_damage;
 }
 
 /**
@@ -264,11 +301,11 @@ function _eval_combo_mana_check(combo_base) {
 
     let mana_cost = 0;
     let melee_hits = 0;
-    for (const { qty, spell, mana_excl } of _cfg.parsed_combo) {
+    for (const { qty, spell, mana_excl, recast_penalty_per_cast } of _cfg.parsed_combo) {
         if (mana_excl) continue;
         if (spell?.scaling === 'melee') melee_hits += qty;
         if (spell.cost == null) continue;
-        mana_cost += getSpellCost(combo_base, spell) * qty;
+        mana_cost += (getSpellCost(combo_base, spell) + (recast_penalty_per_cast ?? 0)) * qty;
     }
 
     // XXX Hardcoded MajorID
@@ -303,7 +340,9 @@ function _eval_combo_mana_check(combo_base) {
 
 function _eval_combo_healing(combo_base) {
     let total = 0;
-    for (const { qty, spell, boost_tokens } of _cfg.parsed_combo) {
+    for (const row of _cfg.parsed_combo) {
+        if (row.pseudo) continue;
+        const { qty, spell, boost_tokens } = row;
         const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry, _scratch_row);
         total += computeSpellHealingTotal(stats, spell) * qty;
     }
@@ -386,7 +425,7 @@ function _run_level_enum() {
     // Without this, subsequent work-stealing partitions on the same worker
     // would see already-sliced (effectively empty) pools.
     const pools = { ..._cfg.pools };
-    const _dbg = _SOLVER_WORKER_DEBUG && _cfg.worker_id === 0;
+    const _dbg = SOLVER_DEBUG_WORKER && _cfg.worker_id === 0;
     let _dbg_sp_prune_count = 0;
     let _dbg_precheck_reject = 0;
     let _dbg_ehp_reject = 0;
@@ -595,7 +634,7 @@ function _run_level_enum() {
         // Combined SP feasibility check + full calculation (single pass).
         // Uses effective requirements and proper weapon exclusion for tighter
         // rejection than the old two-step _sp_prefilter + calculate_skillpoints.
-        const sp_result = _solver_sp_calc([...equip_8_sms, guild_tome_sm], weapon_sm, sp_budget);
+        const sp_result = calculate_skillpoints([...equip_8_sms, guild_tome_sm], weapon_sm, sp_budget);
         if (!sp_result) {
             _dbg_sp_reject++;
             _maybe_progress();
@@ -646,7 +685,10 @@ function _run_level_enum() {
         _dbg_scored++;
         if (_dbg) _dbg_leaf_time += performance.now() - t0;
         const item_names = equip_8_sms.map(sm => _get_item_name(sm));
-        _insert_top5({ score, item_names, base_sp, total_sp, assigned_sp: final_assigned });
+        const entry = { score, item_names, base_sp, total_sp, assigned_sp: final_assigned };
+        // In debug mode, store a deep clone of combo_base so we can re-evaluate with logging
+        if (SOLVER_DEBUG_COMBO) entry._debug_combo_base = _deep_clone_statmap(combo_base);
+        _insert_top5(entry);
         _maybe_progress();
     }
 
@@ -979,6 +1021,7 @@ function _run_level_enum() {
                 '| items:', _top5[0].item_names.filter(n => n).join(', '));
         }
     }
+
 }
 
 // ── Message handler ─────────────────────────────────────────────────────────
@@ -990,6 +1033,16 @@ self.onmessage = function (e) {
         sets = new Map(msg.sets_data);
         _cfg = msg;
         _cancelled = false;
+        // Precompute Blood Pact registry entry name for boost token injection
+        _cfg.bp_entry_name = null;
+        if (_cfg.hp_casting && _cfg.boost_registry) {
+            for (const entry of _cfg.boost_registry) {
+                if (entry.type === 'calculated' && entry.calc_key === 'blood_pact') {
+                    _cfg.bp_entry_name = entry.name;
+                    break;
+                }
+            }
+        }
         try {
             _build_constraint_prechecks();
         } catch (err) {
@@ -997,7 +1050,7 @@ self.onmessage = function (e) {
             postMessage({ type: 'done', worker_id: msg.worker_id, checked: 0, feasible: 0, top5: [] });
             return;
         }
-        if (_SOLVER_WORKER_DEBUG && msg.worker_id === 0) {
+        if (SOLVER_DEBUG_WORKER && msg.worker_id === 0) {
             console.log('[w0] init | scoring:', msg.scoring_target,
                 '| combo_rows:', msg.parsed_combo?.length,
                 '| combo_time:', msg.combo_time,

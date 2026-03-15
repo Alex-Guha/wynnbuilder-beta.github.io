@@ -1439,17 +1439,7 @@ function displayPowderSpecials(parent_elem, powderSpecials, stats, weapon) {
     }
 }
 
-function getSpellCost(stats, spell) {
-    const bs = spell.mana_derived_from ?? spell.base_spell;
-    return Math.max(1, getBaseSpellCost(stats, spell) * (1 + stats.get('spPct'+bs+'Final')/100));
-}
-
-function getBaseSpellCost(stats, spell) {
-    const bs = spell.mana_derived_from ?? spell.base_spell;
-    let cost = spell.cost * (1 - skillPointsToPercentage(stats.get('int')) * skillpoint_final_mult[2]);
-    cost += stats.get("spRaw"+bs);
-    return cost * (1 + stats.get("spPct"+bs) / 100);
-}
+// getBaseSpellCost and getSpellCost moved to shared_game_stats.js
     
 
 function displaySpellDamage(parent_elem, _overallparent_elem, stats, spell, spellIdx, spell_results) {

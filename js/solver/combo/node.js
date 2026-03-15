@@ -78,50 +78,61 @@ class SolverComboTotalNode extends ComputeNode {
             rows = this._read_combo_rows(aug_spell_map);
         }
 
-        let total = 0;
-        let total_heal = 0;
-        let mana_cost = 0;
-        let melee_hits = 0;
-        let recast_penalty_total = 0;
-        const spell_costs = []; // [{name, qty, cost_per_cast, recast_penalty}] for tooltip breakdown
-
-        // Recast tracking: first 2 casts of the same spell are free. After that,
-        // each subsequent cast adds cumulative +RECAST_MANA_PENALTY mana (+5, +10, …).
-        // On spell switch from a 2+-cast streak: counter increments by 1, the
-        // first cast of the new spell pays the penalty, then counter resets.
-        // On switch from a 1-cast streak: counter resets immediately (no penalty).
-        // Melee (base_spell=0) doesn't affect the counter. Mana-excluded rows
-        // are invisible to the recast tracker. Mana Reset resets the counter.
-        let last_spell_base = null; // base_spell of the last mana-visible non-melee spell
-        let consecutive_count = 0;  // how many consecutive casts of last_spell_base
-        let penalty_counter = 0;    // running penalty multiplier (increments per penalized cast)
-
-        // Clear warning borders from previous cycle (simulation sets them in spell-to-spell mode;
-        // in tally mode, no warnings are shown for now).
+        // Clear warning borders in tally mode (simulation sets them in spell-to-spell mode).
         if (!spell_to_spell_mode) {
             for (const row of document.querySelectorAll('#combo-selection-rows .combo-row-spell')) {
                 row.classList.remove('combo-row-warning');
             }
         }
 
+        // ── Pre-parse rows: extract DOM state for pure function ──
+        const parsed_rows = [];
         for (const { qty, spell, boost_tokens, dom_row } of rows) {
+            const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
+            const dmg_excl = dom_row?.querySelector('.combo-dmg-toggle')
+                ?.classList.contains('dmg-excluded') ?? false;
+            let pseudo = null;
+            if (spell_id === MANA_RESET_SPELL_ID) pseudo = 'mana_reset';
+            else if (spell_id === CANCEL_BAKALS_SPELL_ID) pseudo = 'cancel_bakals';
+            // DPS hits override from DOM input
+            const hits_inp = dom_row?.querySelector('.combo-row-hits');
+            const dps_hits_override = hits_inp ? (parseFloat(hits_inp.value) || undefined) : undefined;
+            parsed_rows.push({ qty, spell, boost_tokens, dmg_excl, pseudo, dps_hits_override, dom_row });
+        }
+
+        // ── Compute damage via shared pure function ──
+        if (SOLVER_DEBUG_COMBO && sim_result) {
+            console.log('[COMBO-DEBUG][PAGE] ═══ Page combo damage computation ═══');
+            const item_names = build.equipment.map(it =>
+                it.statMap.get('displayName') ?? it.statMap.get('name') ?? '').filter(n => n);
+            console.log('[COMBO-DEBUG][PAGE] items:', item_names.join(', '));
+            console.log('[COMBO-DEBUG][PAGE] sim results:', JSON.stringify(sim_result.row_results.map((r, i) => ({
+                row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
+                corruption: Math.round(r.corruption_pct), hp_warn: r.hp_warning,
+            }))));
+            console.log('[COMBO-DEBUG][PAGE] sim end_mana:', sim_result.end_mana,
+                'end_hp:', Math.round(sim_result.end_hp), 'max_hp:', sim_result.max_hp,
+                'start_mana:', sim_result.start_mana);
+        }
+        const dmg_result = compute_combo_damage_totals(
+            base_stats, weapon, parsed_rows, crit_chance, registry, atree_mg,
+            { detailed: true, debug: SOLVER_DEBUG_COMBO });
+        let total = dmg_result.total_damage;
+        let total_heal = dmg_result.total_healing;
+
+        // ── DOM update pass ──
+        for (let i = 0; i < parsed_rows.length; i++) {
+            const row = parsed_rows[i];
+            const pr = dmg_result.per_row[i];
+            const dom_row = row.dom_row;
+
             const dmg_wrap = dom_row?.querySelector('.combo-row-damage-wrap');
             const dmg_span = dmg_wrap?.querySelector('.combo-row-damage')
                 ?? dom_row?.querySelector('.combo-row-damage');
             const dmg_popup = dmg_wrap?.querySelector('.combo-dmg-popup');
             const heal_span = dom_row?.querySelector('.combo-row-heal');
 
-            const mana_excluded = dom_row?.querySelector('.combo-mana-toggle')
-                ?.classList.contains('mana-excluded') ?? false;
-
-            // Pseudo-spells: Mana Reset and Cancel Bak'al's Grasp — show nothing.
-            const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
-            if (spell_id === MANA_RESET_SPELL_ID || spell_id === CANCEL_BAKALS_SPELL_ID) {
-                if (!mana_excluded && spell_id === MANA_RESET_SPELL_ID) {
-                    last_spell_base = null;
-                    consecutive_count = 0;
-                    penalty_counter = 0;
-                }
+            if (!row.spell || row.qty <= 0 || row.pseudo) {
                 if (dmg_span) dmg_span.textContent = '';
                 if (dmg_popup) { dmg_popup.textContent = ''; }
                 dmg_wrap?.classList.remove('has-popup', 'popup-locked');
@@ -129,62 +140,34 @@ class SolverComboTotalNode extends ComputeNode {
                 continue;
             }
 
-            if (qty <= 0 || !spell) {
-                if (dmg_span) dmg_span.textContent = '';
-                if (dmg_popup) dmg_popup.textContent = '';
-                dmg_wrap?.classList.remove('has-popup', 'popup-locked');
-                if (heal_span) { heal_span.textContent = ''; }
-                continue;
-            }
-            const { stats, prop_overrides } =
-                apply_combo_row_boosts(base_stats, boost_tokens, registry);
-            const mod_spell =
-                apply_spell_prop_overrides(spell, prop_overrides, atree_mg);
+            if (dmg_span) dmg_span.textContent = Math.round(pr.damage).toLocaleString();
 
-            // DPS spells with a Total/Max part: show per-hit damage × hits
-            // instead of the raw DPS value.
-            const dps_info = compute_dps_spell_hits_info(mod_spell);
-            let full, per_cast;
-            if (dps_info) {
-                const per_hit_spell = { ...mod_spell, display: dps_info.per_hit_name };
-                full = computeSpellDisplayFull(stats, weapon, per_hit_spell, crit_chance);
-                const hits_inp = dom_row?.querySelector('.combo-row-hits');
-                const hits = parseFloat(hits_inp?.value) || dps_info.max_hits;
-                per_cast = full ? full.avg * hits : 0;
-                // Dynamically update the max label (aspects can change hit counts).
-                const max_rounded = Math.round(dps_info.max_hits * 100) / 100;
-                const max_lbl = dom_row?.querySelector('.combo-row-hits-max');
-                if (max_lbl) max_lbl.textContent = '/' + max_rounded;
-                if (hits_inp) hits_inp.max = String(max_rounded);
-            } else {
-                full = computeSpellDisplayFull(stats, weapon, mod_spell, crit_chance);
-                per_cast = full ? full.avg : 0;
-            }
-            const dmg_excluded = dom_row?.querySelector('.combo-dmg-toggle')
-                ?.classList.contains('dmg-excluded') ?? false;
-            if (!dmg_excluded) total += per_cast * qty;
-            if (dmg_span) dmg_span.textContent = Math.round(per_cast).toLocaleString();
-            // Per-row healing output
-            const heal_per_cast = computeSpellHealingTotal(stats, mod_spell);
-            total_heal += heal_per_cast * qty;
             if (heal_span) {
-                if (heal_per_cast > 0) {
-                    heal_span.textContent = '+' + Math.round(heal_per_cast).toLocaleString();
+                if (pr.healing > 0) {
+                    heal_span.textContent = '+' + Math.round(pr.healing).toLocaleString();
                 } else {
                     heal_span.textContent = '';
                 }
             }
-            // Populate the breakdown popup (shown on hover/click of the damage number).
-            if (dmg_popup && full && full.avg > 0) {
-                const spell_cost = full.has_cost && mod_spell.cost != null
-                    ? getSpellCost(stats, mod_spell) : null;
-                let popup_html = renderSpellPopupHTML(full, crit_chance, spell_cost);
-                if (dps_info) {
+
+            // DPS max label update
+            if (pr.dps_info) {
+                const max_rounded = Math.round(pr.dps_info.max_hits * 100) / 100;
+                const max_lbl = dom_row?.querySelector('.combo-row-hits-max');
+                if (max_lbl) max_lbl.textContent = '/' + max_rounded;
+                const hits_inp = dom_row?.querySelector('.combo-row-hits');
+                if (hits_inp) hits_inp.max = String(max_rounded);
+            }
+
+            // Populate the breakdown popup
+            if (dmg_popup && pr.full_display && pr.full_display.avg > 0) {
+                let popup_html = renderSpellPopupHTML(pr.full_display, crit_chance, pr.spell_cost);
+                if (pr.dps_info) {
                     const hits_inp = dom_row?.querySelector('.combo-row-hits');
-                    const hits = parseFloat(hits_inp?.value) || dps_info.max_hits;
+                    const hits = parseFloat(hits_inp?.value) || pr.dps_info.max_hits;
                     popup_html += '<div class="text-secondary small mt-1">'
                         + '\u00d7 ' + hits + ' hits = '
-                        + Math.round(full.avg * hits).toLocaleString() + '</div>';
+                        + Math.round(pr.full_display.avg * hits).toLocaleString() + '</div>';
                 }
                 dmg_popup.innerHTML = popup_html;
                 dmg_wrap?.classList.add('has-popup');
@@ -192,14 +175,40 @@ class SolverComboTotalNode extends ComputeNode {
                 dmg_popup.textContent = '';
                 dmg_wrap?.classList.remove('has-popup', 'popup-locked');
             }
-            // Mana cost tracking — skipped in spell-to-spell mode (handled by simulation).
-            if (!spell_to_spell_mode) {
-                if (!mana_excluded && spell.scaling === 'melee') melee_hits += qty;
-                if (mod_spell.cost != null && !mana_excluded) {
-                    const cost_per = getSpellCost(stats, mod_spell);
+        }
 
+        // ── Tally-mode mana cost tracking (skipped in spell-to-spell mode) ──
+        let mana_cost = 0;
+        let melee_hits = 0;
+        let recast_penalty_total = 0;
+        const spell_costs = [];
+        if (!spell_to_spell_mode) {
+            let last_spell_base = null;
+            let consecutive_count = 0;
+            let penalty_counter = 0;
+
+            for (let i = 0; i < parsed_rows.length; i++) {
+                const row = parsed_rows[i];
+                const pr = dmg_result.per_row[i];
+                if (row.pseudo || !row.spell || row.qty <= 0) continue;
+                const mana_excluded = row.dom_row?.querySelector('.combo-mana-toggle')
+                    ?.classList.contains('mana-excluded') ?? false;
+                if (mana_excluded) continue;
+
+                if (row.spell.scaling === 'melee') melee_hits += row.qty;
+
+                // Mana Reset resets recast counter
+                if (row.pseudo === 'mana_reset') {
+                    last_spell_base = null;
+                    consecutive_count = 0;
+                    penalty_counter = 0;
+                    continue;
+                }
+
+                if (pr.spell_cost != null) {
+                    const cost_per = pr.spell_cost;
                     let row_recast_penalty = 0;
-                    const recast_base = spell.mana_derived_from ?? spell.base_spell;
+                    const recast_base = row.spell.mana_derived_from ?? row.spell.base_spell;
                     const is_melee = recast_base === 0;
                     if (!is_melee) {
                         let is_switch = false;
@@ -218,7 +227,7 @@ class SolverComboTotalNode extends ComputeNode {
                             row_recast_penalty = penalty_counter * RECAST_MANA_PENALTY;
                             penalty_counter = 0;
                             consecutive_count = 1;
-                            const remaining = qty - 1;
+                            const remaining = row.qty - 1;
                             if (remaining > 0) {
                                 const free_remaining = Math.min(remaining, 1);
                                 const penalty_remaining = remaining - free_remaining;
@@ -229,23 +238,23 @@ class SolverComboTotalNode extends ComputeNode {
                                 consecutive_count += remaining;
                             }
                         } else if (penalty_counter > 0) {
-                            row_recast_penalty = RECAST_MANA_PENALTY * (qty * penalty_counter + qty * (qty + 1) / 2);
-                            penalty_counter += qty;
-                            consecutive_count += qty;
+                            row_recast_penalty = RECAST_MANA_PENALTY * (row.qty * penalty_counter + row.qty * (row.qty + 1) / 2);
+                            penalty_counter += row.qty;
+                            consecutive_count += row.qty;
                         } else {
-                            const free_casts = Math.max(0, Math.min(qty, 2 - consecutive_count));
-                            const penalty_casts = qty - free_casts;
+                            const free_casts = Math.max(0, Math.min(row.qty, 2 - consecutive_count));
+                            const penalty_casts = row.qty - free_casts;
                             if (penalty_casts > 0) {
                                 row_recast_penalty = RECAST_MANA_PENALTY * penalty_casts * (penalty_casts + 1) / 2;
                                 penalty_counter = penalty_casts;
                             }
-                            consecutive_count += qty;
+                            consecutive_count += row.qty;
                         }
                     }
 
-                    mana_cost += cost_per * qty + row_recast_penalty;
+                    mana_cost += cost_per * row.qty + row_recast_penalty;
                     recast_penalty_total += row_recast_penalty;
-                    spell_costs.push({ name: spell.name, qty, cost: cost_per, recast_penalty: row_recast_penalty });
+                    spell_costs.push({ name: row.spell.name, qty: row.qty, cost: cost_per, recast_penalty: row_recast_penalty });
                 }
             }
         }

@@ -25,7 +25,7 @@ class SolverSKPNode extends ComputeNode {
             const assignEl = document.getElementById(skp + '-skp-assign');
             const warnEl   = document.getElementById(skp + '-warnings');
             if (totalEl)  totalEl.textContent  = '—';
-            if (assignEl) assignEl.textContent = 'Assign: 0';
+            if (assignEl) { assignEl.children[0].textContent = 'Assign: 0'; assignEl.children[1].textContent = ''; }
             if (warnEl)   warnEl.textContent   = '';
         }
         const summaryBox = document.getElementById('summary-box');
@@ -48,12 +48,13 @@ class SolverSKPNode extends ComputeNode {
                 if (totalEl)  totalEl.textContent = ov.total_sp[i];
                 const req   = build.base_skillpoints[i];
                 const extra = ov.base_sp[i] - req;
-                if (assignEl) assignEl.textContent = extra > 0
-                    ? `Assign: ${req} (+${extra})`
-                    : `Assign: ${req}`;
+                if (assignEl) {
+                    assignEl.children[0].textContent = `Assign: ${req}`;
+                    assignEl.children[1].textContent = extra > 0 ? `(+${extra})` : '';
+                }
             } else {
                 if (totalEl)  totalEl.textContent  = build.total_skillpoints[i];
-                if (assignEl) assignEl.textContent = 'Assign: ' + build.base_skillpoints[i];
+                if (assignEl) { assignEl.children[0].textContent = 'Assign: ' + build.base_skillpoints[i]; assignEl.children[1].textContent = ''; }
             }
 
             // Per-attribute overflow warning (matches builder behaviour)

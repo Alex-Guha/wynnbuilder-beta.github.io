@@ -21,9 +21,16 @@ function pull_req(req_skillpoints, item) {
     }
 }
 
-function calculate_skillpoints(equipment, weapon) {
-    // Calculate equipment required skillpoints.
-    // Return value: [best_skillpoints, final_skillpoints, best_total, set_info];
+/**
+ * Calculate equipment required skillpoints.
+ *
+ * @param {Map[]} equipment  - equipment statMaps (armor/acc/tomes)
+ * @param {Map}   weapon     - weapon statMap
+ * @param {number} sp_budget - max total assignable SP (default Infinity = no limit)
+ * @returns {Array|null} [best_skillpoints, final_skillpoints, best_total, set_counts],
+ *                       or null if sp_budget is exceeded or any single attr > SP_PER_ATTR_CAP.
+ */
+function calculate_skillpoints(equipment, weapon, sp_budget = Infinity) {
     let no_bonus_items = [weapon];
 
     let bonus_skillpoints = [0, 0, 0, 0, 0];
@@ -56,8 +63,10 @@ function calculate_skillpoints(equipment, weapon) {
 
         if (req_skillpoints[i] > bonus_skillpoints[i]) {
             const delta = req_skillpoints[i] - bonus_skillpoints[i];
+            if (delta > SP_PER_ATTR_CAP) return null;
             assign[i] = delta;
             total_assigned += delta;
+            if (total_assigned > sp_budget) return null;
         }
     }
     let final_skillpoints = assign.slice();

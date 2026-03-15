@@ -326,14 +326,7 @@ function compute_radiance(statmap) {
     if (boost === 1) return statmap;
 
     const ret = new Map(statmap);
-    for (const id of radiance_affected) {
-        const val = ret.get(id) || 0;
-        if (reversedIDs.includes(id)) {
-            if (val < 0) { ret.set(id, Math.floor(val * boost)); }
-        } else {
-            if (val > 0) { ret.set(id, Math.floor(val * boost)); }
-        }
-    }
+    _apply_radiance_scale_inplace(ret, boost);
     return ret;
 }
 

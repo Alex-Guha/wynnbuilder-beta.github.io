@@ -714,107 +714,17 @@ const atree_scaling = new (class extends ComputeNode {
         const pre_scale_stats = input_map.get('scale-stats');
         const [slider_map, button_map] = input_map.get('atree-interactive');
 
-        const atree_edit = new Map();
-        for (const [abil_id, abil] of atree_merged.entries()) {
-            atree_edit.set(abil_id, structuredClone(abil));
+        // Serialize DOM state into plain Maps for the pure function.
+        const button_states = new Map();
+        for (const [name, info] of button_map) {
+            button_states.set(name, info.button.classList.contains('toggleOn'));
         }
-        let ret_effects = new Map();
-
-        // Apply a stat bonus.
-        function apply_bonus(bonus_info, value) {
-            const { type, name, abil = null, mult = false} = bonus_info;
-            if (type === 'stat') {
-                merge_stat(ret_effects, name, atree_translate(atree_merged, value));
-            } else if (type === 'prop') {
-                const merge_abil = atree_edit.get(abil);
-                if (merge_abil) {
-                    if (mult)
-                        merge_abil.properties[name] *= atree_translate(atree_edit, value);
-                    else
-                        merge_abil.properties[name] += atree_translate(atree_edit, value);
-                }
-            }
+        const slider_states = new Map();
+        for (const [name, info] of slider_map) {
+            slider_states.set(name, parseInt(info.slider.value));
         }
-        for (const [abil_id, abil] of atree_merged.entries()) {
-            if (abil.effects.length == 0) { continue; }
 
-            for (const effect of abil.effects) {
-                switch (effect.type) {
-                case 'raw_stat':
-                    if (effect.toggle) {
-                        const button = button_map.get(effect.toggle).button;
-                        if (!button.classList.contains("toggleOn")) { continue; }
-                        for (const bonus of effect.bonuses) {
-                            apply_bonus(bonus, bonus.value);
-                        }
-                    } else {
-                        for (const bonus of effect.bonuses) {
-                            // Stat was applied earlier...
-                            if (bonus.type === 'stat') { continue; }
-                            apply_bonus(bonus, bonus.value);
-                        }
-                    }
-                    continue;
-                case 'stat_scaling':
-                    let total = 0;
-                    const {slider = false, scaling = [0], behavior="merge", multiplicative = false, requirement = 0} = effect;
-                    let { positive = true, round = true } = effect;
-                    if (slider) {
-                        if (behavior == "modify" && !slider_map.has(effect.slider_name)) {
-                            // Dangerous control flow.. early continue
-                            continue;
-                        }
-
-                        const slider_val = slider_map.get(effect.slider_name).slider.value;
-                        if(requirement > slider_val){
-                            continue;
-                        }
-                        const input_value = slider_val - requirement;
-
-                        if (multiplicative) {
-                            total = (((100+atree_translate(atree_merged, scaling[0]))/100) ** parseInt(input_value)-1) * 100;
-                        }
-                        else {
-                            total = parseInt(input_value) * atree_translate(atree_merged, scaling[0]);
-                        }
-                        positive = false;
-                    }
-                    else {
-                        // TODO: type: prop?
-                        for (const [_scaling, input] of zip2(scaling, effect.inputs)) {
-                            if (input.type === 'stat') {
-                                total += pre_scale_stats.get(input.name) * atree_translate(atree_merged, _scaling);
-                            } else if (input.type === 'prop') {
-                                const merge_abil = atree_edit.get(input.abil);
-                                if (merge_abil) {
-                                    total += merge_abil.properties[input.name] * atree_translate(atree_merged, _scaling);
-                                }
-                            }
-                        }
-                    }
-
-                    if ('output' in effect) { // sometimes nodes will modify slider without having effect.
-                        if (round) { total = Math.floor(round_near(total)); }
-                        if (positive && total < 0) { total = 0; }   // Normal stat scaling will not go negative.
-                        if ('max' in effect) {
-                            let effect_max = atree_translate(atree_merged, effect.max);
-                            if (effect_max > 0 && total > effect_max) { total = effect.max; }
-                            if (effect_max < 0 && total < effect_max) { total = effect.max; }
-                        }
-                        if (Array.isArray(effect.output)) {
-                            for (const output of effect.output) {
-                                apply_bonus(output, total);
-                            }
-                        }
-                        else {
-                            apply_bonus(effect.output, total);
-                        }
-                    }
-                    continue;
-                }
-            }
-        }
-        return [atree_edit, ret_effects];
+        return atree_compute_scaling(atree_merged, pre_scale_stats, button_states, slider_states);
     }
 })().link_to(atree_merge, 'atree-merged').link_to(atree_make_interactives, 'atree-interactive');
 
@@ -909,21 +819,7 @@ const atree_render_active = new (class extends ComputeNode {
     }
 })().link_to(atree_node, 'atree-order').link_to(atree_scaling_tree, 'atree-merged');
 
-/**
- * Parse out "parametrized entries".
- * Straight replace.
- *
- * Format: ability_id.propname
- */
-function atree_translate(atree_merged, v) {
-    if (typeof v === 'string') {
-        const [id_str, propname] = v.split('.');
-        const id = parseInt(id_str);
-        const ret = atree_merged.get(id).properties[propname];
-        return ret;
-    }
-    return v;
-}
+// atree_translate moved to pure.js
 
 /**
  * Collect spells from abilities.

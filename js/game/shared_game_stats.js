@@ -10,6 +10,12 @@
  *                      reversedIDs
  */
 
+// ── Class defense multipliers ────────────────────────────────────────────────
+
+const classDefenseMultipliers = new Map([
+    ["relik", 0.60], ["bow", 0.70], ["wand", 0.80], ["dagger", 1.0], ["spear", 1.0]
+]);
+
 // ── Boost button multipliers ─────────────────────────────────────────────────
 
 const damageMultipliers = new Map([
@@ -45,6 +51,22 @@ const radiance_affected = [
     "rMdPct","rMdRaw","rSdPct","rDamPct","rDamRaw",
     "critDamPct","healPct","kb","weakenEnemy","slowEnemy","rDefPct",
 ];
+
+// ── Spell cost calculation ───────────────────────────────────────────────────
+
+function getBaseSpellCost(stats, spell) {
+    const bs = spell.mana_derived_from ?? spell.base_spell;
+    const int_reduction = skillPointsToPercentage(stats.get('int') ?? 0) * skillpoint_final_mult[2];
+    let cost = spell.cost * (1 - int_reduction);
+    cost += (stats.get('spRaw' + bs) ?? 0);
+    return cost * (1 + (stats.get('spPct' + bs) ?? 0) / 100);
+}
+
+function getSpellCost(stats, spell) {
+    const bs = spell.mana_derived_from ?? spell.base_spell;
+    const final_pct = stats.get('spPct' + bs + 'Final') ?? 0;
+    return Math.max(1, getBaseSpellCost(stats, spell) * (1 + final_pct / 100));
+}
 
 // ── Defense stat calculation ─────────────────────────────────────────────────
 

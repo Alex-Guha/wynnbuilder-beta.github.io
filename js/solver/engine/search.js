@@ -109,6 +109,19 @@ function _parse_combo_for_search(spell_map, weapon) {
     const rows = solver_combo_total_node._read_combo_rows(aug);
     return rows
         .map(r => {
+            // Pseudo-spells: include as marker rows for worker state tracking.
+            const spell_id = parseInt(r.dom_row?.querySelector('.combo-row-spell')?.value);
+            if (spell_id === CANCEL_BAKALS_SPELL_ID) {
+                const mana_excl = r.dom_row?.querySelector('.combo-mana-toggle')
+                    ?.classList.contains('mana-excluded') ?? false;
+                return { pseudo: 'cancel_bakals', mana_excl };
+            }
+            if (spell_id === MANA_RESET_SPELL_ID) {
+                const mana_excl = r.dom_row?.querySelector('.combo-mana-toggle')
+                    ?.classList.contains('mana-excluded') ?? false;
+                return { pseudo: 'mana_reset', mana_excl };
+            }
+
             const entry = {
                 qty: r.qty,
                 spell: r.spell,
@@ -129,7 +142,7 @@ function _parse_combo_for_search(spell_map, weapon) {
             }
             return entry;
         })
-        .filter(r => r.qty > 0 && r.spell && (spell_has_damage(r.spell) || spell_has_heal(r.spell) || r.spell.cost != null));
+        .filter(r => r.pseudo || (r.qty > 0 && r.spell && (spell_has_damage(r.spell) || spell_has_heal(r.spell) || r.spell.cost != null)));
 }
 
 /**
@@ -184,10 +197,100 @@ function _build_solver_snapshot(restrictions) {
     const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
 
     // Blood Pact: when active, spells are paid with HP, so skip mana gating in workers.
+    // Also extract health_config so workers can dynamically compute per-candidate
+    // blood pact bonuses instead of using frozen values from the current build.
     let hp_casting = false;
+    let health_config = null;
     if (atree_mgd) {
         for (const [, abil] of atree_mgd) {
             if (abil.properties?.health_cost != null) { hp_casting = true; break; }
+        }
+    }
+    // Precompute per-row recast penalty (build-independent, combo-sequence-dependent).
+    // Workers need this for accurate mana tracking in both blood pact bonus computation
+    // and the non-blood-pact mana budget check (_eval_combo_mana_check).
+    // Replicates the recast penalty logic from simulate_spell_by_spell.
+    {
+        let _rc_last_base = null, _rc_consec = 0, _rc_penalty = 0;
+        for (const row of parsed_combo) {
+            // Pseudo-spell rows: Mana Reset resets recast state, others are skipped.
+            if (row.pseudo) {
+                if (row.pseudo === 'mana_reset' && !row.mana_excl) {
+                    _rc_last_base = null; _rc_consec = 0; _rc_penalty = 0;
+                }
+                continue;
+            }
+            const { qty, spell, mana_excl } = row;
+            row.recast_penalty_per_cast = 0;
+            if (!spell || qty <= 0 || mana_excl || spell.cost == null) continue;
+            const rc_base = spell.mana_derived_from ?? spell.base_spell;
+            if (rc_base === 0) continue; // melee spells have no recast penalty
+
+            let row_penalty = 0;
+            let is_switch = false;
+            if (rc_base !== _rc_last_base) {
+                is_switch = true;
+                if (_rc_consec <= 1) { _rc_penalty = 0; } else { _rc_penalty += 1; }
+                _rc_consec = 0;
+                _rc_last_base = rc_base;
+            }
+            if (is_switch && _rc_penalty > 0) {
+                row_penalty = _rc_penalty * RECAST_MANA_PENALTY;
+                _rc_penalty = 0;
+                _rc_consec = 1;
+                const remaining = qty - 1;
+                if (remaining > 0) {
+                    const free_remaining = Math.min(remaining, 1);
+                    const penalty_remaining = remaining - free_remaining;
+                    if (penalty_remaining > 0) {
+                        row_penalty += RECAST_MANA_PENALTY * penalty_remaining * (penalty_remaining + 1) / 2;
+                        _rc_penalty = penalty_remaining;
+                    }
+                    _rc_consec += remaining;
+                }
+            } else if (_rc_penalty > 0) {
+                row_penalty = RECAST_MANA_PENALTY * (qty * _rc_penalty + qty * (qty + 1) / 2);
+                _rc_penalty += qty;
+                _rc_consec += qty;
+            } else {
+                const free_casts = Math.max(0, Math.min(qty, 2 - _rc_consec));
+                const penalty_casts = qty - free_casts;
+                if (penalty_casts > 0) {
+                    row_penalty = RECAST_MANA_PENALTY * penalty_casts * (penalty_casts + 1) / 2;
+                    _rc_penalty = penalty_casts;
+                }
+                _rc_consec += qty;
+            }
+            row.recast_penalty_per_cast = qty > 0 ? row_penalty / qty : 0;
+        }
+    }
+
+    let corruption_slider_name = null;
+    if (hp_casting) {
+        health_config = extract_health_config(atree_mgd);
+        // Strip calculated (Blood Pact) boost tokens from parsed_combo rows —
+        // the worker computes these dynamically per candidate build based on
+        // that build's mana pool, rather than using the frozen snapshot value.
+        const strip_names = new Set(
+            boost_registry.filter(e => e.type === 'calculated').map(e => e.name));
+
+        // Also strip auto-filled Corrupted slider tokens when corruption is active —
+        // corruption % depends on per-build blood pact HP costs, so it must be
+        // recomputed dynamically in the worker just like Blood Pact bonus.
+        if (health_config.corruption.active) {
+            for (const entry of boost_registry) {
+                if (entry.type === 'slider' && entry.name === 'Corrupted') {
+                    corruption_slider_name = entry.name;
+                    strip_names.add(entry.name);
+                    break;
+                }
+            }
+        }
+
+        for (const row of parsed_combo) {
+            if (row.boost_tokens) {
+                row.boost_tokens = row.boost_tokens.filter(t => !strip_names.has(t.name));
+            }
         }
     }
 
@@ -215,7 +318,7 @@ function _build_solver_snapshot(restrictions) {
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
         restrictions, button_states, slider_states, scoring_target,
-        combo_time, allow_downtime, flat_mana, hp_casting, spell_base_costs,
+        combo_time, allow_downtime, flat_mana, hp_casting, health_config, corruption_slider_name, spell_base_costs,
     };
 }
 
@@ -243,13 +346,15 @@ function _merge_worker_top5(workers, include_interim) {
             for (const r of src) {
                 if (!r.item_names) continue;
                 const items = _reconstruct_result_items(r.item_names);
-                _insert_top5({
+                const merged = {
                     score: r.score,
                     items,
                     base_sp: r.base_sp ?? [0, 0, 0, 0, 0],
                     total_sp: r.total_sp ?? [0, 0, 0, 0, 0],
                     assigned_sp: r.assigned_sp ?? 0,
-                });
+                };
+                if (r._debug_combo_base) merged._debug_combo_base = r._debug_combo_base;
+                _insert_top5(merged);
             }
         }
     }
@@ -569,6 +674,8 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         allow_downtime: snap.allow_downtime,
         flat_mana: snap.flat_mana,
         hp_casting: snap.hp_casting,
+        health_config: snap.health_config,
+        corruption_slider_name: snap.corruption_slider_name,
         spell_base_costs: snap.spell_base_costs,
         restrictions: snap.restrictions,
         // Global data
@@ -629,6 +736,7 @@ function _stop_solver() {
         try { w.worker.terminate(); } catch (e) { }
     }
     _solver_state.workers = [];
+    _solver_state.snap = null;
     // Clear progress timer
     if (_solver_state.progress_timer) {
         clearInterval(_solver_state.progress_timer);
@@ -670,6 +778,69 @@ function _compute_sp_overflow_warnings() {
     return warnings;
 }
 
+/**
+ * Debug re-evaluation: re-run the global top-1 build's combo damage on the
+ * main thread with full row-by-row logging.  Uses the worker-saved combo_base
+ * (statMap snapshot) so the output reflects exactly what the worker computed.
+ * Called after _merge_worker_top5 when SOLVER_DEBUG_COMBO is true.
+ */
+function _debug_reeval_top1() {
+    const top1 = _solver_state.top5[0];
+    const combo_base = top1?._debug_combo_base;
+    const snap = _solver_state.snap;
+    if (!combo_base || !snap) return;
+
+    const item_names = top1.items.map(it =>
+        it.statMap.get('displayName') ?? it.statMap.get('name') ?? '').filter(n => n);
+    console.log('[COMBO-DEBUG][SOLVER] ═══ Re-evaluating global top-1 with debug logging ═══');
+    console.log('[COMBO-DEBUG][SOLVER] items:', item_names.join(', '));
+    console.log('[COMBO-DEBUG][SOLVER] score:', top1.score);
+
+    const crit = skillPointsToPercentage(combo_base.get('dex') || 0);
+    let damage_rows = snap.parsed_combo;
+
+    if (snap.hp_casting && snap.health_config) {
+        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
+        const sim = simulate_combo_mana_hp(
+            snap.parsed_combo, combo_base, snap.health_config, has_transcendence, snap.boost_registry);
+
+        console.log('[COMBO-DEBUG][SOLVER] sim results:', JSON.stringify(sim.row_results.map((r, i) => ({
+            row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
+            corruption: Math.round(r.corruption_pct), hp_warn: r.hp_warning,
+        }))));
+        console.log('[COMBO-DEBUG][SOLVER] sim end_mana:', sim.end_mana,
+            'end_hp:', Math.round(sim.end_hp), 'max_hp:', sim.max_hp,
+            'start_mana:', sim.start_mana);
+
+        // Compute bp_entry_name from boost_registry (same logic as worker init)
+        let bp_name = null;
+        for (const entry of snap.boost_registry) {
+            if (entry.type === 'calculated' && entry.calc_key === 'blood_pact') {
+                bp_name = entry.name; break;
+            }
+        }
+        const corr_name = snap.corruption_slider_name;
+
+        damage_rows = [];
+        for (let i = 0; i < snap.parsed_combo.length; i++) {
+            const row = snap.parsed_combo[i];
+            const res = sim.row_results[i];
+            const has_bp = res.blood_pact_bonus > 0 && bp_name;
+            const has_corr = corr_name && res.corruption_pct > 0;
+            if (!has_bp && !has_corr) { damage_rows.push(row); continue; }
+            const extra = [];
+            if (has_bp) extra.push({ name: bp_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
+            if (has_corr) extra.push({ name: corr_name, value: Math.round(res.corruption_pct), is_pct: false });
+            damage_rows.push({ ...row, boost_tokens: [...row.boost_tokens, ...extra] });
+        }
+    }
+
+    compute_combo_damage_totals(
+        combo_base, snap.weapon.statMap, damage_rows, crit,
+        snap.boost_registry, snap.atree_mgd,
+        { detailed: false, debug: true, debug_label: '[SOLVER]' });
+}
+
 function _on_all_workers_done(workers_snapshot) {
     const search_completed = _solver_state.running;  // true only if finished naturally
     const elapsed_s = Math.floor((Date.now() - _solver_state.start) / 1000);
@@ -683,6 +854,11 @@ function _on_all_workers_done(workers_snapshot) {
     }
 
     _merge_worker_top5(workers_snapshot, false);
+
+    // Debug combo re-evaluation: re-run global top-1 with full logging on main thread
+    if (SOLVER_DEBUG_COMBO && _solver_state.top5.length > 0) {
+        _debug_reeval_top1();
+    }
 
     _stop_solver();
 
@@ -793,6 +969,9 @@ function _run_solver_search_workers(pools, locked, snap) {
             }
         }
     }
+
+    // Store snap for post-search debug re-evaluation
+    _solver_state.snap = snap;
 
     // Build the heavy init message once (without partition — added per-worker below)
     const init_base = _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, null, 0);
@@ -920,6 +1099,27 @@ function start_solver_search() {
         if (locked[slot]) delete pools[slot];
     }
 
+    // If any locked item belongs to an exclusive set, remove all other items
+    // from that set from the remaining pools (they can never be used).
+    const locked_exclusive_sets = new Set();
+    for (const item of Object.values(locked)) {
+        const is = item?._illegalSet;
+        if (is) locked_exclusive_sets.add(is);
+    }
+    if (locked_exclusive_sets.size > 0) {
+        let excl_pruned = 0;
+        for (const [slot, pool] of Object.entries(pools)) {
+            const before = pool.length;
+            pools[slot] = pool.filter(it =>
+                it.statMap.has('NONE') || !locked_exclusive_sets.has(it._illegalSet)
+            );
+            excl_pruned += before - pools[slot].length;
+        }
+        if (excl_pruned > 0) {
+            console.log(`[solver] exclusive-set lock pruned ${excl_pruned} items (sets: ${[...locked_exclusive_sets].join(', ')})`);
+        }
+    }
+
     console.log('[solver] free pool sizes:', Object.fromEntries(
         Object.entries(pools).map(([k, v]) => [k, v.length])
     ));
@@ -929,7 +1129,8 @@ function start_solver_search() {
     const constraint_weights = _build_constraint_weights(restrictions);
 
     // Remove dominated items before sorting; smaller pools benefit search and sort.
-    _prune_dominated_items(pools, dmg_weights, restrictions);
+    const dominance_stats = _build_dominance_stats(snap, dmg_weights, restrictions);
+    _prune_dominated_items(pools, dominance_stats);
 
     // Sort each pool by damage/constraint relevance so level-0 visits the
     // best build first. NONE items are moved to the end of each pool.

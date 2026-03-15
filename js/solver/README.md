@@ -20,7 +20,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 ### Improve Solver
 - See SOLVER.md for details.
-- Verify that the mana calc handles tier drop and that the solver looks at these when optimizing. I.e. if mana steal is present, then it may be more optimal to add tier drop than more MS.
 
 
 ### Polish
@@ -32,6 +31,9 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Testing
+
+- Verify that the mana calc handles tier drop and that the solver looks at these when optimizing. I.e. if mana steal is present, then it may be more optimal to add tier drop than more MS.
+- Add more complicated scenarios to test_dominance.js
 
 #### Archetypes/Combos
 

@@ -5,10 +5,14 @@
 //
 // Dependencies (must be loaded before this file):
 //   - utils.js:            zip2, rawToPct, rawToPctUncapped
-//   - build_utils.js:      merge_stat, skp_order, skp_elements, reversedIDs
+//   - build_utils.js:      merge_stat, skp_order, skp_elements, reversedIDs,
+//                           attackSpeeds, baseDamageMultiplier,
+//                           skillPointsToPercentage
+//   - game_rules.js:       HIDDEN_BASE_HPR, HPR_TICK_SECONDS, MANA_TICK_SECONDS,
+//                           BASE_MANA_REGEN, SPELL_CAST_TIME, SPELL_CAST_DELAY
 //   - damage_calc.js:      calculateSpellDamage
 //   - shared_game_stats.js: damageMultipliers, specialNames, radiance_affected,
-//                           getDefenseStats
+//                           getDefenseStats, getBaseSpellCost, getSpellCost
 //   - powders.js:           powderSpecialStats
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -538,6 +542,116 @@ function _is_stat_relevant(key, has_damage, has_heal, use_spell, part_ids) {
     return true;
 }
 
+// ── Atree helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Parse out "parametrized entries".
+ * Format: ability_id.propname
+ */
+function atree_translate(atree_merged, v) {
+    if (typeof v === 'string') {
+        const [id_str, propname] = v.split('.');
+        return atree_merged.get(parseInt(id_str)).properties[propname];
+    }
+    return v;
+}
+
+/**
+ * Pure atree scaling computation shared by main thread and worker.
+ * Takes serialized button/slider state instead of DOM elements.
+ *
+ * @param {Map} atree_merged
+ * @param {Map} pre_scale_stats
+ * @param {Map<string, boolean>} button_states  - toggle name → on/off
+ * @param {Map<string, number>}  slider_states  - slider name → integer value
+ * @returns {[Map, Map]} [atree_edit, ret_effects]
+ */
+function atree_compute_scaling(atree_merged, pre_scale_stats, button_states, slider_states) {
+    // Shallow-clone each ability, deep-copying only `properties` (the only
+    // object mutated during scaling).
+    const atree_edit = new Map();
+    for (const [abil_id, abil] of atree_merged.entries()) {
+        atree_edit.set(abil_id, { ...abil, properties: { ...(abil.properties ?? {}) } });
+    }
+    let ret_effects = new Map();
+
+    function apply_bonus(bonus_info, value) {
+        const { type, name, abil = null, mult = false } = bonus_info;
+        if (type === 'stat') {
+            merge_stat(ret_effects, name, atree_translate(atree_merged, value));
+        } else if (type === 'prop') {
+            const merge_abil = atree_edit.get(abil);
+            if (merge_abil) {
+                if (mult) merge_abil.properties[name] *= atree_translate(atree_edit, value);
+                else      merge_abil.properties[name] += atree_translate(atree_edit, value);
+            }
+        }
+    }
+
+    for (const [abil_id, abil] of atree_merged.entries()) {
+        if (abil.effects.length == 0) continue;
+
+        for (const effect of abil.effects) {
+            switch (effect.type) {
+            case 'raw_stat':
+                if (effect.toggle) {
+                    if (!button_states.get(effect.toggle)) continue;
+                    for (const bonus of effect.bonuses) apply_bonus(bonus, bonus.value);
+                } else {
+                    for (const bonus of effect.bonuses) {
+                        if (bonus.type === 'stat') continue;
+                        apply_bonus(bonus, bonus.value);
+                    }
+                }
+                continue;
+            case 'stat_scaling': {
+                let total = 0;
+                const { slider = false, scaling = [0], behavior = "merge", multiplicative = false, requirement = 0 } = effect;
+                let { positive = true, round = true } = effect;
+                if (slider) {
+                    if (behavior == "modify" && !slider_states.has(effect.slider_name)) continue;
+                    const slider_val = slider_states.get(effect.slider_name) ?? 0;
+                    if (requirement > slider_val) continue;
+                    const input_value = slider_val - requirement;
+                    if (multiplicative) {
+                        total = (((100 + atree_translate(atree_merged, scaling[0])) / 100) ** input_value - 1) * 100;
+                    } else {
+                        total = input_value * atree_translate(atree_merged, scaling[0]);
+                    }
+                    round = false;
+                    positive = false;
+                } else {
+                    for (const [_scaling, input] of zip2(scaling, effect.inputs)) {
+                        if (input.type === 'stat') {
+                            total += (pre_scale_stats.get(input.name) || 0) * atree_translate(atree_merged, _scaling);
+                        } else if (input.type === 'prop') {
+                            const merge_abil = atree_edit.get(input.abil);
+                            if (merge_abil) total += merge_abil.properties[input.name] * atree_translate(atree_merged, _scaling);
+                        }
+                    }
+                }
+                if ('output' in effect) {
+                    if (round) total = Math.floor(round_near(total));
+                    if (positive && total < 0) total = 0;
+                    if ('max' in effect) {
+                        let effect_max = atree_translate(atree_merged, effect.max);
+                        if (effect_max > 0 && total > effect_max) total = effect.max;
+                        if (effect_max < 0 && total < effect_max) total = effect.max;
+                    }
+                    if (Array.isArray(effect.output)) {
+                        for (const output of effect.output) apply_bonus(output, total);
+                    } else {
+                        apply_bonus(effect.output, total);
+                    }
+                }
+                continue;
+            }
+            }
+        }
+    }
+    return [atree_edit, ret_effects];
+}
+
 // ── Worker search helpers ────────────────────────────────────────────────────
 
 function _deep_clone_statmap(sm) {
@@ -611,93 +725,351 @@ function _apply_radiance_scale_inplace(statMap, boost) {
     }
 }
 
+// _solver_sp_calc removed — replaced by calculate_skillpoints(equipment, weapon, sp_budget)
+// in skillpoints.js, which now supports an optional sp_budget parameter.
+
+// ── Combo mana/HP simulation ────────────────────────────────────────────────
+
 /**
- * Combined SP feasibility check + full calculation for the solver.
- * Replaces the separate _sp_prefilter() + calculate_skillpoints() pair
- * with a single pass, eliminating redundant iteration and tightening the
- * rejection logic.
+ * Pure mana+HP simulation kernel for Blood Pact / Bak'al's Grasp / Corruption.
+ * Shared by both main thread and worker. DOM-free.
  *
- * Key improvements over the old _sp_prefilter:
- *  - Uses raw requirements for all items, matching calculate_skillpoints'
- *    simplified pull_req() (no apply_bonus parameter).
- *  - Excludes weapon provisions from the bonus pool (weapon SP doesn't
- *    reduce the assignment in the real calculation).
- *  - Includes an early budget reject mid-loop for fast failure.
+ * Tracks mana state, HP pool, blood pact bonus, corruption accumulation,
+ * Exhilarate heal on Cancel Bak'al, HP regen ticks, and mana steal.
  *
- * Returns null if total_assigned > sp_budget (reject).
- * Returns [assign, final_skillpoints, total_assigned, set_counts] on success.
- *
- * @param {Map[]} equip_sms  - equipment statMaps (8 armor/acc + guild tome)
- * @param {Map}   weapon_sm  - weapon statMap
- * @param {number} sp_budget - max assignable SP (200/204/205)
+ * @param {Object[]} rows - Pre-parsed combo rows. Each row:
+ *   { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast }
+ *   pseudo: null | 'cancel_bakals' | 'mana_reset'
+ * @param {Map} base_stats - Aggregated build statMap
+ * @param {Object} health_config - From extract_health_config()
+ * @param {boolean} has_transcendence - Whether ARCANES major ID is active
+ * @param {Object[]} boost_registry - Boost registry for apply_combo_row_boosts
+ * @returns {Object} { end_mana, start_mana, max_mana, end_hp, max_hp,
+ *                     row_results[], spell_costs[], total_mana_cost, melee_hits,
+ *                     recast_penalty_total }
  */
-function _solver_sp_calc(equip_sms, weapon_sm, sp_budget) {
-    // Phase 1: Accumulate bonus skillpoints, effective requirements, and set counts.
-    const bonus_sp = [0, 0, 0, 0, 0];
-    const max_req = [0, 0, 0, 0, 0];
-    const set_counts = new Map();
+function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcendence, boost_registry) {
+    const mr = base_stats.get('mr') ?? 0;
+    const ms = base_stats.get('ms') ?? 0;
+    const item_mana = base_stats.get('maxMana') ?? 0;
+    const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
+    const start_mana = 100 + item_mana + int_mana;
+    const max_mana = start_mana;
 
-    for (const sm of equip_sms) {
-        const skp = sm.get('skillpoints');
-        const req = sm.get('reqs');
-        const is_crafted = sm.get('crafted');
+    const base_hp = base_stats.get('hp') ?? 0;
+    const hp_bonus = base_stats.get('hpBonus') ?? 0;
+    const max_hp = Math.max(5, base_hp + hp_bonus);
+    const hpr_raw = base_stats.get('hprRaw') ?? 0;
+    const hpr_pct = base_stats.get('hprPct') ?? 0;
+    const total_hpr = rawToPct(hpr_raw, hpr_pct / 100);
+    const hpr_tick = total_hpr + HIDDEN_BASE_HPR;
+    const mr_per_sec = (mr + BASE_MANA_REGEN) / MANA_TICK_SECONDS;
 
-        if (!is_crafted) {
-            for (let i = 0; i < 5; i++) bonus_sp[i] += skp[i];
-            const set_name = sm.get('set');
-            if (set_name) set_counts.set(set_name, (set_counts.get(set_name) ?? 0) + 1);
+    const health_cost_pct = health_config.health_cost;
+
+    // Mana steal setup
+    let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
+        + (base_stats.get('atkTier') ?? 0);
+    adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+    const ms_per_hit = ms > 0 ? ms / 3 / baseDamageMultiplier[adjAtkSpd] : 0;
+
+    // State
+    let mana = start_mana;
+    let hp = max_hp;
+    let corrupted = false;
+    let corruption_pct = 0;
+    let elapsed_time = 0;
+
+    const row_results = [];
+    const spell_costs = [];
+    let total_mana_cost = 0;
+    let melee_hits = 0;
+    let recast_penalty_total = 0;
+
+    for (const row of rows) {
+        const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0 } = row;
+
+        // Cancel Bak'al's Grasp pseudo-spell
+        if (pseudo === 'cancel_bakals') {
+            if (!mana_excl && corrupted) {
+                // Exhilarate heal: heal % of corruption bar as max hp
+                if (health_config.corruption_exit_heal > 0) {
+                    hp = Math.min(max_hp, hp + corruption_pct * health_config.corruption_exit_heal / 100 * max_hp);
+                }
+                corrupted = false;
+                corruption_pct = 0;
+            }
+            row_results.push({ blood_pact_bonus: 0, corruption_pct: 0, hp_warning: false });
+            continue;
         }
 
-        // Raw requirements for all items (matching simplified pull_req)
-        for (let i = 0; i < 5; i++) {
-            if (req[i] > max_req[i]) max_req[i] = req[i];
+        // Mana Reset pseudo-spell
+        if (pseudo === 'mana_reset') {
+            row_results.push({ blood_pact_bonus: 0, corruption_pct: 0, hp_warning: false });
+            continue;
         }
-    }
 
-    // Weapon: raw requirements, not added to bonus_sp
-    const wep_req = weapon_sm.get('reqs');
-    for (let i = 0; i < 5; i++) {
-        if (wep_req[i] > max_req[i]) max_req[i] = wep_req[i];
-    }
-
-    // Phase 2: Compute assignment with early budget check.
-    const assign = [0, 0, 0, 0, 0];
-    let total_assigned = 0;
-    for (let i = 0; i < 5; i++) {
-        if (max_req[i] === 0) continue;
-        if (max_req[i] > bonus_sp[i]) {
-            const delta = max_req[i] - bonus_sp[i];
-            if (delta > SP_PER_ATTR_CAP) return null;
-            assign[i] = delta;
-            total_assigned += delta;
-            if (total_assigned > sp_budget) return null;
+        if (qty <= 0 || !spell) {
+            row_results.push({ blood_pact_bonus: 0, corruption_pct, hp_warning: false });
+            continue;
         }
-    }
 
-    // Phase 3: Compute final skillpoints.
-    const final_sp = assign.slice();
-    for (let i = 0; i < 5; i++) final_sp[i] += bonus_sp[i];
-
-    // Add provisions from crafted items and weapon (excluded from bonus_sp)
-    for (const sm of equip_sms) {
-        if (sm.get('crafted')) {
-            const skp = sm.get('skillpoints');
-            for (let i = 0; i < 5; i++) final_sp[i] += skp[i];
+        // Mana-excluded rows: skip cost/regen tracking entirely
+        if (mana_excl) {
+            if (spell.scaling === 'melee') melee_hits += qty;
+            row_results.push({ blood_pact_bonus: 0, corruption_pct, hp_warning: false });
+            continue;
         }
-    }
-    const wep_skp = weapon_sm.get('skillpoints');
-    for (let i = 0; i < 5; i++) final_sp[i] += wep_skp[i];
 
-    // Add set bonuses to final skillpoints
-    for (const [set_name, count] of set_counts) {
-        const set_data = sets.get(set_name);
-        if (!set_data) continue;
-        const bonus = set_data.bonuses[count - 1];
-        if (!bonus) continue;
-        for (let i = 0; i < 5; i++) {
-            final_sp[i] += (bonus[skp_order[i]] || 0);
+        // Get spell cost using boosted stats (matching main thread behavior)
+        const { stats: row_stats } = apply_combo_row_boosts(base_stats, boost_tokens, boost_registry);
+        const cost_per = spell.cost != null ? getSpellCost(row_stats, spell) : 0;
+        const is_spell = spell.cost != null;
+        const is_melee_scaling = spell.scaling === 'melee';
+        const recast_base = spell.mana_derived_from ?? spell.base_spell;
+        const is_melee = recast_base === 0;
+
+        if (is_melee_scaling) melee_hits += qty;
+        recast_penalty_total += recast_penalty_per_cast * qty;
+
+        let row_blood_total = 0;
+        let row_blood_casts = 0;
+        let hp_warning = false;
+        let row_mana_cost = 0;
+
+        for (let c = 0; c < qty; c++) {
+            // Time passage (spells only, melee = 0 time)
+            if (is_spell && !is_melee) {
+                const time_delta = SPELL_CAST_TIME + SPELL_CAST_DELAY;
+                const prev_time = elapsed_time;
+                elapsed_time += time_delta;
+
+                // Mana regen
+                mana = Math.min(max_mana, mana + mr_per_sec * time_delta);
+
+                // HP regen tick check (suppressed while corrupted if suppress_healing)
+                if (!(corrupted && health_config.corruption.suppress_healing)) {
+                    const prev_ticks = Math.floor(prev_time / HPR_TICK_SECONDS);
+                    const cur_ticks = Math.floor(elapsed_time / HPR_TICK_SECONDS);
+                    if (cur_ticks > prev_ticks) {
+                        hp = Math.min(max_hp, hp + hpr_tick * (cur_ticks - prev_ticks));
+                    }
+                }
+            }
+
+            // Mana steal from melee hits
+            if (is_melee_scaling && ms_per_hit > 0) {
+                mana = Math.min(max_mana, mana + ms_per_hit);
+            }
+
+            // Spell cost payment
+            if (is_spell) {
+                const effective_cost = cost_per + recast_penalty_per_cast;
+                let adj_cost = effective_cost;
+                if (has_transcendence) adj_cost *= 0.75;
+
+                if (mana >= adj_cost) {
+                    mana -= adj_cost;
+                } else {
+                    // Blood Pact: pay remaining from health
+                    const remaining_mana = Math.max(0, mana);
+                    const health_mana = adj_cost - remaining_mana;
+                    mana = 0;
+                    const blood_ratio = health_mana / adj_cost;
+
+                    // Health cost
+                    const hp_cost = health_mana * health_cost_pct * max_hp / 100;
+                    if (hp < hp_cost) hp_warning = true;
+                    hp -= hp_cost;
+
+                    // Track corruption from health costs while corrupted
+                    if (corrupted) {
+                        corruption_pct = Math.min(100, corruption_pct + hp_cost / max_hp * 100);
+                    }
+
+                    row_blood_total += health_config.damage_boost_min +
+                        (health_config.damage_boost_max - health_config.damage_boost_min) * blood_ratio;
+                    row_blood_casts++;
+                }
+
+                row_mana_cost += adj_cost;
+
+                // Corruption system: War Scream (base_spell 4) activates corruption
+                if (health_config.corruption.active && spell.base_spell === 4 && !corrupted) {
+                    corrupted = true;
+                    corruption_pct = 0;
+                }
+            }
         }
+
+        const avg_blood_bonus = row_blood_casts > 0 ? row_blood_total / row_blood_casts : 0;
+        total_mana_cost += row_mana_cost;
+        if (is_spell) {
+            spell_costs.push({ name: spell.name, qty, cost: cost_per, recast_penalty: recast_penalty_per_cast * qty });
+        }
+
+        row_results.push({ blood_pact_bonus: avg_blood_bonus, corruption_pct, hp_warning });
     }
 
-    return [assign, final_sp, total_assigned, set_counts];
+    return {
+        end_mana: mana,
+        start_mana,
+        max_mana,
+        end_hp: hp,
+        max_hp,
+        row_results,
+        spell_costs,
+        total_mana_cost,
+        melee_hits,
+        recast_penalty_total,
+    };
+}
+
+// ── Combo damage totals ─────────────────────────────────────────────────────
+
+/**
+ * Pure combo damage totals computation shared by main thread and worker.
+ * Iterates combo rows, applies per-row boost tokens, computes spell damage
+ * and healing for each row.
+ *
+ * @param {Map} base_stats - Aggregated build statMap
+ * @param {Map} weapon_sm - Weapon statMap
+ * @param {Object[]} parsed_rows - Each row:
+ *   { qty, spell, boost_tokens, dmg_excl, dps_per_hit_name, dps_hits, pseudo }
+ * @param {number} crit_chance - Crit chance (from dex skill percentage)
+ * @param {Object[]} registry - Boost registry
+ * @param {Map} atree_merged - Merged ability tree
+ * @param {Object} [opts] - { detailed: bool, scratch_row: Map|null }
+ *   detailed=false → computeSpellDisplayAvg (fast, worker)
+ *   detailed=true  → computeSpellDisplayFull (main thread popups)
+ * @returns {Object} { total_damage, total_healing, per_row[] }
+ *   per_row: { damage, healing, full_display, spell_cost }
+ */
+function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_chance, registry, atree_merged, opts) {
+    const { detailed = false, scratch_row = null, debug = false, debug_label = '[PAGE]' } = opts || {};
+    let total_damage = 0;
+    let total_healing = 0;
+    const per_row = [];
+
+    if (debug) {
+        const _ds = (sm) => {
+            const keys = ['hp','hpBonus','str','dex','int','def','agi',
+                'sdPct','sdRaw','mdPct','mdRaw','damPct','damRaw',
+                'rSdPct','rSdRaw','rMdPct','rMdRaw','rDamPct','rDamRaw',
+                'mr','ms','maxMana','critDamPct','atkSpd','atkTier',
+                'spPct1','spPct2','spPct3','spPct4','spRaw1','spRaw2','spRaw3','spRaw4'];
+            const o = {};
+            for (const k of keys) { const v = sm.get(k); if (v != null && v !== 0) o[k] = v; }
+            const dm = sm.get('damMult');
+            if (dm?.size) o.damMult = Object.fromEntries(dm);
+            const dfm = sm.get('defMult');
+            if (dfm?.size) o.defMult = Object.fromEntries(dfm);
+            return o;
+        };
+        const _ws = (sm) => {
+            const o = {};
+            for (const e of ['n','e','t','w','f','a']) {
+                const v = sm.get(e + 'Dam_');
+                if (v) o[e + 'Dam_'] = v;
+            }
+            o.atkSpd = sm.get('atkSpd');
+            return o;
+        };
+        console.log('[COMBO-DEBUG]' + debug_label + ' base_stats:', JSON.stringify(_ds(base_stats)));
+        console.log('[COMBO-DEBUG]' + debug_label + ' weapon:', JSON.stringify(_ws(weapon_sm)));
+        console.log('[COMBO-DEBUG]' + debug_label + ' crit_chance:', crit_chance, 'detailed:', detailed);
+    }
+
+    for (let _row_idx = 0; _row_idx < parsed_rows.length; _row_idx++) {
+        const row = parsed_rows[_row_idx];
+        const { qty, spell, boost_tokens, dmg_excl, pseudo } = row;
+
+        if (!spell || qty <= 0 || pseudo) {
+            per_row.push({ damage: 0, healing: 0, full_display: null, spell_cost: null, dps_info: null });
+            if (debug && pseudo) console.log('[COMBO-DEBUG]' + debug_label + ' row', _row_idx, '(pseudo:', pseudo + ')');
+            continue;
+        }
+
+        const { stats, prop_overrides } =
+            apply_combo_row_boosts(base_stats, boost_tokens, registry, scratch_row);
+        const mod_spell = apply_spell_prop_overrides(spell, prop_overrides, atree_merged);
+
+        // DPS spell detection: use pre-set fields or auto-detect from mod_spell
+        let eff_dps_name = row.dps_per_hit_name ?? null;
+        let eff_dps_hits = row.dps_hits ?? 0;
+        let dps_info = null;
+        if (!eff_dps_name) {
+            dps_info = compute_dps_spell_hits_info(mod_spell);
+            if (dps_info) {
+                eff_dps_name = dps_info.per_hit_name;
+                eff_dps_hits = row.dps_hits_override ?? dps_info.max_hits;
+            }
+        }
+
+        let per_cast, full_display = null;
+        if (detailed) {
+            let full;
+            if (eff_dps_name) {
+                const per_hit_spell = { ...mod_spell, display: eff_dps_name };
+                full = computeSpellDisplayFull(stats, weapon_sm, per_hit_spell, crit_chance);
+                per_cast = full ? full.avg * eff_dps_hits : 0;
+            } else {
+                full = computeSpellDisplayFull(stats, weapon_sm, mod_spell, crit_chance);
+                per_cast = full ? full.avg : 0;
+            }
+            full_display = full;
+        } else {
+            if (eff_dps_name) {
+                const per_hit_spell = { ...mod_spell, display: eff_dps_name };
+                per_cast = computeSpellDisplayAvg(stats, weapon_sm, per_hit_spell, crit_chance) * eff_dps_hits;
+            } else {
+                per_cast = computeSpellDisplayAvg(stats, weapon_sm, mod_spell, crit_chance);
+            }
+        }
+
+        const row_damage = dmg_excl ? 0 : per_cast * qty;
+        const heal_per_cast = computeSpellHealingTotal(stats, mod_spell);
+        const row_healing = heal_per_cast * qty;
+
+        if (debug) {
+            const _bt = boost_tokens?.map(t => `${t.name}=${t.value}${t.is_pct?'%':''}`) ?? [];
+            const _po = prop_overrides.size ? Object.fromEntries([...prop_overrides].map(([k,v]) => [k, `replace=${v.replace} add=${v.add}`])) : null;
+            // Log key boosted stat deltas vs base
+            const _deltas = {};
+            for (const k of ['sdPct','sdRaw','mdPct','mdRaw','damPct','damRaw','critDamPct',
+                             'rSdPct','rSdRaw','rMdPct','rMdRaw','rDamPct','rDamRaw']) {
+                const sv = stats.get(k) ?? 0, bv = base_stats.get(k) ?? 0;
+                if (sv !== bv) _deltas[k] = `${bv}→${sv}`;
+            }
+            const sdm = stats.get('damMult'), bdm = base_stats.get('damMult');
+            if (sdm) for (const [k,v] of sdm) {
+                const bv = bdm?.get(k) ?? 0;
+                if (v !== bv) _deltas['damMult.' + k] = `${bv}→${v}`;
+            }
+            console.log('[COMBO-DEBUG]' + debug_label + ' row', _row_idx, JSON.stringify({
+                spell: spell.name, qty, dmg_excl: dmg_excl || undefined,
+                boosts: _bt.length ? _bt : undefined,
+                prop_overrides: _po,
+                stat_deltas: Object.keys(_deltas).length ? _deltas : undefined,
+                dps: eff_dps_name ? { name: eff_dps_name, hits: eff_dps_hits, preset: !!row.dps_per_hit_name } : undefined,
+                per_cast: Math.round(per_cast),
+                row_damage: Math.round(row_damage),
+            }));
+        }
+
+        total_damage += row_damage;
+        total_healing += row_healing;
+
+        // Spell cost (for popup display)
+        const spell_cost = (detailed && mod_spell.cost != null)
+            ? getSpellCost(stats, mod_spell) : null;
+
+        per_row.push({ damage: per_cast, healing: heal_per_cast, full_display, spell_cost, dps_info });
+    }
+
+    if (debug) {
+        console.log('[COMBO-DEBUG]' + debug_label + ' TOTAL damage:', Math.round(total_damage), 'healing:', Math.round(total_healing));
+    }
+
+    return { total_damage, total_healing, per_row };
 }
