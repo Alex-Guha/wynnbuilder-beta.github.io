@@ -318,56 +318,9 @@ function toggleSlotLock(i) {
  * Clears all solver inputs back to defaults and triggers a graph update.
  */
 function resetSolverFields() {
-    for (const i of equipment_inputs) setValue(i, "");
-    for (const i of powder_inputs) setValue(i, "");
-    for (const i of tomeInputs) setValue(i, "");
-    for (const i of aspectInputs) setValue(i, "");
-    for (const i of aspectTierInputs) setValue(i, "");
-
-    // Reset boost buttons
-    for (const [key] of damageMultipliers) {
-        const btn = document.getElementById(key + "-boost");
-        if (btn) btn.classList.remove("toggleOn");
-    }
-
-    // Reset Allow Downtime toggle
-    const downtime_btn = document.getElementById('combo-downtime-btn');
-    if (downtime_btn) downtime_btn.classList.remove('toggleOn');
-
-    setValue("level-choice", String(MAX_PLAYER_LEVEL));
-    // Reset roll groups to defaults
-    Object.assign(current_roll_mode, ROLL_GROUP_DEFAULTS);
-    _syncRollUI();
-    _closeRollGroupPopup();
-
-    // Re-propagate graph to clear displays
-    if (solver_equip_input_nodes.length) {
-        for (const node of solver_equip_input_nodes) node.mark_dirty();
-        for (const node of solver_equip_input_nodes) node.update();
-    }
-    if (typeof solver_boosts_node !== 'undefined') {
-        solver_boosts_node.mark_dirty().update();
-    }
-
-    // Reset restriction panel to defaults
-    _auto_disabled_dirs.clear();
-    _dir_user_overrides.clear();
-    for (const sp of ['str', 'dex', 'int', 'def', 'agi']) {
-        const btn = document.getElementById('dir-' + sp);
-        if (btn) btn.classList.add('toggleOn');
-    }
-    const lvl_min_inp = document.getElementById('restr-lvl-min');
-    if (lvl_min_inp) lvl_min_inp.value = '';
-    const lvl_max_inp = document.getElementById('restr-lvl-max');
-    if (lvl_max_inp) lvl_max_inp.value = String(MAX_PLAYER_LEVEL);
-    const no_maj_btn = document.getElementById('restr-no-major-id');
-    if (no_maj_btn) no_maj_btn.classList.remove('toggleOn');
-    const guild_sel = document.getElementById('restr-guild-tome');
-    if (guild_sel) guild_sel.value = '0';
-    const restr_container = document.getElementById('restriction-rows');
-    if (restr_container) restr_container.innerHTML = '';
-
-    location.hash = "";
+    // Navigate to the bare page URL — a full reload guarantees every field,
+    // graph node, atree, combo row, and display is back to its default state.
+    window.location.href = window.location.pathname;
 }
 
 // ── Initialisation helpers ────────────────────────────────────────────────────
