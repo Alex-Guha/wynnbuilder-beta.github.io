@@ -397,10 +397,23 @@ function _format_solver_score(score, target) {
 
 function _format_duration(total_s) {
     total_s = Math.max(0, Math.floor(total_s));
-    const d = Math.floor(total_s / 86400);
-    const h = Math.floor((total_s % 86400) / 3600);
-    const m = Math.floor((total_s % 3600) / 60);
-    const s = total_s % 60;
+    const SECS_PER_YEAR = 31557600;  // 365.25 days
+    const mill = Math.floor(total_s / (SECS_PER_YEAR * 1000));
+    const rem_mill = total_s % (SECS_PER_YEAR * 1000);
+    const c = Math.floor(rem_mill / (SECS_PER_YEAR * 100));
+    const rem_c = rem_mill % (SECS_PER_YEAR * 100);
+    const y = Math.floor(rem_c / SECS_PER_YEAR);
+    const rem_y = rem_c % SECS_PER_YEAR;
+    const w = Math.floor(rem_y / 604800);
+    const rem_w = rem_y % 604800;
+    const d = Math.floor(rem_w / 86400);
+    const h = Math.floor((rem_w % 86400) / 3600);
+    const m = Math.floor((rem_w % 3600) / 60);
+    const s = rem_w % 60;
+    if (mill > 0) return `${mill.toLocaleString()} millennia`;
+    if (c > 0) return `${c}c ${y}y ${w}w`;
+    if (y > 0) return `${y}y ${w}w ${d}d`;
+    if (w > 0) return `${w}w ${d}d ${h}h`;
     if (d > 0) return `${d}d ${h}h ${m}m ${s}s`;
     if (h > 0) return `${h}h ${m}m ${s}s`;
     if (m > 0) return `${m}m ${s}s`;
