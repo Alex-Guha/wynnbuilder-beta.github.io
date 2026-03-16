@@ -426,7 +426,7 @@ function _restore_from_url(solver_params) {
             if (!row) continue;
             const stat_input = row.querySelector('.restr-stat-input');
             const op_select = row.querySelector('select');
-            const val_input = row.querySelector('input[type="number"]');
+            const val_input = row.querySelector('.restr-value-input');
             if (stat_input) {
                 stat_input.value = stat_obj.label;
                 stat_input.dataset.statKey = stat_obj.key;

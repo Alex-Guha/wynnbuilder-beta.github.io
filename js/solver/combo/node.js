@@ -18,11 +18,10 @@ class SolverComboTotalNode extends ComputeNode {
         // Extract health-related ability config from the merged atree.
         this._health_config = extract_health_config(atree_mg);
 
-        // Refresh selection-mode spell dropdowns with the raw spell map initially.
-        this._spell_map_cache = spell_map;
-        if (spell_map) this._refresh_selection_spells(spell_map);
-
         if (!build || !base_stats || !spell_map || build.weapon.statMap.has('NONE')) {
+            // Refresh with the raw spell map (no powder specials) for the invalid-build case.
+            this._spell_map_cache = spell_map;
+            if (spell_map) this._refresh_selection_spells(spell_map);
             if (total_elem) total_elem.textContent = '—';
             return null;
         }

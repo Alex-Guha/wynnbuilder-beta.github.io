@@ -307,6 +307,11 @@ function compute_boosts() {
     res.set('damMult.Strength',      100 * str_boost);
     res.set('damMult.Vulnerability', 100 * vuln_boost);
     res.set('defMult.Potion',        100 * def_boost);
+
+    if (document.getElementById('judgement-boost')?.classList.contains('toggleOn')) {
+        res.set('damMult.Judgement', 20);
+        res.set('defMult.Judgement', 20);
+    }
     return res;
 }
 

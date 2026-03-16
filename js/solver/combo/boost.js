@@ -82,19 +82,34 @@ function renderSpellPopupHTML(full, crit_chance, spell_cost) {
 // ── Powder special helpers ────────────────────────────────────────────────────
 
 /**
- * Returns the powder special tier (1-5) for a given element on a set of powders,
- * or 0 if no powders of that element are present.
+ * Returns the powder special power index (1-7) for a given element on a set of powders,
+ * or 0 if the element doesn't have a powder special active.
+ * Powder specials require two T4+ powders of the same element.  The power index is
+ * derived from the individual tier indices of the first two qualifying powders:
+ *   power_index = (tier1_idx + tier2_idx - 6) + 1   (1-based, where tier_idx is 0-based 0..6)
  * element_idx: 0=earth, 1=thunder, 2=water, 3=fire, 4=air  (same as powderSpecialStats order).
  */
 function get_element_powder_tier(powders, element_idx) {
-    const count = powders.filter(pid => ((pid / POWDER_TIERS) | 0) === element_idx).length;
-    return count > 0 ? Math.min(count, 5) : 0;
+    let first_tier_idx = -1;
+    for (const pid of powders) {
+        if (((pid / POWDER_TIERS) | 0) !== element_idx) continue;
+        const tier_idx = pid % POWDER_TIERS;  // 0-based: 0=T1 .. 6=T7
+        if (tier_idx <= 2) continue;           // must be T4+ (tier_idx >= 3)
+        if (first_tier_idx < 0) {
+            first_tier_idx = tier_idx;
+        } else {
+            // power_index is 0-based for array indexing in make_powder_special_spell;
+            // return 1-based so caller does tier-1 to index into Damage[].
+            return (first_tier_idx + tier_idx - 6) + 1;
+        }
+    }
+    return 0;
 }
 
 /**
  * Build a synthetic spell object for a damaging powder special.
  * ps_idx: 0=Quake(earth), 1=Chain Lightning(thunder), 3=Courage(fire)
- * Tier: 1-5.  The returned object is compatible with computeSpellDisplayAvg().
+ * Tier: 1-7.  The returned object is compatible with computeSpellDisplayAvg().
  */
 function make_powder_special_spell(ps_idx, tier) {
     const ps          = powderSpecialStats[ps_idx];
@@ -108,7 +123,7 @@ function make_powder_special_spell(ps_idx, tier) {
         cost:        undefined,   // powder specials don't have a regular mana cost
         scaling:     'melee',     // use_spell_damage = false (matches display.js call)
         use_atkspd:  false,       // ignore_speed = true
-        parts: [{ name: 'hit', display: true, multipliers: conversions }],
+        parts: [{ name: 'Powder Special', display: true, multipliers: conversions }],
         _is_powder_special: true,
     };
 }
@@ -129,7 +144,7 @@ function make_powder_special_spell(ps_idx, tier) {
  */
 function build_combo_boost_registry(atree_merged, build = null) {
     const registry    = [];
-    const toggle_seen = new Set();   // toggle name → already added
+    const toggle_seen = new Map();   // toggle name → index in registry
     const slider_idx  = new Map();   // slider_name → index in registry
 
     if (!atree_merged) return registry;
@@ -169,7 +184,6 @@ function build_combo_boost_registry(atree_merged, build = null) {
         for (const effect of abil.effects) {
             if (effect.type === 'raw_stat' && effect.toggle) {
                 const toggle_name = effect.toggle;
-                if (toggle_seen.has(toggle_name)) continue;
 
                 const stat_bonuses = [];
                 const prop_bonuses = [];
@@ -187,12 +201,20 @@ function build_combo_boost_registry(atree_merged, build = null) {
                         prop_bonuses.push({ ref: String(bonus.abil) + '.' + bonus.name, value_per_unit: val, mode: 'add' });
                     }
                 }
-                if (stat_bonuses.length > 0 || prop_bonuses.length > 0) {
-                    toggle_seen.add(toggle_name);
+                if (stat_bonuses.length === 0 && prop_bonuses.length === 0) continue;
+
+                // Merge into existing entry if toggle name was already seen
+                // (e.g. Ambush adds to Surprise Strike's toggle).
+                if (toggle_seen.has(toggle_name)) {
+                    const existing = registry[toggle_seen.get(toggle_name)];
+                    existing.stat_bonuses.push(...stat_bonuses);
+                    existing.prop_bonuses.push(...prop_bonuses);
+                } else {
                     // Blood Pact: convert to 'calculated' type — the bonus % is
                     // auto-computed by the spell-to-spell simulation engine.
                     const is_blood_pact = abil.properties?.health_cost != null;
                     if (is_blood_pact) {
+                        toggle_seen.set(toggle_name, registry.length);
                         registry.push({
                             name: toggle_name, aliases: [], type: 'calculated',
                             stat_bonuses, prop_bonuses,
@@ -201,6 +223,7 @@ function build_combo_boost_registry(atree_merged, build = null) {
                             damage_boost_max: abil.properties?.damage_boost ?? 25,
                         });
                     } else {
+                        toggle_seen.set(toggle_name, registry.length);
                         registry.push({ name: toggle_name, aliases: [], type: 'toggle', stat_bonuses, prop_bonuses });
                     }
                 }

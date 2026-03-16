@@ -1,3 +1,35 @@
+// ── Numeric suffix parsing (k = ×1000, m = ×1000000) ────────────────────────
+
+/**
+ * Parses a numeric string that may end with 'k' (×1,000) or 'm' (×1,000,000).
+ * Returns NaN if the string is not a valid number (after stripping the suffix).
+ */
+function _parse_suffixed_number(raw) {
+    raw = raw.trim().toLowerCase();
+    if (raw === '') return NaN;
+    let multiplier = 1;
+    if (raw.endsWith('m')) { multiplier = 1_000_000; raw = raw.slice(0, -1); }
+    else if (raw.endsWith('k')) { multiplier = 1_000; raw = raw.slice(0, -1); }
+    const num = parseFloat(raw);
+    return isNaN(num) ? NaN : num * multiplier;
+}
+
+/**
+ * On blur, resolves k/m suffixes in a text input to their full numeric value.
+ */
+function _wire_suffix_parse(input) {
+    const resolve = () => {
+        const raw = input.value.trim().toLowerCase();
+        if (!raw) return;
+        if (raw.endsWith('k') || raw.endsWith('m')) {
+            const num = _parse_suffixed_number(raw);
+            if (!isNaN(num)) input.value = num;
+        }
+    };
+    input.addEventListener('blur', resolve);
+    input.addEventListener('change', resolve);
+}
+
 // ── Encoding-limit input validation ──────────────────────────────────────────
 
 /**
@@ -182,14 +214,17 @@ function restriction_add_row() {
             <option value="ge">≥</option>
             <option value="le">≤</option>
         </select>
-        <input type="number" class="combo-row-input restr-value-input"
+        <input type="text" inputmode="decimal" class="combo-row-input restr-value-input"
                placeholder="0" style="width:4.5em; text-align:center; flex-shrink:0;">
     `;
     container.appendChild(row);
     _init_restriction_stat_autocomplete('restr-stat-' + idx);
     // Clamp value input to encoding limits (±8,388,607)
     const val_input = row.querySelector('.restr-value-input');
-    if (val_input) _wire_encoding_cap(val_input, RESTR_VALUE_MIN, RESTR_VALUE_MAX);
+    if (val_input) {
+        _wire_suffix_parse(val_input);       // resolve k/m before clamping
+        _wire_encoding_cap(val_input, RESTR_VALUE_MIN, RESTR_VALUE_MAX);
+    }
     // Wire all inputs for URL persistence
     for (const inp of row.querySelectorAll('input, select')) {
         inp.addEventListener('change', _schedule_solver_hash_update);
@@ -286,7 +321,7 @@ function get_restrictions() {
         if (!row.id?.startsWith('restr-row-')) continue;
         const stat_input = row.querySelector('.restr-stat-input');
         const op_select = row.querySelector('select');
-        const val_input = row.querySelector('input[type="number"]');
+        const val_input = row.querySelector('.restr-value-input');
         if (!stat_input || !op_select || !val_input) continue;
         const stat_key = stat_input.dataset?.statKey || null;
         const stat_label = stat_input.value.trim();
