@@ -318,7 +318,7 @@ class SolverComboTotalNode extends ComputeNode {
     _iterate_combo_rows() {
         const rows = [];
         for (const row of document.querySelectorAll('#combo-selection-rows .combo-row')) {
-            const qty = parseInt(row.querySelector('.combo-row-qty')?.value) || 0;
+            const qty = parseFloat(row.querySelector('.combo-row-qty')?.value) || 0;
             const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
             const toggles = row.querySelectorAll('.combo-row-boost-toggle.toggleOn');
             const sliders = row.querySelectorAll('.combo-row-boost-slider');
@@ -610,6 +610,26 @@ class SolverComboTotalNode extends ComputeNode {
                 const sep = document.createElement('hr');
                 sep.className = 'my-1';
                 area.appendChild(sep);
+            }
+
+            // DPS spells without a Total/Max hit-count part: allow decimal qty
+            // (the qty field represents duration in seconds, not discrete casts).
+            const qty_inp = row.querySelector('.combo-row-qty');
+            if (qty_inp) {
+                const is_dps_no_hits = spell_is_dps(spell) && !dps_info;
+                if (is_dps_no_hits) {
+                    qty_inp.step = 'any';
+                    // Restore decimal qty from URL decode (stored as pendingHits).
+                    if (row.dataset.pendingHits !== undefined) {
+                        qty_inp.value = row.dataset.pendingHits;
+                        delete row.dataset.pendingHits;
+                    }
+                } else {
+                    qty_inp.step = '1';
+                    // Round to integer when switching away from a decimal-qty spell.
+                    const cur = parseFloat(qty_inp.value);
+                    if (cur !== Math.round(cur)) qty_inp.value = String(Math.round(cur));
+                }
             }
 
             // Render toggles first, then calculated fields, then sliders.

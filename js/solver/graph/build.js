@@ -288,7 +288,7 @@ function _collect_solver_params() {
     const combo_rows = [];
     if (typeof solver_combo_total_node !== 'undefined' && solver_combo_total_node) {
         for (const row of document.querySelectorAll('#combo-selection-rows .combo-row')) {
-            const qty = parseInt(row.querySelector('.combo-row-qty')?.value) || 0;
+            const qty_raw = parseFloat(row.querySelector('.combo-row-qty')?.value) || 0;
             const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
             if (isNaN(spell_id)) continue;
 
@@ -318,8 +318,16 @@ function _collect_solver_params() {
 
             // DPS hits: read from the hits input in the boost area.
             const hits_inp = row.querySelector('.combo-row-hits');
-            const has_hits = !!hits_inp;
-            const hits = has_hits ? (parseFloat(hits_inp.value) || 0) : 0;
+            let has_hits = !!hits_inp;
+            let hits = has_hits ? (parseFloat(hits_inp.value) || 0) : 0;
+
+            // Decimal qty (DPS spells without hit info): encode fractional qty
+            // via the hits field so it survives binary URL round-tripping.
+            const qty = Math.round(qty_raw);
+            if (!has_hits && qty_raw !== qty) {
+                has_hits = true;
+                hits = qty_raw;
+            }
 
             combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts });
         }

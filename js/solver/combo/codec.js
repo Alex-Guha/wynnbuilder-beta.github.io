@@ -18,7 +18,7 @@ function combo_text_to_data(text) {
         const line = raw.trim();
         if (!line || line.startsWith('#')) continue;
         const parts = line.split('|');
-        const qty             = Math.max(0, parseInt(parts[0]?.trim()) || 1);
+        const qty             = Math.max(0, parseFloat(parts[0]?.trim()) || 1);
         const spell_name      = (parts[1] ?? '').trim();
         if (!spell_name) continue;
         const boost_tokens_text = (parts[2] ?? '').trim();
