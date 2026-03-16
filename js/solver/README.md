@@ -24,7 +24,9 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 ### Polish
 #### UI
-- Report when we've passed the "optimal likely already found" point.
+- Ensure the red and blue solver messages appear at appropriate times. Red requires testing with a poor cpu, and blue probably isn't showing soon enough.
+- Clean the "Checked | Feasible \n Time | Time left | Warning" display up
+
 
 #### Combo
 - Add healing stuff to atree (Intoxicating Blood, Rejuvenating Skin, that kind of stuff)
@@ -44,3 +46,4 @@ The combo damage calculation has been tested against WynnBuilder output for some
 ### Long term
 - Automatic combo sequencing - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a lot of work
 - Advanced mode, where the per-spell cast time and durations and spell hits and what not can be specified
+- Premade archetype combo selectors

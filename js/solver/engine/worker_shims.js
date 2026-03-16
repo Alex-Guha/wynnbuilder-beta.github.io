@@ -98,7 +98,7 @@ function _init_running_statmap(level, fixed_item_sms) {
  * Applies set bonuses, sets up damMult/defMult/healMult/majorIDs.
  * Finalizes all stats at the leaf level of the search tree.
  */
-function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map, all_equip_sms, target) {
+function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map, all_equip_sms, target, inner_scratch) {
     let sm;
     if (target) {
         sm = target;
@@ -120,14 +120,25 @@ function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map
         }
     }
 
-    // Multiplier maps
-    sm.set('damMult', new Map());
-    sm.set('defMult', new Map());
-    sm.get('damMult').set('tome', sm.get('damMobs') || 0);
-    sm.get('defMult').set('tome', sm.get('defMobs') || 0);
+    // Multiplier maps (reuse scratch Maps when available)
+    let damMult, defMult, healMult, major_ids;
+    if (inner_scratch) {
+        damMult = inner_scratch.damMult; damMult.clear();
+        defMult = inner_scratch.defMult; defMult.clear();
+        healMult = inner_scratch.healMult; healMult.clear();
+        major_ids = inner_scratch.majorIds; major_ids.clear();
+    } else {
+        damMult = new Map();
+        defMult = new Map();
+        healMult = new Map();
+        major_ids = new Set();
+    }
+    damMult.set('tome', sm.get('damMobs') || 0);
+    defMult.set('tome', sm.get('defMobs') || 0);
+    sm.set('damMult', damMult);
+    sm.set('defMult', defMult);
 
     // Major IDs (rebuilt at leaf — rare, so not tracked incrementally)
-    const major_ids = new Set();
     for (const item_sm of all_equip_sms) {
         const mids = item_sm.get("majorIds");
         if (mids) for (const mid of mids) major_ids.add(mid);
@@ -135,8 +146,8 @@ function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map
     sm.set("activeMajorIDs", major_ids);
 
     sm.set("poisonPct", 0);
-    sm.set("healMult", new Map());
-    sm.get('healMult').set('item', sm.get('healPct') || 0);
+    healMult.set('item', sm.get('healPct') || 0);
+    sm.set("healMult", healMult);
     sm.set("atkSpd", weapon_sm.get("atkSpd"));
 
     return sm;

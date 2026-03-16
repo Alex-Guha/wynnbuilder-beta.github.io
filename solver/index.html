@@ -100,11 +100,11 @@
             <strong style="font-size: 1.05rem;">Beta Testing</strong><br>
             <span style="font-size: 0.9rem;">
                 This page is under active development. The combo section may contain bugs for some class archetypes.<br>
-                The solver works best when you lock in some items and narrow the search &mdash; trying to solve all
-                slots at once is not feasible.<br>
-                Up to ~6 unlocked slots is possible with higher worker counts and constraints, but it is generally
-                recommended to limit them to 4 at a time.<br>
-                Please report issues and provide feedback in the
+                Near-optimal builds are very likely to be found in the first few minutes, but not guaranteed until all
+                builds have been checked.<br>
+                Most major ids are currently not handled by the combo. Some healing abilities are also not currently
+                accounted for in the Warrior's Blood Pact handling.<br>
+                Please report issues, provide feedback, and suggest improvements in the
                 <a href="https://discord.gg/CGavnAnerv" target="_blank"
                     style="color: #ffe0a0; text-decoration: underline;">WynnBuilder Discord</a>.
             </span>
@@ -425,74 +425,70 @@
 
                         <!-- LEVEL / ROLL / RESET + action buttons -->
                         <div class="col order-xl-0 order-1 solver-lrg-wrap">
-                                    <div class="solver-level-roll-grid">
-                                        <!-- Row 1: Level + Copy URL -->
-                                        <div class="fw-bold scaled-font solver-lrg-label">Level</div>
-                                        <input class="equipment-input text-light form-control form-control-sm"
-                                            id="level-choice" name="level-choice" value="121" placeholder="Level">
-                                        <button
-                                            class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
-                                            id="copy-solver-url-btn" title="Copy WynnSolver URL to clipboard"
-                                            onclick="copy_solver_url()">Copy URL</button>
-                                        <!-- Reset spans rows 1-2 -->
-                                        <button
-                                            class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-reset-btn"
-                                            onclick="resetSolverFields()">Reset</button>
-                                        <!-- Row 2: Roll + Export -->
-                                        <div class="fw-bold scaled-font solver-lrg-label">Roll</div>
-                                        <div style="position:relative">
-                                            <input type="text"
-                                                class="equipment-input text-light form-control form-control-sm"
-                                                id="roll-mode-input" value="Default"
-                                                onclick="toggleRollGroupPopup()"
-                                                onfocus="rollInputFocus(this)"
-                                                onblur="rollInputBlur(this)"
+                            <div class="solver-level-roll-grid">
+                                <!-- Row 1: Level + Copy URL -->
+                                <div class="fw-bold scaled-font solver-lrg-label">Level</div>
+                                <input class="equipment-input text-light form-control form-control-sm" id="level-choice"
+                                    name="level-choice" value="121" placeholder="Level">
+                                <button
+                                    class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
+                                    id="copy-solver-url-btn" title="Copy WynnSolver URL to clipboard"
+                                    onclick="copy_solver_url()">Copy URL</button>
+                                <!-- Reset spans rows 1-2 -->
+                                <button
+                                    class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-reset-btn"
+                                    onclick="resetSolverFields()">Reset</button>
+                                <!-- Row 2: Roll + Export -->
+                                <div class="fw-bold scaled-font solver-lrg-label">Roll</div>
+                                <div style="position:relative">
+                                    <input type="text" class="equipment-input text-light form-control form-control-sm"
+                                        id="roll-mode-input" value="Default" onclick="toggleRollGroupPopup()"
+                                        onfocus="rollInputFocus(this)" onblur="rollInputBlur(this)"
+                                        onkeydown="if(event.key==='Enter')this.blur()">
+                                    <div id="roll-group-popup" class="roll-group-popup" style="display:none">
+                                        <div class="roll-group-row">
+                                            <label class="roll-group-label" for="roll-group-all">All</label>
+                                            <input type="number" id="roll-group-all" class="roll-group-input" min="0"
+                                                max="100" placeholder="—" oninput="setRollMode(this.value)"
                                                 onkeydown="if(event.key==='Enter')this.blur()">
-                                            <div id="roll-group-popup" class="roll-group-popup" style="display:none">
-                                                <div class="roll-group-row">
-                                                    <label class="roll-group-label" for="roll-group-all">All</label>
-                                                    <input type="number" id="roll-group-all" class="roll-group-input" min="0" max="100"
-                                                        placeholder="—"
-                                                        oninput="setRollMode(this.value)"
-                                                        onkeydown="if(event.key==='Enter')this.blur()">
-                                                    <span class="roll-group-suffix">%</span>
-                                                </div>
-                                                <hr class="roll-group-divider">
-                                                <div class="roll-group-row">
-                                                    <label class="roll-group-label" for="roll-group-damage">Damage</label>
-                                                    <input type="number" id="roll-group-damage" class="roll-group-input" min="0" max="100"
-                                                        oninput="setRollGroupMode('damage',this.value)"
-                                                        onkeydown="if(event.key==='Enter')this.blur()">
-                                                    <span class="roll-group-suffix">%</span>
-                                                </div>
-                                                <div class="roll-group-row">
-                                                    <label class="roll-group-label" for="roll-group-mana">Mana</label>
-                                                    <input type="number" id="roll-group-mana" class="roll-group-input" min="0" max="100"
-                                                        oninput="setRollGroupMode('mana',this.value)"
-                                                        onkeydown="if(event.key==='Enter')this.blur()">
-                                                    <span class="roll-group-suffix">%</span>
-                                                </div>
-                                                <div class="roll-group-row">
-                                                    <label class="roll-group-label" for="roll-group-healing">Healing</label>
-                                                    <input type="number" id="roll-group-healing" class="roll-group-input" min="0" max="100"
-                                                        oninput="setRollGroupMode('healing',this.value)"
-                                                        onkeydown="if(event.key==='Enter')this.blur()">
-                                                    <span class="roll-group-suffix">%</span>
-                                                </div>
-                                                <div class="roll-group-row">
-                                                    <label class="roll-group-label" for="roll-group-misc">Misc</label>
-                                                    <input type="number" id="roll-group-misc" class="roll-group-input" min="0" max="100"
-                                                        oninput="setRollGroupMode('misc',this.value)"
-                                                        onkeydown="if(event.key==='Enter')this.blur()">
-                                                    <span class="roll-group-suffix">%</span>
-                                                </div>
-                                            </div>
+                                            <span class="roll-group-suffix">%</span>
                                         </div>
-                                        <button
-                                            class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
-                                            id="copy-to-builder-btn" title="Export build to WynnBuilder">Export to
-                                            Builder</button>
+                                        <hr class="roll-group-divider">
+                                        <div class="roll-group-row">
+                                            <label class="roll-group-label" for="roll-group-damage">Damage</label>
+                                            <input type="number" id="roll-group-damage" class="roll-group-input" min="0"
+                                                max="100" oninput="setRollGroupMode('damage',this.value)"
+                                                onkeydown="if(event.key==='Enter')this.blur()">
+                                            <span class="roll-group-suffix">%</span>
+                                        </div>
+                                        <div class="roll-group-row">
+                                            <label class="roll-group-label" for="roll-group-mana">Mana</label>
+                                            <input type="number" id="roll-group-mana" class="roll-group-input" min="0"
+                                                max="100" oninput="setRollGroupMode('mana',this.value)"
+                                                onkeydown="if(event.key==='Enter')this.blur()">
+                                            <span class="roll-group-suffix">%</span>
+                                        </div>
+                                        <div class="roll-group-row">
+                                            <label class="roll-group-label" for="roll-group-healing">Healing</label>
+                                            <input type="number" id="roll-group-healing" class="roll-group-input"
+                                                min="0" max="100" oninput="setRollGroupMode('healing',this.value)"
+                                                onkeydown="if(event.key==='Enter')this.blur()">
+                                            <span class="roll-group-suffix">%</span>
+                                        </div>
+                                        <div class="roll-group-row">
+                                            <label class="roll-group-label" for="roll-group-misc">Misc</label>
+                                            <input type="number" id="roll-group-misc" class="roll-group-input" min="0"
+                                                max="100" oninput="setRollGroupMode('misc',this.value)"
+                                                onkeydown="if(event.key==='Enter')this.blur()">
+                                            <span class="roll-group-suffix">%</span>
+                                        </div>
                                     </div>
+                                </div>
+                                <button
+                                    class="button py-0 fw-bold text-light dark-5 scaled-font rounded solver-action-btn"
+                                    id="copy-to-builder-btn" title="Export build to WynnBuilder">Export to
+                                    Builder</button>
+                            </div>
                         </div>
 
                     </div><!-- /.row (item grid) -->
@@ -505,35 +501,40 @@
                             <div class="rounded dark-6 dark-shadow-sm px-2">
                                 <label class="eDam skp-tooltip">Strength</label>
                                 <div class="fw-bold skp-tooltip" id="str-skp-total">—</div>
-                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1" id="str-skp-assign"><span>Assign: 0</span><span></span></div>
+                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1"
+                                    id="str-skp-assign"><span>Assign: 0</span><span></span></div>
                             </div>
                         </div>
                         <div class="col text-center">
                             <div class="rounded dark-6 dark-shadow-sm px-2">
                                 <label class="tDam skp-tooltip">Dexterity</label>
                                 <div class="fw-bold skp-tooltip" id="dex-skp-total">—</div>
-                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1" id="dex-skp-assign"><span>Assign: 0</span><span></span></div>
+                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1"
+                                    id="dex-skp-assign"><span>Assign: 0</span><span></span></div>
                             </div>
                         </div>
                         <div class="col text-center">
                             <div class="rounded dark-6 dark-shadow-sm px-2">
                                 <label class="wDam skp-tooltip">Intelligence</label>
                                 <div class="fw-bold skp-tooltip" id="int-skp-total">—</div>
-                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1" id="int-skp-assign"><span>Assign: 0</span><span></span></div>
+                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1"
+                                    id="int-skp-assign"><span>Assign: 0</span><span></span></div>
                             </div>
                         </div>
                         <div class="col text-center">
                             <div class="rounded dark-6 dark-shadow-sm px-2">
                                 <label class="fDam skp-tooltip">Defense</label>
                                 <div class="fw-bold skp-tooltip" id="def-skp-total">—</div>
-                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1" id="def-skp-assign"><span>Assign: 0</span><span></span></div>
+                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1"
+                                    id="def-skp-assign"><span>Assign: 0</span><span></span></div>
                             </div>
                         </div>
                         <div class="col text-center">
                             <div class="rounded dark-6 dark-shadow-sm px-2">
                                 <label class="aDam skp-tooltip">Agility</label>
                                 <div class="fw-bold skp-tooltip" id="agi-skp-total">—</div>
-                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1" id="agi-skp-assign"><span>Assign: 0</span><span></span></div>
+                                <div class="skp-tooltip text-secondary d-flex justify-content-center gap-1"
+                                    id="agi-skp-assign"><span>Assign: 0</span><span></span></div>
                             </div>
                         </div>
                     </div>
@@ -567,7 +568,8 @@
 
                         <!-- ─── Tomes ─── -->
                         <div class="dark-6 px-2 pb-2" id="tomes-dropdown" style="display: none;">
-                            <div class="row h-100 row-cols-1 row-cols-xl-2 gy-2 gx-0 rounded tome-grid" style="margin:0">
+                            <div class="row h-100 row-cols-1 row-cols-xl-2 gy-2 gx-0 rounded tome-grid"
+                                style="margin:0">
 
                                 <!-- Weapon Tome 1 -->
                                 <div class="col rounded">
@@ -1024,20 +1026,20 @@
 
                     <!-- Build Direction -->
                     <div class="px-2 pt-2 pb-1 d-flex gap-1 dir-btn-row mb-1">
-                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
-                            id="dir-str" onclick="toggle_build_dir('str')"
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn" id="dir-str"
+                            onclick="toggle_build_dir('str')"
                             title="Disable to exclude items requiring Strength">Str</button>
-                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
-                            id="dir-dex" onclick="toggle_build_dir('dex')"
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn" id="dir-dex"
+                            onclick="toggle_build_dir('dex')"
                             title="Disable to exclude items requiring Dexterity">Dex</button>
-                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
-                            id="dir-int" onclick="toggle_build_dir('int')"
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn" id="dir-int"
+                            onclick="toggle_build_dir('int')"
                             title="Disable to exclude items requiring Intelligence">Int</button>
-                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
-                            id="dir-def" onclick="toggle_build_dir('def')"
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn" id="dir-def"
+                            onclick="toggle_build_dir('def')"
                             title="Disable to exclude items requiring Defense">Def</button>
-                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn"
-                            id="dir-agi" onclick="toggle_build_dir('agi')"
+                        <button class="btn btn-sm btn-outline-secondary dir-btn flex-grow-1 toggleOn" id="dir-agi"
+                            onclick="toggle_build_dir('agi')"
                             title="Disable to exclude items requiring Agility">Agi</button>
                     </div>
 
@@ -1120,13 +1122,13 @@
                             </div>
                             <div id="solver-progress-text" style="display:none" class="text-secondary small mt-1">
                                 <div>Checked: <span id="solver-checked-count">0</span> / <span
-                                        id="solver-total-count">?</span> &nbsp;|&nbsp; <span title="Number of builds that met the skill point requirements">Feasible</span>: <span
-                                        id="solver-feasible-count">0</span></div>
+                                        id="solver-total-count">?</span> &nbsp;|&nbsp; <span
+                                        title="Number of builds that met the skill point requirements">Feasible</span>:
+                                    <span id="solver-feasible-count">0</span>
+                                </div>
                                 <div><span id="solver-elapsed-text">0s</span>
                                     <span id="solver-remaining-text" class="ms-1"></span>
-                                    <span id="solver-hotpath-status" class="ms-2"></span>
-                                    <span id="solver-eta-warning" class="text-warning ms-1" style="display:none">&#9888;
-                                        Long solve expected (&gt;20 min)</span>
+                                    <span id="solver-status-msg" class="ms-2"></span>
                                 </div>
                             </div>
                             <span id="solver-error-text" class="text-danger small"></span>
@@ -1215,8 +1217,8 @@
                                     class="combo-flat-mana-row position-absolute bg-dark border border-secondary rounded p-2 small text-secondary">
                                     <label class="d-inline-flex align-items-center gap-1 mb-0 text-secondary">
                                         Flat mana / cycle
-                                        <input id="flat-mana-input" type="number" class="combo-row-input"
-                                            value="0" min="0" step="1">
+                                        <input id="flat-mana-input" type="number" class="combo-row-input" value="0"
+                                            min="0" step="1">
                                     </label>
                                 </div>
                             </div>
@@ -1259,20 +1261,27 @@
                     class="rounded row row-cols-1 g-0 scaled-font float-tooltip border border-3 border-dark dark-shadow p-3"
                     style="display:none;"></div>
                 <!-- Tome tooltips (hidden; used by hover popups) -->
-                <div id="weaponTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
-                <div id="weaponTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="weaponTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;">
+                </div>
+                <div id="weaponTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;">
+                </div>
                 <div id="armorTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
                 <div id="armorTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
                 <div id="armorTome3-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
                 <div id="armorTome4-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
-                <div id="gatherXpTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
-                <div id="gatherXpTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
-                <div id="dungeonXpTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
-                <div id="dungeonXpTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="gatherXpTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;">
+                </div>
+                <div id="gatherXpTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;">
+                </div>
+                <div id="dungeonXpTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;">
+                </div>
+                <div id="dungeonXpTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;">
+                </div>
                 <div id="mobXpTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
                 <div id="mobXpTome2-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
                 <div id="guildTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
-                <div id="lootrunTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;"></div>
+                <div id="lootrunTome1-tooltip" class="rounded row row-cols-1 g-0 scaled-font" style="display:none;">
+                </div>
             </div>
         </div>
 

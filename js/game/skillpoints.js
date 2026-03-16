@@ -30,12 +30,18 @@ function pull_req(req_skillpoints, item) {
  * @returns {Array|null} [best_skillpoints, final_skillpoints, best_total, set_counts],
  *                       or null if sp_budget is exceeded or any single attr > SP_PER_ATTR_CAP.
  */
-function calculate_skillpoints(equipment, weapon, sp_budget = Infinity) {
+function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_set_counts = null) {
     let no_bonus_items = [weapon];
 
     let bonus_skillpoints = [0, 0, 0, 0, 0];
     let req_skillpoints = [0, 0, 0, 0, 0];
-    let set_counts = new Map();
+    let set_counts;
+    if (scratch_set_counts) {
+        set_counts = scratch_set_counts;
+        set_counts.clear();
+    } else {
+        set_counts = new Map();
+    }
     for (const item of equipment) {
         if (item.get("crafted")) {
             no_bonus_items.push(item);

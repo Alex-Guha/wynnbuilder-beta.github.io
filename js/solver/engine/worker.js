@@ -49,17 +49,21 @@ let _total_hp_precheck = null;   // {threshold, fixed_hp} or null
 // ── Search state ────────────────────────────────────────────────────────────
 
 const PROGRESS_INTERVAL = 5000;
+const PROGRESS_INTERVAL_LONG = 50000;
 let _checked = 0;
 let _feasible = 0;
 let _top5 = [];
 let _top5_version = 0;
 let _last_sent_top5_version = 0;
+let _checked_at_last_top5_change = 0;
+let _current_L = 0;
 
 function _insert_top5(candidate) {
     _top5.push(candidate);
     _top5.sort((a, b) => b.score - a.score);
     if (_top5.length > 5) _top5.length = 5;
     _top5_version++;
+    _checked_at_last_top5_change = _checked;
 }
 
 // ── Pre-allocated scratch Maps (reused across leaves to eliminate GC churn) ──
@@ -74,6 +78,9 @@ const _scratch_combo_base_nested = { damMult: new Map(), defMult: new Map(), hea
 const _scratch_thresh = new Map();
 const _scratch_thresh_nested = { damMult: new Map(), defMult: new Map(), healMult: new Map() };
 const _scratch_row = { stats: new Map(), damMult: new Map(), defMult: new Map(), prop_overrides: new Map() };
+const _scratch_atree = { atree_edit: new Map(), ret_effects: new Map() };
+const _scratch_finalize_inner = { damMult: new Map(), defMult: new Map(), healMult: new Map(), majorIds: new Set() };
+const _scratch_sp_set_counts = new Map();
 
 /**
  * Build constraint prechecks from the restriction thresholds.
@@ -192,7 +199,7 @@ function _assemble_combo_stats(build_sm, total_sp, weapon_sm) {
     _merge_into(_scratch_pre_scale, _cfg.atree_raw);
     _apply_radiance_scale_inplace(_scratch_pre_scale, _cfg.radiance_boost);
     const [, atree_scaled_stats] = atree_compute_scaling(
-        _cfg.atree_merged, _scratch_pre_scale, _cfg.button_states, _cfg.slider_states);
+        _cfg.atree_merged, _scratch_pre_scale, _cfg.button_states, _cfg.slider_states, _scratch_atree);
     _deep_clone_statmap_into(_scratch_combo_base, _scratch_pre_scale, _scratch_combo_base_nested);
     _merge_into(_scratch_combo_base, atree_scaled_stats);
     _merge_into(_scratch_combo_base, _cfg.static_boosts);
@@ -249,7 +256,7 @@ function _eval_combo_damage(combo_base, debug) {
     if (hp_tracking) {
         const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
         const sim = _cached_hp_sim ?? simulate_combo_mana_hp(
-            _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry);
+            _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry, _scratch_row);
         _cached_hp_sim = null;  // consume cache
 
         if (debug) {
@@ -305,7 +312,7 @@ function _eval_combo_mana_check(combo_base) {
         if (!hc) return true;
         const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
         const sim = simulate_combo_mana_hp(
-            _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry);
+            _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry, _scratch_row);
         _cached_hp_sim = sim;
         // Reject if any row would kill the player (HP insufficient for blood cost)
         return !sim.row_results.some(r => r.hp_warning);
@@ -559,12 +566,15 @@ function _run_level_enum() {
     // ── Progress reporting ──────────────────────────────────────────────────
 
     function _maybe_progress() {
-        if (_checked % PROGRESS_INTERVAL === 0) {
+        const interval = _checked < 1_000_000 ? PROGRESS_INTERVAL : PROGRESS_INTERVAL_LONG;
+        if (_checked % interval === 0) {
             const msg = {
                 type: 'progress',
                 worker_id: _cfg.worker_id,
                 checked: _checked,
                 feasible: _feasible,
+                checked_since_top5: _checked - _checked_at_last_top5_change,
+                L_progress: [_current_L, L_max],
             };
             // Only include top5 data when it has actually changed
             if (_top5_version !== _last_sent_top5_version) {
@@ -666,7 +676,7 @@ function _run_level_enum() {
         // Combined SP feasibility check + full calculation (single pass).
         // Uses effective requirements and proper weapon exclusion for tighter
         // rejection than the old two-step _sp_prefilter + calculate_skillpoints.
-        const sp_result = calculate_skillpoints([...equip_8_sms, guild_tome_sm], weapon_sm, sp_budget);
+        const sp_result = calculate_skillpoints([...equip_8_sms, guild_tome_sm], weapon_sm, sp_budget, _scratch_sp_set_counts);
         if (!sp_result) {
             _dbg_sp_reject++;
             _maybe_progress();
@@ -681,7 +691,7 @@ function _run_level_enum() {
         // Build stat assembly from running statMap (incremental accumulation)
         const t0 = _dbg ? performance.now() : 0;
         const all_equip_sms = [...equip_8_sms, ...tome_sms, weapon_sm];
-        const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, all_equip_sms, _scratch_finalize);
+        const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, all_equip_sms, _scratch_finalize, _scratch_finalize_inner);
 
         // Greedily assign any remaining SP budget to maximise the scoring target
         const final_assigned = _greedy_allocate_sp(build_sm, base_sp, total_sp, assigned_sp, weapon_sm);
@@ -978,6 +988,7 @@ function _run_level_enum() {
         _evaluate_leaf();
     } else {
         for (let L = 0; L <= L_max && !_cancelled; L++) {
+            _current_L = L;
             enumerate(0, L);
         }
     }
@@ -1057,6 +1068,8 @@ self.onmessage = function (e) {
             _top5 = [];
             _top5_version = 0;
             _last_sent_top5_version = 0;
+            _checked_at_last_top5_change = 0;
+            _current_L = 0;
             try {
                 _run_level_enum();
             } catch (err) {
@@ -1079,6 +1092,8 @@ self.onmessage = function (e) {
         _top5 = [];
         _top5_version = 0;
         _last_sent_top5_version = 0;
+        _checked_at_last_top5_change = 0;
+        _current_L = 0;
         _cancelled = false;
 
         try {

@@ -11,6 +11,7 @@ const _solver_state = {
     last_eta: 0,
     workers: [],           // [{worker, done, checked, feasible, top5}]
     progress_timer: 0,     // setInterval handle
+    verification_phase: false,
 };
 
 // Bitmask tracking which equipment slots were last filled by the solver.
@@ -421,24 +422,62 @@ function _update_solver_progress_ui() {
 
     if (now - _solver_state.last_eta >= 1000) {
         _solver_state.last_eta = now;
-        const el_warn = document.getElementById('solver-eta-warning');
         if (_solver_state.checked > 0 && _solver_state.total > _solver_state.checked) {
             const rate = elapsed_ms / _solver_state.checked;
             const remaining_s = Math.ceil(rate * (_solver_state.total - _solver_state.checked) / 1000);
             if (el_remaining) el_remaining.textContent = _format_duration(remaining_s) + ' left';
-            if (el_warn) el_warn.style.display = remaining_s > 1200 ? '' : 'none';
         } else {
             if (el_remaining) el_remaining.textContent = '';
-            if (el_warn) el_warn.style.display = 'none';
         }
     }
+    // Verification phase detection
+    {
+        let total_staleness = 0;
+        let min_L_ratio = 1.0;
+        let any_active = false;
+        for (const w of _solver_state.workers) {
+            if (w.done) continue;
+            any_active = true;
+            total_staleness += w._cur_checked_since_top5 ?? 0;
+            const [L, Lmax] = w._cur_L_progress ?? [0, 1];
+            min_L_ratio = Math.min(min_L_ratio, Lmax > 0 ? L / Lmax : 1.0);
+        }
+        const staleness_threshold = Math.min(150_000_000, 0.05 * _solver_state.total);
+        const should_verify = any_active
+            && _solver_state.top5.length > 0
+            && elapsed_ms > 2000
+            && total_staleness > staleness_threshold
+            && min_L_ratio > 0.15;
+        _solver_state.verification_phase = should_verify;
+        const el_status = document.getElementById('solver-status-msg');
+        if (el_status) {
+            const elapsed_s = elapsed_ms / 1000;
+            const rate = elapsed_s > 0 ? _solver_state.checked / elapsed_s : 0;
+            if (should_verify) {
+                el_status.textContent = 'Top results stable \u2014 exhaustive check in progress';
+                el_status.className = 'ms-2 text-info';
+            } else if (elapsed_s > 20 && rate > 0 && rate < 1000) {
+                el_status.innerHTML = '\u26A0 Very slow iteration \u2014 results may take a long time on this device';
+                el_status.className = 'ms-2 text-danger';
+            } else {
+                el_status.textContent = '';
+            }
+        }
+    }
+
     // Every 5 s: merge interim top-5 from workers, refresh result panel and fill best build
+    // Skip rebuild if no worker's interim top5 has changed since last merge.
     if (now - _solver_state.last_ui >= 5000) {
         _solver_state.last_ui = now;
-        _merge_worker_top5(_solver_state.workers, true);
-        if (_solver_state.top5.length > 0) {
-            _fill_build_into_ui(_solver_state.top5[0]);
-            _display_solver_results(_solver_state.top5);
+        const any_top5_changed = _solver_state.workers.some(
+            (w, i) => w._cur_top5 !== (_solver_state._last_merged_top5_refs?.[i]));
+        if (any_top5_changed) {
+            _merge_worker_top5(_solver_state.workers, true);
+            _solver_state._last_merged_top5_refs = _solver_state.workers.map(w => w._cur_top5);
+            if (_solver_state.top5.length > 0) {
+                _fill_build_into_ui(_solver_state.top5[0]);
+                _display_solver_results(_solver_state.top5);
+            }
         }
     }
 }
@@ -726,6 +765,9 @@ function _reconstruct_result_items(item_names) {
 
 function _stop_solver() {
     _solver_state.running = false;
+    _solver_state.verification_phase = false;
+    const _status_el = document.getElementById('solver-status-msg');
+    if (_status_el) _status_el.textContent = '';
     // Snapshot final counts (cumulative + in-flight) before terminating
     _solver_state.checked = 0;
     _solver_state.feasible = 0;
@@ -739,6 +781,7 @@ function _stop_solver() {
     }
     _solver_state.workers = [];
     _solver_state.snap = null;
+    _solver_state._last_merged_top5_refs = [];
     // Clear progress timer
     if (_solver_state.progress_timer) {
         clearInterval(_solver_state.progress_timer);
@@ -869,8 +912,8 @@ function _on_all_workers_done(workers_snapshot) {
     _run_btn.textContent = 'Solve';
     _run_btn.className = 'btn btn-sm btn-outline-success flex-grow-1';
     document.getElementById('solver-progress-text').style.display = 'none';
-    const _warn_el = document.getElementById('solver-eta-warning');
-    if (_warn_el) _warn_el.style.display = 'none';
+    const _status_el = document.getElementById('solver-status-msg');
+    if (_status_el) _status_el.textContent = '';
 
     const _sum_el = document.getElementById('solver-summary-text');
     if (_sum_el) {
@@ -906,7 +949,7 @@ function _run_solver_search_workers(pools, locked, snap) {
     const thread_sel = document.getElementById('solver-thread-count');
     const thread_val = thread_sel?.value ?? 'auto';
     const num_workers = thread_val === 'auto'
-        ? Math.min(navigator.hardwareConcurrency || 4, 16)
+        ? Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 2, 16))
         : parseInt(thread_val);
 
     // Serialize pools and locked items
@@ -940,6 +983,8 @@ function _run_solver_search_workers(pools, locked, snap) {
         wstate._cur_checked = 0;
         wstate._cur_feasible = 0;
         wstate._cur_top5 = [];
+        wstate._cur_checked_since_top5 = 0;
+        wstate._cur_L_progress = [0, 1];
         wstate.worker.postMessage({
             type: 'run',
             partition,
@@ -957,6 +1002,8 @@ function _run_solver_search_workers(pools, locked, snap) {
         wstate._cur_checked = 0;
         wstate._cur_feasible = 0;
         wstate._cur_top5 = [];
+        wstate._cur_checked_since_top5 = 0;
+        wstate._cur_L_progress = [0, 1];
         // Merge this partition's top5 into worker's cumulative top5
         for (const r of msg.top5) {
             _insert_wstate_top5(wstate, r);
@@ -985,6 +1032,7 @@ function _run_solver_search_workers(pools, locked, snap) {
         const wstate = {
             worker: w, done: true, checked: 0, feasible: 0, top5: [],
             _cur_checked: 0, _cur_feasible: 0, _cur_top5: [],
+            _cur_checked_since_top5: 0, _cur_L_progress: [0, 1],
         };
         _solver_state.workers.push(wstate);
 
@@ -994,6 +1042,8 @@ function _run_solver_search_workers(pools, locked, snap) {
                 wstate._cur_checked = msg.checked;
                 wstate._cur_feasible = msg.feasible;
                 if (msg.top5_names) wstate._cur_top5 = msg.top5_names;
+                if (msg.checked_since_top5 !== undefined) wstate._cur_checked_since_top5 = msg.checked_since_top5;
+                if (msg.L_progress) wstate._cur_L_progress = msg.L_progress;
             } else if (msg.type === 'done') {
                 _on_partition_done(wstate, msg);
             }
@@ -1047,8 +1097,8 @@ function toggle_solver() {
         btn.textContent = 'Solve';
         btn.className = 'btn btn-sm btn-outline-success flex-grow-1';
         document.getElementById('solver-progress-text').style.display = 'none';
-        const _warn_el = document.getElementById('solver-eta-warning');
-        if (_warn_el) _warn_el.style.display = 'none';
+        const _status_el = document.getElementById('solver-status-msg');
+        if (_status_el) _status_el.textContent = '';
         // Show stopped summary
         const elapsed_s = Math.floor((Date.now() - _solver_state.start) / 1000);
         const _sum_el = document.getElementById('solver-summary-text');
@@ -1162,10 +1212,11 @@ function start_solver_search() {
     _solver_state.last_ui = Date.now();
     _solver_state.last_eta = Date.now();
 
+    _solver_state.verification_phase = false;
     const _sum_el = document.getElementById('solver-summary-text');
     if (_sum_el) _sum_el.textContent = '';
-    const _warn_el = document.getElementById('solver-eta-warning');
-    if (_warn_el) _warn_el.style.display = 'none';
+    const _status_el = document.getElementById('solver-status-msg');
+    if (_status_el) _status_el.textContent = '';
 
     const _run_btn = document.getElementById('solver-run-btn');
     _run_btn.textContent = 'Stop';

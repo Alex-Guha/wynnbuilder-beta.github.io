@@ -566,14 +566,20 @@ function atree_translate(atree_merged, v) {
  * @param {Map<string, number>}  slider_states  - slider name → integer value
  * @returns {[Map, Map]} [atree_edit, ret_effects]
  */
-function atree_compute_scaling(atree_merged, pre_scale_stats, button_states, slider_states) {
+function atree_compute_scaling(atree_merged, pre_scale_stats, button_states, slider_states, scratch) {
     // Shallow-clone each ability, deep-copying only `properties` (the only
     // object mutated during scaling).
-    const atree_edit = new Map();
+    let atree_edit, ret_effects;
+    if (scratch) {
+        atree_edit = scratch.atree_edit; atree_edit.clear();
+        ret_effects = scratch.ret_effects; ret_effects.clear();
+    } else {
+        atree_edit = new Map();
+        ret_effects = new Map();
+    }
     for (const [abil_id, abil] of atree_merged.entries()) {
         atree_edit.set(abil_id, { ...abil, properties: { ...(abil.properties ?? {}) } });
     }
-    let ret_effects = new Map();
 
     function apply_bonus(bonus_info, value) {
         const { type, name, abil = null, mult = false } = bonus_info;
@@ -748,7 +754,7 @@ function _apply_radiance_scale_inplace(statMap, boost) {
  *                     row_results[], spell_costs[], total_mana_cost, melee_hits,
  *                     recast_penalty_total }
  */
-function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcendence, boost_registry) {
+function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcendence, boost_registry, scratch_row) {
     const mr = base_stats.get('mr') ?? 0;
     const ms = base_stats.get('ms') ?? 0;
     const item_mana = base_stats.get('maxMana') ?? 0;
@@ -822,7 +828,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         }
 
         // Get spell cost using boosted stats (matching main thread behavior)
-        const { stats: row_stats } = apply_combo_row_boosts(base_stats, boost_tokens, boost_registry);
+        const { stats: row_stats } = apply_combo_row_boosts(base_stats, boost_tokens, boost_registry, scratch_row);
         const cost_per = spell.cost != null ? getSpellCost(row_stats, spell) : 0;
         const is_spell = spell.cost != null;
         const is_melee_scaling = spell.scaling === 'melee';
