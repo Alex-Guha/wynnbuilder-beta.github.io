@@ -1171,8 +1171,11 @@ function render_AT(UI_elem, list_elem, tree) {
 
                 // If the tooltip overflows the bottom of the viewport, show it above the node instead.
                 // Use the same 50px gap as the normal (below) case to keep the tooltip clear of the hitbox.
+                // Account for any fixed footer (e.g. solver page) that covers the bottom of the viewport.
                 const tooltipRect = node_wrap.tooltip_elem.getBoundingClientRect();
-                if (tooltipRect.bottom > window.innerHeight) {
+                const fixedFooter = document.querySelector('.solver-footer');
+                const viewportBottom = window.innerHeight - (fixedFooter ? fixedFooter.offsetHeight : 0);
+                if (tooltipRect.bottom > viewportBottom) {
                     const nodePageY = node_elem.getBoundingClientRect().top + window.pageYOffset;
                     node_wrap.tooltip_elem.style.top = (nodePageY - node_wrap.tooltip_elem.offsetHeight - 50) + "px";
                     // Already has `rounded` on all corners; no class swap needed.
@@ -1270,8 +1273,22 @@ function generateTooltip(container, node_elem, ability, atree_map) {
 
     // description
     let description = make_elem("p", ["scaled-font", "my-0", "mx-1", "text-wrap", "mc-gray"], {});
+    const elemClasses = { n: 'nDam', e: 'eDam', t: 'tDam', w: 'wDam', f: 'fDam', a: 'aDam' };
+    const elemNames = { n: 'Damage', e: 'Earth', t: 'Thunder', w: 'Water', f: 'Fire', a: 'Air' };
+    // Convert shorthand bracket notation [90%n/30%e] to formatted damage breakdown
+    let desc = ability.desc.replace(/\[([^\]]+)\]/g, (match, inner) => {
+        const parts = inner.split('/');
+        if (!parts.every(p => /^\d+(\.\d+)?%[netawf]$/.test(p))) return match;
+        let total = 0;
+        const lines = parts.map(p => {
+            const m = p.match(/^(\d+(?:\.\d+)?)%([netawf])$/);
+            total += parseFloat(m[1]);
+            return "&emsp;(<span class='" + elemClasses[m[2]] + "'>" + elemNames[m[2]] + "</span>: " + m[1] + "%)";
+        });
+        return "<span class='mc-white'>Total Damage</span>: " + total + "%   </br>" + lines.join("   </br>");
+    });
     let numberRegex = /[+-]?\d+(\.\d+)?[%+s]?/g; // +/- (optional), 1 or more digits, period followed by 1 or more digits (optional), %/+/s (optional)
-    description.innerHTML = ability.desc.replaceAll(numberRegex, (m) => { return "<span class = 'mc-white'>" + m + "</span>" });
+    description.innerHTML = desc.replaceAll(numberRegex, (m) => { return "<span class = 'mc-white'>" + m + "</span>" });
     container.appendChild(description);
 
     container.appendChild(make_elem('br'));
