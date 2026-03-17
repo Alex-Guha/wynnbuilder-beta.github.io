@@ -618,7 +618,7 @@ const _SOLVER_DEFAULTS = {
  *         [7]   node_id
  *         [2]   effect_pos (0-3)
  *         [1]   has_value (0=toggle, 1=slider)
- *         [7]   value (only if has_value=1, 0-127)
+ *         [10]  value (only if has_value=1, 0-1023; v1-v3: 7-bit, 0-127)
  *   [4]   blacklist_count (0-15)
  *     Per blacklist entry:
  *       [14]  item_id (0-16383)
@@ -643,8 +643,8 @@ function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
     const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-    // Version: 3 bits (v3 = 011)
-    bv.append(3, 3);
+    // Version: 3 bits (v4 = 100)
+    bv.append(4, 3);
 
     // ── Presence bitmask (10 bits) ──
     // v3: bit 0 → roll_groups (4×7 bits), replaces v2's single roll field
@@ -736,7 +736,7 @@ function encodeSolverParams(params) {
             bv.append(b.effect_pos & 0x3, 2);
             bv.append(b.has_value ? 1 : 0, 1);
             if (b.has_value) {
-                bv.append(Math.min(127, Math.max(0, b.value || 0)), 7);
+                bv.append(Math.min(1023, Math.max(0, b.value || 0)), 10);
             }
         }
     }

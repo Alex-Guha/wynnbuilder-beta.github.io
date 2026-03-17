@@ -558,6 +558,9 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
                 // atree was restored above).
                 const atree_mg = (typeof atree_merge !== 'undefined' && atree_merge) ? atree_merge.value : null;
 
+                const spell_map = (typeof atree_collect_spells !== 'undefined' && atree_collect_spells)
+                    ? atree_collect_spells.value : null;
+
                 const data = solver_params.combo_rows.map(r => {
                     const spell_name = node_id_to_spell_name(r.spell_node_id, atree_mg);
                     const spell_value = node_id_to_spell_value(r.spell_node_id);
@@ -565,14 +568,32 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
                         const name = node_ref_to_boost_name(b.node_id, b.effect_pos, atree_mg);
                         return b.has_value ? name + ' ' + b.value : name;
                     });
+
+                    // Disambiguate: has_hits may encode actual DPS hits (for
+                    // spells with a Total/Max part, e.g. Burning Sigil) OR a
+                    // decimal qty (for DPS spells without one, e.g. Dimensional
+                    // Tear).  Check the spell's dps_info to route correctly.
+                    let qty = r.qty;
+                    let hits;
+                    if (r.has_hits) {
+                        const spell = spell_map?.get(parseInt(spell_value));
+                        const dps_info = spell ? compute_dps_spell_hits_info(spell) : null;
+                        if (dps_info) {
+                            hits = r.hits;          // actual DPS hit count
+                        } else {
+                            qty = r.hits;           // decimal qty (duration)
+                            hits = undefined;
+                        }
+                    }
+
                     return {
-                        qty: r.qty,
+                        qty,
                         spell_name,
                         spell_value,
                         boost_tokens_text: boost_parts.join(', '),
                         mana_excl: r.mana_excl,
                         dmg_excl: r.dmg_excl,
-                        hits: r.has_hits ? r.hits : undefined,
+                        hits,
                     };
                 });
                 if (data.length > 0) {

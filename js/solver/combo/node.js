@@ -332,6 +332,11 @@ class SolverComboTotalNode extends ComputeNode {
     _read_combo_rows(spell_map) {
         return this._iterate_combo_rows().map(({ row, qty, spell_id, toggles, sliders, calcs }) => {
             const spell = spell_map.get(spell_id) ?? null;
+            // Only DPS spells without a Total/Max hit-count part allow decimal
+            // qty (representing duration in seconds).  All others are integer.
+            const dps_info = spell ? compute_dps_spell_hits_info(spell) : null;
+            const allow_decimal = spell_is_dps(spell) && !dps_info;
+            const eff_qty = allow_decimal ? qty : Math.round(qty);
             const boost_tokens = [];
             for (const btn of toggles) {
                 boost_tokens.push({ name: btn.dataset.boostName, value: 1, is_pct: false });
@@ -345,7 +350,7 @@ class SolverComboTotalNode extends ComputeNode {
                 const val = parseFloat(inp.value) || 0;
                 if (val > 0) boost_tokens.push({ name: inp.dataset.boostName, value: val, is_pct: true });
             }
-            return { qty, spell, boost_tokens, dom_row: row };
+            return { qty: eff_qty, spell, boost_tokens, dom_row: row };
         });
     }
 
@@ -359,6 +364,10 @@ class SolverComboTotalNode extends ComputeNode {
     _read_selection_rows_as_data() {
         return this._iterate_combo_rows().map(({ row, qty, spell_id, toggles, sliders, calcs }) => {
             const spell = this._spell_map_cache?.get(spell_id);
+            // Only DPS spells without a Total/Max part allow decimal qty.
+            const dps_info = spell ? compute_dps_spell_hits_info(spell) : null;
+            const allow_decimal = spell_is_dps(spell) && !dps_info;
+            if (!allow_decimal) qty = Math.round(qty);
             const spell_name = spell_id === MANA_RESET_SPELL_ID ? 'Mana Reset'
                 : spell_id === CANCEL_BAKALS_SPELL_ID ? "Cancel Bak'al's Grasp"
                     : (spell?.name ?? '');
@@ -619,11 +628,6 @@ class SolverComboTotalNode extends ComputeNode {
                 const is_dps_no_hits = spell_is_dps(spell) && !dps_info;
                 if (is_dps_no_hits) {
                     qty_inp.step = 'any';
-                    // Restore decimal qty from URL decode (stored as pendingHits).
-                    if (row.dataset.pendingHits !== undefined) {
-                        qty_inp.value = row.dataset.pendingHits;
-                        delete row.dataset.pendingHits;
-                    }
                 } else {
                     qty_inp.step = '1';
                     // Round to integer when switching away from a decimal-qty spell.
@@ -632,7 +636,7 @@ class SolverComboTotalNode extends ComputeNode {
                 }
             }
 
-            // Render toggles first, then calculated fields, then sliders.
+            // Render toggles first, then calculated fields, then sliders (with max-modifier toggles).
             // Filter by relevance to the selected spell.
             const toggles = registry.filter(e => e.type === 'toggle' && is_boost_relevant(e, spell));
             const calculated = registry.filter(e => e.type === 'calculated' && is_boost_relevant(e, spell));

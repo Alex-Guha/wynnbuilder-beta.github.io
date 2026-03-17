@@ -287,6 +287,9 @@ function _collect_solver_params() {
     // Combo rows: structured [{spell_node_id, qty, mana_excl, dmg_excl, boosts}]
     const combo_rows = [];
     if (typeof solver_combo_total_node !== 'undefined' && solver_combo_total_node) {
+        const spell_map = (typeof atree_collect_spells !== 'undefined' && atree_collect_spells)
+            ? atree_collect_spells.value : null;
+
         for (const row of document.querySelectorAll('#combo-selection-rows .combo-row')) {
             const qty_raw = parseFloat(row.querySelector('.combo-row-qty')?.value) || 0;
             const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
@@ -321,10 +324,15 @@ function _collect_solver_params() {
             let has_hits = !!hits_inp;
             let hits = has_hits ? (parseFloat(hits_inp.value) || 0) : 0;
 
-            // Decimal qty (DPS spells without hit info): encode fractional qty
-            // via the hits field so it survives binary URL round-tripping.
+            // Only DPS spells without a Total/Max part allow decimal qty
+            // (representing duration in seconds).  For those, encode the
+            // fractional qty via the hits field so it survives binary
+            // URL round-tripping (qty is a 7-bit integer).
+            const spell = spell_map?.get(spell_id) ?? null;
+            const dps_info = spell ? compute_dps_spell_hits_info(spell) : null;
+            const is_dps_no_hits = spell_is_dps(spell) && !dps_info;
             const qty = Math.round(qty_raw);
-            if (!has_hits && qty_raw !== qty) {
+            if (is_dps_no_hits && !has_hits && qty_raw !== qty) {
                 has_hits = true;
                 hits = qty_raw;
             }

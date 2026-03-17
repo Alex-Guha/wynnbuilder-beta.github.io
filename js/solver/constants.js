@@ -27,8 +27,8 @@ const FLAT_MANA_MAX = 511;
 /** 7-bit unsigned: combo row quantity */
 const COMBO_QTY_MAX = 127;
 
-/** 7-bit unsigned: boost slider value */
-const BOOST_SLIDER_MAX = 127;
+/** 10-bit unsigned: boost slider value (v4 encoding) */
+const BOOST_SLIDER_MAX = 1023;
 
 /** Max rows for restrictions / blacklist (4-bit count = 0-15) */
 const MAX_RESTRICTION_ROWS = 15;

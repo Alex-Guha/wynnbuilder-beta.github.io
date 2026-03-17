@@ -47,3 +47,4 @@ The combo damage calculation has been tested against WynnBuilder output for some
 - Automatic combo sequencing - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a lot of work
 - Advanced mode, where the per-spell cast time and durations and spell hits and what not can be specified
 - Premade archetype combo selectors
+- Tree-assembler: "I want ability X, Y, and Z, give me a tree that gets all 3 if possible"

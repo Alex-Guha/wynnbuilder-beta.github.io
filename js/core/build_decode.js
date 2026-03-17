@@ -670,7 +670,7 @@ function decodeSolverParams(b64_str) {
             console.warn('[decode] decodeSolverParams: version 0 (extension signal) not supported');
             return null;
         }
-        if (version > 3) {
+        if (version > 4) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -741,7 +741,7 @@ function decodeSolverParams(b64_str) {
                 const node_id = cursor.advanceBy(7);
                 const effect_pos = cursor.advanceBy(2);
                 const has_value = cursor.advanceBy(1) === 1;
-                const value = has_value ? cursor.advanceBy(7) : 0;
+                const value = has_value ? cursor.advanceBy(version >= 4 ? 10 : 7) : 0;
                 boosts.push({ node_id, effect_pos, has_value, value });
             }
             combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts });
