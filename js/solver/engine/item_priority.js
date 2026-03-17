@@ -487,7 +487,7 @@ function _compute_sensitivity_weights(snap, locked, pools) {
  * Augment sensitivity weights with constraint bonuses and mana sustainability hints.
  */
 function _augment_sensitivity_weights(result, snap, restrictions) {
-    const { weights, combo_base } = result;
+    const { weights, combo_base, deltas } = result;
 
     // Compute max absolute weight for constraint/mana bonus scaling
     let max_abs = 1.0;
@@ -496,16 +496,33 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
         if (abs_w > max_abs) max_abs = abs_w;
     }
 
+    // Compute reference delta (median of all non-zero deltas) for constraint scaling.
+    // Stats with small per-item values (e.g. atkTier, delta=1) need proportionally
+    // larger per-unit constraint bonuses to compete with multi-stat damage items.
+    const all_deltas = [];
+    for (const [, d] of deltas) {
+        if (d > 0) all_deltas.push(d);
+    }
+    all_deltas.sort((a, b) => a - b);
+    const ref_delta = all_deltas.length > 0
+        ? all_deltas[all_deltas.length >> 1]
+        : 1;
+
     // ── Restriction thresholds (ge constraints on direct stats) ─────────
     for (const { stat, op, value } of (restrictions.stat_thresholds ?? [])) {
         if (op !== 'ge' || _INDIRECT_CONSTRAINT_STATS.has(stat) || value <= 0) continue;
         const current = combo_base.get(stat) ?? 0;
         const deficit = value - current;
         if (deficit > 0) {
-            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * (deficit / value);
+            // Normalize by stat magnitude: stats with small per-item values
+            // (atkTier ~1) get larger per-unit bonuses than stats with large
+            // per-item values (damPct ~20), so constraint items compete in scoring.
+            const stat_delta = deltas.get(stat) || _DEFAULT_DELTAS[stat] || 1;
+            const norm = ref_delta / stat_delta;
+            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * (deficit / value) * norm;
             weights.set(stat, (weights.get(stat) ?? 0) + bonus);
             if (SOLVER_DEBUG_SENSITIVITY) {
-                console.log(`[solver][sensitivity] constraint bonus: ${stat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value})`);
+                console.log(`[solver][sensitivity] constraint bonus: ${stat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, norm: ×${norm.toFixed(1)})`);
             }
         }
     }
