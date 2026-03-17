@@ -545,6 +545,49 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
                 console.log(`[solver][sensitivity] mana bonus: ratio=${ratio.toFixed(2)}, mr+=${mana_bonus.toFixed(2)}` +
                     (has_melee ? `, ms+=${(mana_bonus * 0.5).toFixed(2)}` : ', ms=0 (no melee)'));
             }
+
+            // ── Spell cost reduction bonuses ─────────────────────────
+            // Weight spRaw/spPct by cast frequency relative to mr's mana value.
+            const mr_equiv = Math.max(combo_time / 5, 1);
+            const casts_by_spell = new Map(); // base_spell_num → { total_casts, base_cost }
+            for (const { qty, spell, mana_excl } of (snap.parsed_combo ?? [])) {
+                if (mana_excl || !spell || spell.cost == null) continue;
+                const bs = spell.mana_derived_from ?? spell.base_spell;
+                if (!bs) continue;
+                const entry = casts_by_spell.get(bs);
+                if (entry) {
+                    entry.total_casts += qty;
+                } else {
+                    casts_by_spell.set(bs, { total_casts: qty, base_cost: spell.cost });
+                }
+            }
+
+            for (const [bs, { total_casts, base_cost }] of casts_by_spell) {
+                const raw_key = 'spRaw' + bs;
+                const pct_key = 'spPct' + bs;
+
+                // -1 spRaw saves total_casts mana; -1% spPct saves ~base_cost*total_casts/100
+                const raw_ratio = Math.min(total_casts / mr_equiv, 3.0);
+                const pct_ratio = Math.min(base_cost * total_casts / 100 / mr_equiv, 3.0);
+
+                // Negative weight: items have negative values (cost reduction),
+                // so negative × negative = positive score contribution.
+                weights._priority_only.set(raw_key,
+                    (weights._priority_only.get(raw_key) ?? 0) - mana_bonus * raw_ratio);
+                weights._priority_only.set(pct_key,
+                    (weights._priority_only.get(pct_key) ?? 0) - mana_bonus * pct_ratio);
+            }
+
+            if (SOLVER_DEBUG_SENSITIVITY && casts_by_spell.size > 0) {
+                const parts = [];
+                for (const [bs, { total_casts, base_cost }] of casts_by_spell) {
+                    const raw_r = Math.min(total_casts / mr_equiv, 3.0);
+                    const pct_r = Math.min(base_cost * total_casts / 100 / mr_equiv, 3.0);
+                    parts.push(`spell${bs}: casts=${total_casts}, cost=${base_cost}, ` +
+                        `spRaw${bs}=${(-mana_bonus * raw_r).toFixed(2)}, spPct${bs}=${(-mana_bonus * pct_r).toFixed(2)}`);
+                }
+                console.log(`[solver][sensitivity] spell cost bonuses: ${parts.join('; ')}`);
+            }
         }
     }
 }
