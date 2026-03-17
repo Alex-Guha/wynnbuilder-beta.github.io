@@ -244,6 +244,7 @@ function build_combo_boost_registry(atree_merged, build = null) {
                         const pb = { ref: String(out.abil) + '.' + out.name, value_per_unit: scale,
                                      base: target_abil?.properties?.[out.name] ?? 0 };
                         if (typeof effect.max === 'number') pb.max = effect.max;
+                        if (effect.round === true) pb.round = true;
                         prop_bonuses.push(pb);
                     }
                 }

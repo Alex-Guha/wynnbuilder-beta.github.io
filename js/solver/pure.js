@@ -391,6 +391,8 @@ function apply_combo_row_boosts(base_stats, boost_tokens, registry, scratch) {
             }
             for (const p of entry.prop_bonuses) {
                 let contrib = (p.value_per_unit ?? 1) * effective_value;
+                // Apply rounding (mirrors atree_compute_scaling's round logic).
+                if (p.round) contrib = Math.floor(round_near(contrib));
                 // Apply output cap (mirrors atree_compute_scaling's max logic).
                 if (p.max != null) {
                     if (p.max > 0 && contrib > p.max) contrib = p.max;
@@ -643,7 +645,6 @@ function atree_compute_scaling(atree_merged, pre_scale_stats, button_states, sli
                     } else {
                         total = input_value * atree_translate(atree_merged, scaling[0]);
                     }
-                    round = false;
                     positive = false;
                 } else {
                     for (const [_scaling, input] of zip2(scaling, effect.inputs)) {
