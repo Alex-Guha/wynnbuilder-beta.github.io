@@ -402,6 +402,7 @@ function _format_solver_summary(completed, elapsed_s) {
 const SOLVER_TARGET_LABELS = {
     combo_damage: '',
     ehp: 'EHP: ',
+    ehpr: 'EHPR: ',
     total_healing: 'Healing: ',
     spd: 'Walk Speed: ',
     poison: 'Poison: ',

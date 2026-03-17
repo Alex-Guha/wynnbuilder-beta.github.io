@@ -425,6 +425,9 @@ function _eval_score(combo_base, thresh_stats) {
     if (target === 'ehp_no_agi') {
         return getDefenseStats(stats)[1][1];   // EHP without agility dodge
     }
+    if (target === 'ehpr') {
+        return getDefenseStats(stats)[3][0];   // EHPR weighted by agility
+    }
     return stats.get(target) ?? 0;
 }
 

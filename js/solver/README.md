@@ -16,7 +16,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Necessary Improvements
-- Testing framework ;-;
 
 
 ### Improve Solver
@@ -35,18 +34,21 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Testing
+- Testing framework ;-;
 - Test tstack builds
 - Add more complicated scenarios to test_dominance.js
 - Add more tests
 
-#### Archetypes/Combos
-
-The combo damage calculation has been tested against WynnBuilder output for some archetypes and bugs were found and fixed, but not all archetypes have been verified. Each archetype should be tested by loading the same build and buffs in both WynnSolver and WynnBuilder and comparing per-spell damage numbers. Archetypes that use prop-type sliders (e.g. Enkindled %), ability-name aliases (e.g. Mirror Image → Activate Clones), or powder special spells are the highest priority to verify.
-
 #### Combo Mana Calculation
 
 ### Long term
+- Cast time/delay-based mana calc with an advanced mode, where the per-spell cast time and durations and spell hits and what not can be specified in greater detail and control
+    - Mana abilities missing:
+        - Arcanist Manastorm
+        - Boltslinger Recycling
+        - Trapper? Mana Trap
+        - Acrobat weightless
+        - Summoner Aura
 - Automatic combo sequencing - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a lot of work
-- Advanced mode, where the per-spell cast time and durations and spell hits and what not can be specified
 - Premade archetype combo selectors
 - Tree-assembler: "I want ability X, Y, and Z, give me a tree that gets all 3 if possible"
