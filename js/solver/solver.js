@@ -387,6 +387,7 @@ function _restore_from_url(solver_params) {
             if (op_select) op_select.value = r.op === 1 ? 'le' : 'ge';
             if (val_input) val_input.value = r.value;
         }
+        _validate_restriction_contradictions();
     }
 
     // Blacklist rows (binary: array of item IDs)

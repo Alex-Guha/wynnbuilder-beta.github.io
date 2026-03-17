@@ -225,10 +225,10 @@ function restriction_add_row() {
         _wire_suffix_parse(val_input);       // resolve k/m before clamping
         _wire_encoding_cap(val_input, RESTR_VALUE_MIN, RESTR_VALUE_MAX);
     }
-    // Wire all inputs for URL persistence
+    // Wire all inputs for URL persistence + contradiction validation
     for (const inp of row.querySelectorAll('input, select')) {
-        inp.addEventListener('change', _schedule_solver_hash_update);
-        inp.addEventListener('input', _schedule_solver_hash_update);
+        inp.addEventListener('change', () => { _schedule_solver_hash_update(); _validate_restriction_contradictions(); });
+        inp.addEventListener('input', () => { _schedule_solver_hash_update(); _validate_restriction_contradictions(); });
     }
     return row;
 }
@@ -240,6 +240,7 @@ function restriction_remove_row(btn) {
     const row = btn.closest('[id^="restr-row-"]');
     if (row) row.remove();
     _schedule_solver_hash_update();
+    _validate_restriction_contradictions();
 }
 
 /**
@@ -482,6 +483,62 @@ function _flash_row_limit_warning(container, type) {
     msg.textContent = `Maximum ${type === 'blacklist' ? MAX_BLACKLIST_ROWS : MAX_RESTRICTION_ROWS} ${type} rows (URL encoding limit).`;
     container.appendChild(msg);
     setTimeout(() => msg.remove(), 3000);
+}
+
+// ── Contradictory constraint detection ────────────────────────────────────────
+//
+// Scans all restriction rows and highlights value inputs with a red border when
+// the same stat has a ge floor > le cap (impossible to satisfy).
+
+function _validate_restriction_contradictions() {
+    const container = document.getElementById('restriction-rows');
+    if (!container) return;
+
+    // Collect all rows grouped by stat key: { stat_key: [{op, value, val_input}] }
+    const by_stat = new Map();
+    for (const row of container.children) {
+        if (!row.id?.startsWith('restr-row-')) continue;
+        const stat_input = row.querySelector('.restr-stat-input');
+        const op_select = row.querySelector('select');
+        const val_input = row.querySelector('.restr-value-input');
+        if (!stat_input || !op_select || !val_input) continue;
+        const stat_key = stat_input.dataset?.statKey;
+        if (!stat_key) continue;
+        const value = parseFloat(val_input.value);
+        if (isNaN(value)) continue;
+        if (!by_stat.has(stat_key)) by_stat.set(stat_key, []);
+        by_stat.get(stat_key).push({ op: op_select.value, value, val_input });
+    }
+
+    // For each stat, find the tightest ge floor and le cap.
+    // If floor > cap, mark all involved value inputs as contradictory.
+    const contradictory_inputs = new Set();
+    for (const [, entries] of by_stat) {
+        let max_ge = -Infinity, min_le = Infinity;
+        const ge_entries = [], le_entries = [];
+        for (const e of entries) {
+            if (e.op === 'ge') { ge_entries.push(e); if (e.value > max_ge) max_ge = e.value; }
+            if (e.op === 'le') { le_entries.push(e); if (e.value < min_le) min_le = e.value; }
+        }
+        if (max_ge > min_le) {
+            for (const e of ge_entries) contradictory_inputs.add(e.val_input);
+            for (const e of le_entries) contradictory_inputs.add(e.val_input);
+        }
+    }
+
+    // Apply/remove the CSS class on all value inputs
+    for (const row of container.children) {
+        if (!row.id?.startsWith('restr-row-')) continue;
+        const val_input = row.querySelector('.restr-value-input');
+        if (!val_input) continue;
+        if (contradictory_inputs.has(val_input)) {
+            val_input.classList.add('restr-contradictory');
+            val_input.title = 'Contradictory: floor exceeds cap for this stat';
+        } else {
+            val_input.classList.remove('restr-contradictory');
+            if (val_input.title === 'Contradictory: floor exceeds cap for this stat') val_input.title = '';
+        }
+    }
 }
 
 // Restriction URL persistence is now handled by the unified solver hash updater

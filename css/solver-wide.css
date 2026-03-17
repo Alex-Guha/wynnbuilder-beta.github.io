@@ -1073,6 +1073,11 @@ ul.search-box {
     box-shadow: 0 0 0 1px rgba(240, 173, 78, 0.4);
 }
 
+.restr-contradictory {
+    border-color: #d9534f !important;
+    box-shadow: 0 0 0 1px rgba(217, 83, 79, 0.5);
+}
+
 .encoding-limit-msg {
     animation: fade-out-msg 3s ease-in forwards;
 }

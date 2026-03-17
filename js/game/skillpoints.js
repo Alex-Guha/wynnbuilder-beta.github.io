@@ -12,11 +12,13 @@ function inplace_vadd5(target, delta) {
     }
 }
 
-function pull_req(req_skillpoints, item) {
+function pull_req(req_skillpoints, item, is_bonus_item) {
     const req = item.get('reqs');
+    const skp = is_bonus_item ? item.get('skillpoints') : null;
     for (let i = 0; i < 5; ++i) {
-        if (req[i] > req_skillpoints[i]) {
-            req_skillpoints[i] = req[i];
+        const eff = (skp && req[i] > 0) ? req[i] + skp[i] : req[i];
+        if (eff > req_skillpoints[i]) {
+            req_skillpoints[i] = eff;
         }
     }
 }
@@ -45,6 +47,7 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
     for (const item of equipment) {
         if (item.get("crafted")) {
             no_bonus_items.push(item);
+            pull_req(req_skillpoints, item, false);
         }
         // Add skillpoints, and record set bonuses
         else {
@@ -56,10 +59,10 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
                 }
                 set_counts.set(set_name, set_counts.get(set_name) + 1);
             }
+            pull_req(req_skillpoints, item, true);
         }
-        pull_req(req_skillpoints, item);
     }
-    pull_req(req_skillpoints, weapon);
+    pull_req(req_skillpoints, weapon, false);
 
     let assign = [0, 0, 0, 0, 0];
     let total_assigned = 0;

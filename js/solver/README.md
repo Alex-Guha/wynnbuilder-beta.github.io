@@ -26,6 +26,7 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 #### UI
 - Ensure the red and blue solver messages appear at appropriate times. Red requires testing with a poor cpu, and blue probably isn't showing soon enough.
 - Clean the "Checked | Feasible \n Time | Time left | Warning" display up
+- Rainbow and Standard guild tomes are handled a bit differently, resulting in different skill point displays (Remaining 0 vs -4 respectively). This can be confusing.
 
 
 #### Combo

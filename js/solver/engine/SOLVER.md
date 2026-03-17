@@ -35,7 +35,7 @@ Before spawning any workers the main thread reads every piece of mutable state t
 
 Key pieces captured:
 - **Weapon** and **level** — from solver item input nodes.
-- **Tomes** and **guild tome** — from solver tome input nodes; guild tome determines the SP budget (200 / 204 / 205).
+- **Tomes** and **guild tome** — from solver tome input nodes; guild tome provisions are included in its statMap (the assignable SP budget is always 200).
 - **Atree state** — `atree_raw` (raw stat bonuses from the tree), `atree_merged` (full ability tree), and serialized `button_states` / `slider_states` (toggle/slider DOM state flattened to plain Maps so workers can clone them).
 - **Static boosts** — merged from the Active Boosts panel.
 - **Radiance boost** — floating multiplier (1.0–1.4) based on Radiance / Divine Honor / Shine / Judgement toggles.

@@ -43,6 +43,14 @@ let _ehp_precheck = null;        // {threshold, fixed_hp, ehp_divisor} or null
 let _ehp_no_agi_precheck = null; // {threshold, fixed_hp, ehp_divisor} or null
 let _total_hp_precheck = null;   // {threshold, fixed_hp} or null
 
+// ── SP floor/cap constraints (computed once at init) ─────────────────────────
+// Floors: minimum total_sp per attribute (from ge thresholds on SP stats).
+// Caps:   maximum total_sp per attribute (from le thresholds on SP stats).
+const _SKP_STAT_TO_IDX = { str: 0, dex: 1, int: 2, def: 3, agi: 4 };
+let _sp_floors = null;  // Int32Array(5) or null
+let _sp_caps = null;    // Int32Array(5) or null
+const _default_sp_caps = new Int32Array([150, 150, 150, 150, 150]);
+
 // Debug toggles: SOLVER_DEBUG_WORKER, SOLVER_DEBUG_COMBO
 // (defined in js/solver/debug_toggles.js, loaded via importScripts)
 
@@ -81,6 +89,7 @@ const _scratch_row = { stats: new Map(), damMult: new Map(), defMult: new Map(),
 const _scratch_atree = { atree_edit: new Map(), ret_effects: new Map() };
 const _scratch_finalize_inner = { damMult: new Map(), defMult: new Map(), healMult: new Map(), majorIds: new Set() };
 const _scratch_sp_set_counts = new Map();
+const _scratch_orig_base_sp = new Int32Array(5);  // pre-greedy base_sp snapshot for mana rescue
 
 /**
  * Build constraint prechecks from the restriction thresholds.
@@ -138,6 +147,32 @@ function _build_constraint_prechecks() {
             stat,
             adjusted_threshold: value - fixed_contrib,
         });
+    }
+}
+
+/**
+ * Build SP floor/cap constraints from restriction thresholds.
+ * Floors come from ge thresholds on SP stats, caps from le thresholds.
+ * Called once during worker init.
+ */
+function _build_sp_constraints() {
+    _sp_floors = null;
+    _sp_caps = null;
+
+    const thresholds = _cfg.restrictions?.stat_thresholds ?? [];
+    if (thresholds.length === 0) return;
+
+    for (const { stat, op, value } of thresholds) {
+        const idx = _SKP_STAT_TO_IDX[stat];
+        if (idx === undefined) continue;
+
+        if (op === 'ge') {
+            if (!_sp_floors) { _sp_floors = new Int32Array(5); }
+            _sp_floors[idx] = Math.max(_sp_floors[idx], value);
+        } else if (op === 'le') {
+            if (!_sp_caps) { _sp_caps = new Int32Array([150, 150, 150, 150, 150]); }
+            _sp_caps[idx] = Math.min(_sp_caps[idx], value);
+        }
     }
 }
 
@@ -453,6 +488,7 @@ function _run_level_enum() {
     let _dbg_sp_reject = 0;
     let _dbg_threshold_reject = 0;
     let _dbg_mana_reject = 0;
+    let _dbg_mana_rescued = 0;
     let _dbg_hp_reject = 0;
     let _dbg_scored = 0;
     let _dbg_leaf_time = 0;  // cumulative ms for feasible leaf processing
@@ -596,14 +632,51 @@ function _run_level_enum() {
 
     function _greedy_allocate_sp(build_sm, base_sp, total_sp, assigned_sp, weapon_sm) {
         let remaining = sp_budget - assigned_sp;
-        if (remaining <= 0) return assigned_sp;
+        if (remaining <= 0) {
+            _scratch_orig_base_sp.set(base_sp);
+            return assigned_sp;
+        }
 
         // Quick check: any attribute still has room?
         let any_room = false;
         for (let i = 0; i < 5; i++) {
             if (base_sp[i] < 100 && total_sp[i] < 150) { any_room = true; break; }
         }
-        if (!any_room) return assigned_sp;
+        if (!any_room) {
+            _scratch_orig_base_sp.set(base_sp);
+            return assigned_sp;
+        }
+
+        // Phase 1: Enforce SP floors from ge restrictions (e.g. Int >= 40).
+        // Force-allocate to meet each floor before score-based greedy begins.
+        if (_sp_floors) {
+            for (let i = 0; i < 5; i++) {
+                const deficit = _sp_floors[i] - total_sp[i];
+                if (deficit <= 0) continue;
+                const add = Math.min(deficit, remaining, 100 - base_sp[i], 150 - total_sp[i]);
+                if (add <= 0) continue;
+                base_sp[i] += add;
+                total_sp[i] += add;
+                remaining -= add;
+                assigned_sp += add;
+            }
+            if (remaining <= 0) {
+                _scratch_orig_base_sp.set(base_sp);
+                return assigned_sp;
+            }
+            // Re-check room after floor enforcement
+            any_room = false;
+            for (let i = 0; i < 5; i++) {
+                if (base_sp[i] < 100 && total_sp[i] < 150) { any_room = true; break; }
+            }
+            if (!any_room) {
+                _scratch_orig_base_sp.set(base_sp);
+                return assigned_sp;
+            }
+        }
+
+        // Snapshot post-floor base_sp for mana rescue (stealable = post_greedy - post_floor)
+        _scratch_orig_base_sp.set(base_sp);
 
         const target = _cfg.scoring_target ?? 'combo_damage';
         const need_thresh = (target !== 'combo_damage' && target !== 'total_healing');
@@ -616,6 +689,10 @@ function _run_level_enum() {
 
         let cur = _trial_score();
 
+        // Precompute per-attribute cap for the greedy loop.
+        // Incorporates le restrictions (e.g. Int <= 80) if set.
+        const cap_total = _sp_caps ?? _default_sp_caps;
+
         for (const step of [20, 4, 1]) {
             let progress = true;
             while (progress && remaining > 0) {
@@ -623,7 +700,7 @@ function _run_level_enum() {
                 let best_i = -1, best_s = cur;
 
                 for (let i = 0; i < 5; i++) {
-                    const a = Math.min(step, remaining, 100 - base_sp[i], 150 - total_sp[i]);
+                    const a = Math.min(step, remaining, 100 - base_sp[i], cap_total[i] - total_sp[i]);
                     if (a <= 0) continue;
                     total_sp[i] += a;
                     const s = _trial_score();
@@ -632,7 +709,7 @@ function _run_level_enum() {
                 }
 
                 if (best_i >= 0) {
-                    const a = Math.min(step, remaining, 100 - base_sp[best_i], 150 - total_sp[best_i]);
+                    const a = Math.min(step, remaining, 100 - base_sp[best_i], cap_total[best_i] - total_sp[best_i]);
                     base_sp[best_i] += a;
                     total_sp[best_i] += a;
                     remaining -= a;
@@ -644,6 +721,92 @@ function _run_level_enum() {
         }
 
         return assigned_sp;
+    }
+
+    // ── Mana rescue: shift SP into Int when mana check fails ───────────────
+    //
+    // After greedy allocation optimises for score, the mana check may fail.
+    // This function attempts to steal freely-assigned SP from other attributes
+    // and shift it into Int (which reduces spell costs and increases mana pool).
+    // Only applies to non-Blood-Pact builds with a combo_time constraint.
+    //
+    // Returns true if rescue succeeded (base_sp/total_sp mutated, combo_base
+    // reassembled). Returns false if rescue impossible or insufficient.
+
+    const _scratch_rescue_base = new Int32Array(5);
+    const _scratch_rescue_total = new Int32Array(5);
+
+    function _mana_rescue(build_sm, base_sp, total_sp, orig_base_sp, weapon_sm) {
+        if (_cfg.hp_casting) return false;
+        if (!(_cfg.combo_time ?? 0)) return false;
+
+        const INT_IDX = 2;
+        const int_base_room = 100 - base_sp[INT_IDX];
+        const int_total_room = ((_sp_caps ? _sp_caps[INT_IDX] : 150) - total_sp[INT_IDX]);
+        const int_room = Math.min(int_base_room, int_total_room);
+        if (int_room <= 0) return false;
+
+        // Compute how much SP the greedy allocator freely assigned per attribute
+        // (i.e. beyond the SP solver minimum). These are stealable.
+        let total_stealable = 0;
+        const stealable = [0, 0, 0, 0, 0];
+        for (let i = 0; i < 5; i++) {
+            if (i === INT_IDX) continue;
+            stealable[i] = base_sp[i] - orig_base_sp[i];
+            total_stealable += stealable[i];
+        }
+        if (total_stealable <= 0) return false;
+
+        const max_shift = Math.min(total_stealable, int_room);
+        if (max_shift <= 0) return false;
+
+        // Save current allocation in case rescue fails
+        _scratch_rescue_base.set(base_sp);
+        _scratch_rescue_total.set(total_sp);
+
+        // Try shifting SP into Int in increasing amounts: 25%, 50%, 75%, 100% of max
+        for (const frac of [0.25, 0.5, 0.75, 1.0]) {
+            let shift_target = Math.ceil(max_shift * frac);
+            if (shift_target <= 0) continue;
+
+            // Restore to pre-rescue state
+            for (let i = 0; i < 5; i++) {
+                base_sp[i] = _scratch_rescue_base[i];
+                total_sp[i] = _scratch_rescue_total[i];
+            }
+
+            // Steal from attributes with most free SP first
+            let shifted = 0;
+            // Build sorted steal order (descending by stealable)
+            const order = [0, 1, 3, 4]; // exclude INT_IDX=2
+            order.sort((a, b) => stealable[b] - stealable[a]);
+
+            for (const i of order) {
+                if (shifted >= shift_target) break;
+                const take = Math.min(stealable[i], shift_target - shifted);
+                if (take <= 0) continue;
+                base_sp[i] -= take;
+                total_sp[i] -= take;
+                shifted += take;
+            }
+
+            // Add stolen SP to Int
+            base_sp[INT_IDX] += shifted;
+            total_sp[INT_IDX] += shifted;
+
+            // Reassemble combo stats and check mana
+            _assemble_combo_stats(build_sm, total_sp, weapon_sm);
+            if (_eval_combo_mana_check(_scratch_combo_base)) {
+                return true;  // Rescue succeeded; combo_base (scratch) is valid
+            }
+        }
+
+        // All attempts failed — restore original allocation
+        for (let i = 0; i < 5; i++) {
+            base_sp[i] = _scratch_rescue_base[i];
+            total_sp[i] = _scratch_rescue_total[i];
+        }
+        return false;
     }
 
     // ── Leaf evaluation ─────────────────────────────────────────────────────
@@ -694,7 +857,7 @@ function _run_level_enum() {
         const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, all_equip_sms, _scratch_finalize, _scratch_finalize_inner);
 
         // Greedily assign any remaining SP budget to maximise the scoring target
-        const final_assigned = _greedy_allocate_sp(build_sm, base_sp, total_sp, assigned_sp, weapon_sm);
+        let final_assigned = _greedy_allocate_sp(build_sm, base_sp, total_sp, assigned_sp, weapon_sm);
 
         // Stat assembly + atree scaling
         const combo_base = _assemble_combo_stats(build_sm, total_sp, weapon_sm);
@@ -702,7 +865,7 @@ function _run_level_enum() {
         // Compute thresh_stats once: used for threshold gate and non-damage scoring
         const need_thresh = restrictions.stat_thresholds.length > 0
             || (_cfg.scoring_target ?? 'combo_damage') !== 'combo_damage';
-        const thresh_stats = need_thresh ? _assemble_threshold_stats(combo_base) : null;
+        let thresh_stats = need_thresh ? _assemble_threshold_stats(combo_base) : null;
 
         // Threshold check
         if (restrictions.stat_thresholds.length > 0) {
@@ -714,13 +877,34 @@ function _run_level_enum() {
             }
         }
 
-        // Mana / HP constraint check
-        const mana_hp_result = _eval_combo_mana_check(combo_base);
+        // Mana / HP constraint check (with rescue attempt on failure)
+        let mana_hp_result = _eval_combo_mana_check(combo_base);
         if (!mana_hp_result) {
-            if (_cfg.hp_casting) _dbg_hp_reject++; else _dbg_mana_reject++;
-            if (_dbg) _dbg_leaf_time += performance.now() - t0;
-            _maybe_progress();
-            return;
+            if (!_cfg.hp_casting && _mana_rescue(build_sm, base_sp, total_sp, _scratch_orig_base_sp, weapon_sm)) {
+                // Rescue succeeded — combo_base was reassembled by _mana_rescue.
+                // Re-check thresholds since SP distribution changed.
+                if (restrictions.stat_thresholds.length > 0) {
+                    const ts2 = _assemble_threshold_stats(combo_base);
+                    if (!_check_thresholds(ts2, restrictions.stat_thresholds)) {
+                        _dbg_threshold_reject++;
+                        if (_dbg) _dbg_leaf_time += performance.now() - t0;
+                        _maybe_progress();
+                        return;
+                    }
+                    thresh_stats = ts2;
+                } else if (need_thresh) {
+                    thresh_stats = _assemble_threshold_stats(combo_base);
+                }
+                // final_assigned unchanged: rescue is a zero-sum redistribution
+                _dbg_mana_rescued++;
+                mana_hp_result = true;
+            }
+            if (!mana_hp_result) {
+                if (_cfg.hp_casting) _dbg_hp_reject++; else _dbg_mana_reject++;
+                if (_dbg) _dbg_leaf_time += performance.now() - t0;
+                _maybe_progress();
+                return;
+            }
         }
 
         // Score
@@ -793,21 +977,23 @@ function _run_level_enum() {
                 for (let i = 0; i < 5; i++) _sp_fixed_sum_prov[i] += skp[i];
             }
 
-            // Raw requirements for all items (matching simplified pull_req)
+            // Effective requirements: undo self-contribution for non-crafted bonus items
             for (let i = 0; i < 5; i++) {
-                if (req[i] > _sp_fixed_max_eff_req[i])
-                    _sp_fixed_max_eff_req[i] = req[i];
+                const eff = (!is_crafted && req[i] > 0) ? req[i] + skp[i] : req[i];
+                if (eff > _sp_fixed_max_eff_req[i])
+                    _sp_fixed_max_eff_req[i] = eff;
             }
         }
 
-        // Guild tome: adds provisions + raw reqs
+        // Guild tome: adds provisions + effective reqs
         if (guild_tome_sm && !guild_tome_sm.has('NONE')) {
             const skp = guild_tome_sm.get('skillpoints');
             const req = guild_tome_sm.get('reqs');
             for (let i = 0; i < 5; i++) _sp_fixed_sum_prov[i] += skp[i];
             for (let i = 0; i < 5; i++) {
-                if (req[i] > _sp_fixed_max_eff_req[i])
-                    _sp_fixed_max_eff_req[i] = req[i];
+                const eff = (req[i] > 0) ? req[i] + skp[i] : req[i];
+                if (eff > _sp_fixed_max_eff_req[i])
+                    _sp_fixed_max_eff_req[i] = eff;
             }
         }
 
@@ -842,10 +1028,10 @@ function _run_level_enum() {
             for (let i = 0; i < 5; i++) _sp_running_free_prov[i] += skp[i];
         }
 
-        // Raw requirements for all items (matching simplified pull_req)
+        // Effective requirements: undo self-contribution for non-crafted bonus items
         const eff = _sp_slot_eff_req[depth];
         for (let i = 0; i < 5; i++) {
-            eff[i] = req[i];
+            eff[i] = (!is_crafted && req[i] > 0) ? req[i] + skp[i] : req[i];
         }
 
         for (let i = 0; i < 5; i++) {
@@ -1009,6 +1195,7 @@ function _run_level_enum() {
             '| feasible:', _feasible,
             '| threshold_reject:', _dbg_threshold_reject,
             '| mana_reject:', _dbg_mana_reject,
+            '| mana_rescued:', _dbg_mana_rescued,
             '| hp_reject:', _dbg_hp_reject,
             '| scored:', _dbg_scored);
         if (_feasible > 0) {
@@ -1045,6 +1232,7 @@ self.onmessage = function (e) {
         }
         try {
             _build_constraint_prechecks();
+            _build_sp_constraints();
         } catch (err) {
             console.error('[w] prechecks crashed:', err.message, err.stack);
             postMessage({ type: 'done', worker_id: msg.worker_id, checked: 0, feasible: 0, top5: [] });
@@ -1058,7 +1246,9 @@ self.onmessage = function (e) {
                 '| sp_budget:', msg.sp_budget,
                 '| prechecks:', _constraint_prechecks.length,
                 '| ehp_precheck:', !!_ehp_precheck, '| ehp_no_agi_precheck:', !!_ehp_no_agi_precheck, '| total_hp_precheck:', !!_total_hp_precheck,
-                '| thresholds:', msg.restrictions?.stat_thresholds?.length ?? 0);
+                '| thresholds:', msg.restrictions?.stat_thresholds?.length ?? 0,
+                '| sp_floors:', _sp_floors ? Array.from(_sp_floors) : null,
+                '| sp_caps:', _sp_caps ? Array.from(_sp_caps) : null);
         }
 
         // Run immediately if a partition is requested

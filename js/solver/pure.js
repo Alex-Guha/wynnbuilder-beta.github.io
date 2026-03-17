@@ -390,8 +390,13 @@ function apply_combo_row_boosts(base_stats, boost_tokens, registry, scratch) {
                 }
             }
             for (const p of entry.prop_bonuses) {
-                const contrib = (p.value_per_unit ?? 1) * effective_value;
-                const existing = prop_overrides.get(p.ref) ?? { replace: null, add: 0 };
+                let contrib = (p.value_per_unit ?? 1) * effective_value;
+                // Apply output cap (mirrors atree_compute_scaling's max logic).
+                if (p.max != null) {
+                    if (p.max > 0 && contrib > p.max) contrib = p.max;
+                    else if (p.max < 0 && contrib < p.max) contrib = p.max;
+                }
+                const existing = prop_overrides.get(p.ref) ?? { replace: null, add: 0, base: p.base ?? 0 };
                 if (p.mode === 'add') {
                     existing.add += contrib;
                 } else {
@@ -423,6 +428,20 @@ function apply_spell_prop_overrides(spell, prop_overrides, atree_merged) {
             }
         }
     }
+    // Also collect hit refs from add_spell_prop effects (e.g. Meteor Shower, Shrapnel Bomb).
+    for (const [, abil] of atree_merged) {
+        for (const effect of abil.effects) {
+            if (effect.type !== 'add_spell_prop' || effect.base_spell !== spell.base_spell) continue;
+            if (effect.target_part && 'hits' in effect) {
+                const existing = orig_part_hits.get(effect.target_part);
+                if (existing) {
+                    orig_part_hits.set(effect.target_part, { ...existing, ...effect.hits });
+                } else {
+                    orig_part_hits.set(effect.target_part, effect.hits);
+                }
+            }
+        }
+    }
     if (orig_part_hits.size === 0) return spell;
 
     // Check if any string reference is in our overrides.
@@ -447,7 +466,7 @@ function apply_spell_prop_overrides(spell, prop_overrides, atree_merged) {
             if (typeof orig_val === 'string' && prop_overrides.has(orig_val)) {
                 const ov = prop_overrides.get(orig_val);
                 if (ov.replace != null) {
-                    part.hits[sub_name] = ov.replace + ov.add;
+                    part.hits[sub_name] = (ov.base ?? 0) + ov.replace + ov.add;
                 } else {
                     part.hits[sub_name] += ov.add;
                 }

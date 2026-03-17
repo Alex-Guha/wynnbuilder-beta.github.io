@@ -178,13 +178,34 @@ function _build_solver_snapshot(restrictions) {
     if (document.getElementById('shine-boost')?.classList.contains('toggleOn')) radiance_boost += 0.05;
     if (document.getElementById('judgement-boost')?.classList.contains('toggleOn')) radiance_boost = 1.4;
 
-    const sp_budget = restrictions.guild_tome === 2 ? SP_GUILD_TOME_RARE :
-        restrictions.guild_tome === 1 ? SP_GUILD_TOME_STD : SP_TOTAL_CAP;
-
+    // Guild tome handling: two sources — the item slot (guildTome1-choice) and
+    // the restriction dropdown (restr-guild-tome).  When a specific tome is
+    // selected in the item slot, its skillpoints are already in the statMap
+    // (counted as bonus_skillpoints inside calculate_skillpoints), so the
+    // assignable budget stays at 200.  When only the dropdown is set, we must
+    // apply the bonus: Standard (+4) inflates the budget; Rainbow (+5) injects
+    // a synthetic [1,1,1,1,1] tome so the fixed distribution is respected.
     const guild_tome_idx = tome_fields.indexOf('guildTome1');
-    const guild_tome_item = (guild_tome_idx >= 0 && solver_item_final_nodes[9 + guild_tome_idx]?.value)
+    let guild_tome_item = (guild_tome_idx >= 0 && solver_item_final_nodes[9 + guild_tome_idx]?.value)
         ? solver_item_final_nodes[9 + guild_tome_idx].value
         : new Item(none_tomes[2]);
+
+    const has_real_guild_tome = !guild_tome_item.statMap.has('NONE');
+    let sp_budget = SP_TOTAL_CAP;
+    if (!has_real_guild_tome) {
+        const gtome_mode = restrictions.guild_tome ?? 0;
+        if (gtome_mode === 1) {
+            // Standard: +4 freely assignable SP (solver picks optimal distribution)
+            sp_budget = SP_GUILD_TOME_STD;
+        } else if (gtome_mode === 2) {
+            // Rainbow: fixed [1,1,1,1,1] — create synthetic tome so SP calc
+            // sees the exact per-attribute contribution (not freely distributable)
+            const synth = new Map();
+            synth.set('skillpoints', [1, 1, 1, 1, 1]);
+            synth.set('reqs', [0, 0, 0, 0, 0]);
+            guild_tome_item = { statMap: synth };
+        }
+    }
 
     const spell_map = atree_collect_spells.value ?? new Map();
     const boost_registry = build_combo_boost_registry(atree_mgd, solver_build_node.value);
@@ -818,15 +839,35 @@ function _compute_sp_overflow_warnings() {
         equip_sms.push(item?.statMap ?? none_items[i].statMap);
     }
     const guild_tome_idx = tome_fields.indexOf('guildTome1');
-    const gt_item = (guild_tome_idx >= 0 && solver_item_final_nodes[9 + guild_tome_idx]?.value)
-        ? solver_item_final_nodes[9 + guild_tome_idx].value
-        : new Item(none_tomes[2]);
-    equip_sms.push(gt_item.statMap);
+    let gt_sm;
+    const gt_node_val = (guild_tome_idx >= 0) ? solver_item_final_nodes[9 + guild_tome_idx]?.value : null;
+    if (gt_node_val && !gt_node_val.statMap.has('NONE')) {
+        gt_sm = gt_node_val.statMap;
+    } else {
+        // No specific tome — check restriction dropdown for rainbow synthetic
+        const gtome_mode = parseInt(document.getElementById('restr-guild-tome')?.value) || 0;
+        if (gtome_mode === 2) {
+            const synth = new Map();
+            synth.set('skillpoints', [1, 1, 1, 1, 1]);
+            synth.set('reqs', [0, 0, 0, 0, 0]);
+            gt_sm = synth;
+        } else {
+            gt_sm = new Item(none_tomes[2]).statMap;
+        }
+    }
+    equip_sms.push(gt_sm);
 
     const weapon = solver_item_final_nodes[8]?.value;
     if (!weapon || weapon.statMap.has('NONE')) return warnings;
 
-    const result = calculate_skillpoints(equip_sms, weapon.statMap);
+    // SP budget: standard mode inflates budget, rainbow uses synthetic tome above
+    let sp_overflow_budget = SP_TOTAL_CAP;
+    if (!gt_node_val || gt_node_val.statMap.has('NONE')) {
+        const gtome_mode = parseInt(document.getElementById('restr-guild-tome')?.value) || 0;
+        if (gtome_mode === 1) sp_overflow_budget = SP_GUILD_TOME_STD;
+    }
+
+    const result = calculate_skillpoints(equip_sms, weapon.statMap, sp_overflow_budget);
     const assign = result[0];
     for (let i = 0; i < 5; i++) {
         if (assign[i] > SP_PER_ATTR_CAP) {

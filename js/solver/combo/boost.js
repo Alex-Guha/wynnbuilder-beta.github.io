@@ -240,7 +240,11 @@ function build_combo_boost_registry(atree_merged, build = null) {
                     if (out.type === 'stat') {
                         stat_bonuses.push({ key: out.name, value: scale, mode: 'add' });
                     } else if (out.type === 'prop') {
-                        prop_bonuses.push({ ref: String(out.abil) + '.' + out.name, value_per_unit: scale });
+                        const target_abil = atree_merged.get(out.abil);
+                        const pb = { ref: String(out.abil) + '.' + out.name, value_per_unit: scale,
+                                     base: target_abil?.properties?.[out.name] ?? 0 };
+                        if (typeof effect.max === 'number') pb.max = effect.max;
+                        prop_bonuses.push(pb);
                     }
                 }
 
@@ -334,6 +338,20 @@ function build_combo_boost_registry(atree_merged, build = null) {
             if (effect.type !== 'replace_spell') continue;
             for (const part of (effect.parts ?? [])) {
                 for (const val of Object.values(part.hits ?? {})) {
+                    if (typeof val === 'string') {
+                        if (!prop_ref_to_spells.has(val)) prop_ref_to_spells.set(val, new Set());
+                        prop_ref_to_spells.get(val).add(effect.base_spell);
+                    }
+                }
+            }
+        }
+    }
+    // Also scan add_spell_prop effects for hit refs (e.g. Meteor Shower, Shrapnel Bomb).
+    for (const [, abil] of atree_merged) {
+        for (const effect of abil.effects) {
+            if (effect.type !== 'add_spell_prop') continue;
+            if (effect.target_part && 'hits' in effect) {
+                for (const val of Object.values(effect.hits)) {
                     if (typeof val === 'string') {
                         if (!prop_ref_to_spells.has(val)) prop_ref_to_spells.set(val, new Set());
                         prop_ref_to_spells.get(val).add(effect.base_spell);
