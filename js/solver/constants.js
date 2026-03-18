@@ -269,6 +269,8 @@ const RESTRICTION_STATS = [
     { key: 'finalSpellCost2', label: '2nd Spell Cost (Final)' },
     { key: 'finalSpellCost3', label: '3rd Spell Cost (Final)' },
     { key: 'finalSpellCost4', label: '4th Spell Cost (Final)' },
+    // ── Max Mana ───────────────────────────────────────────────────────
+    { key: 'maxMana', label: 'Max Mana' },
 ];
 
 /**
