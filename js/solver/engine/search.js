@@ -191,12 +191,12 @@ function _build_solver_snapshot(restrictions) {
         : new Item(none_tomes[2]);
 
     const has_real_guild_tome = !guild_tome_item.statMap.has('NONE');
-    let sp_budget = SP_TOTAL_CAP;
+    let sp_budget = levelToSkillPoints(level);
     if (!has_real_guild_tome) {
         const gtome_mode = restrictions.guild_tome ?? 0;
         if (gtome_mode === 1) {
             // Standard: +4 freely assignable SP (solver picks optimal distribution)
-            sp_budget = SP_GUILD_TOME_STD;
+            sp_budget = levelToSkillPoints(level) + 4;
         } else if (gtome_mode === 2) {
             // Rainbow: fixed [1,1,1,1,1] — create synthetic tome so SP calc
             // sees the exact per-attribute contribution (not freely distributable)
