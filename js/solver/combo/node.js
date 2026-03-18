@@ -139,7 +139,8 @@ class SolverComboTotalNode extends ComputeNode {
                 continue;
             }
 
-            if (dmg_span) dmg_span.textContent = Math.round(pr.damage).toLocaleString();
+            if (dmg_span) dmg_span.textContent = Math.round(pr.damage).toLocaleString()
+                + (spell_is_dps(row.spell) && !pr.dps_info ? ' DPS' : '');
 
             if (heal_span) {
                 if (pr.healing > 0) {
