@@ -18,7 +18,8 @@
 
 // Scaling fractions for constraint/mana bonuses relative to max sensitivity weight.
 const _CONSTRAINT_WEIGHT_FRACTION = 1.0;
-const _MANA_WEIGHT_FRACTION = 2;
+const _MANA_WEIGHT_FRACTION = 3;
+const _MANA_RATIO_EXPONENT = 0.5;
 
 // Dampening factor for SP provision sensitivities.
 // Item SP provisions don't translate 1:1 to actual allocated SP — they reduce
@@ -638,7 +639,8 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
         const base_regen = (BASE_MANA_REGEN / 5) * combo_time;
         const flat_mana = snap.flat_mana ?? 0;
         const deficit = total_mana_cost - start_mana - base_regen - flat_mana;
-        const ratio = total_mana_cost > 0 ? Math.min(1, Math.max(0, deficit / total_mana_cost)) : 0;
+        const ratio_raw = total_mana_cost > 0 ? Math.min(1, Math.max(0, deficit / total_mana_cost)) : 0;
+        const ratio = Math.pow(ratio_raw, _MANA_RATIO_EXPONENT);
         const mana_bonus = max_abs * _MANA_WEIGHT_FRACTION * ratio;
 
         const has_melee = (snap.parsed_combo ?? []).some(r => (r.spell?.scaling ?? 'spell') === 'melee');
@@ -652,7 +654,7 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
             weights._sp_sensitivities[2] += mana_bonus * 0.5; // int is index 2
 
             if (SOLVER_DEBUG_SENSITIVITY) {
-                console.log(`[solver][sensitivity] mana bonus: ratio=${ratio.toFixed(2)}, mr+=${mana_bonus.toFixed(2)}` +
+                console.log(`[solver][sensitivity] mana bonus: ratio_raw=${ratio_raw.toFixed(3)}, ratio=${ratio.toFixed(3)}, mr+=${mana_bonus.toFixed(2)}` +
                     (has_melee ? `, ms+=${(mana_bonus * 0.5).toFixed(2)}` : ', ms=0 (no melee)'));
             }
 
