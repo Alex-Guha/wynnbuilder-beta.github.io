@@ -3,6 +3,7 @@
 const _solver_state = {
     running: false,
     top5: [],              // [{score, items:[Item×8], base_sp, total_sp, assigned_sp}]
+    seed_build: null,      // seeded from current UI build (survives worker merges)
     checked: 0,
     feasible: 0,
     start: 0,
@@ -354,6 +355,173 @@ function _insert_top5(candidate) {
     if (_solver_state.top5.length > 5) _solver_state.top5.length = 5;
 }
 
+// ── Seed build from current UI ─────────────────────────────────────────────
+//
+// Evaluate the currently entered build (all 8 slots) and, if it passes all
+// solver constraints (SP, thresholds, mana), return a top-5 compatible result.
+// This lets us preserve the user's manually entered build as the initial
+// baseline so it isn't cleared when the solver starts.
+
+function _eval_current_build(snap, restrictions) {
+    // Collect all 8 item statMaps from the UI
+    const items = [];
+    const equip_sms = [];
+    for (let i = 0; i < 8; i++) {
+        const item = solver_item_final_nodes[i]?.value;
+        items.push(item);
+        // item.statMap always exists for graph-output Items; fallback constructs
+        // an Item wrapper since raw none_items lack .statMap.
+        equip_sms.push(item ? item.statMap : new Item(none_items[i]).statMap);
+    }
+
+    // Check that at least one non-NONE armor/accessory exists
+    const has_any = equip_sms.some(sm => !sm.has('NONE'));
+    if (!has_any) return null;
+
+    // Build statMap using worker_shims (same path as the search worker)
+    const fixed_sms = [snap.weapon_sm];
+    for (const tome of snap.tomes) {
+        if (tome && !tome.statMap.has('NONE')) fixed_sms.push(tome.statMap);
+    }
+    for (const sm of equip_sms) {
+        if (!sm.has('NONE')) fixed_sms.push(sm);
+    }
+    const running_sm = _init_running_statmap(snap.level, fixed_sms);
+
+    // Compute activeSetCounts
+    const activeSetCounts = new Map();
+    for (const sm of equip_sms) {
+        if (sm.has('NONE')) continue;
+        const setName = sm.get('set');
+        if (setName) activeSetCounts.set(setName, (activeSetCounts.get(setName) ?? 0) + 1);
+    }
+
+    const all_equip_sms = [...equip_sms, ...snap.tomes.map(t => t?.statMap).filter(Boolean), snap.weapon_sm];
+    const build_sm = _finalize_leaf_statmap(running_sm, snap.weapon_sm, activeSetCounts, sets, all_equip_sms);
+
+    // SP calculation
+    const sp_equip = [...equip_sms, snap.guild_tome_item.statMap];
+    const sp_result = calculate_skillpoints(sp_equip, snap.weapon_sm, snap.sp_budget);
+    if (!sp_result) return null;  // SP infeasible
+
+    const base_sp = sp_result[0];
+    const total_sp = sp_result[1];
+    let assigned_sp = sp_result[2];
+
+    // Greedy SP allocation (mirrors _greedy_sp_alloc_main in item_priority.js)
+    let remaining = snap.sp_budget - assigned_sp;
+    if (remaining > 0) {
+        function _trial_score() {
+            const cb = _assemble_baseline_combo(build_sm, total_sp, snap);
+            return _sensitivity_eval_score(cb, snap);
+        }
+        let cur = _trial_score();
+        for (const step of [20, 4, 1]) {
+            let progress = true;
+            while (progress && remaining > 0) {
+                progress = false;
+                let best_i = -1, best_s = cur;
+                for (let i = 0; i < 5; i++) {
+                    const a = Math.min(step, remaining, 100 - base_sp[i], 150 - total_sp[i]);
+                    if (a <= 0) continue;
+                    total_sp[i] += a;
+                    const s = _trial_score();
+                    total_sp[i] -= a;
+                    if (s > best_s) { best_s = s; best_i = i; }
+                }
+                if (best_i >= 0) {
+                    const a = Math.min(step, remaining, 100 - base_sp[best_i], 150 - total_sp[best_i]);
+                    base_sp[best_i] += a;
+                    total_sp[best_i] += a;
+                    remaining -= a;
+                    assigned_sp += a;
+                    cur = best_s;
+                    progress = true;
+                }
+            }
+        }
+    }
+
+    // Assemble combo stats
+    const combo_base = _assemble_baseline_combo(build_sm, total_sp, snap);
+
+    // Threshold check
+    if (restrictions.stat_thresholds?.length > 0) {
+        const thresh_stats = _deep_clone_statmap(combo_base);
+        let _def_cache = null;
+        const _get_def = () => _def_cache ?? (_def_cache = getDefenseStats(thresh_stats));
+        for (const { stat, op, value } of restrictions.stat_thresholds) {
+            let v;
+            if (stat === 'ehp') v = _get_def()[1]?.[0] ?? 0;
+            else if (stat === 'ehp_no_agi') v = _get_def()[1]?.[1] ?? 0;
+            else if (stat === 'total_hp') v = _get_def()[0] ?? 0;
+            else if (stat === 'ehpr') v = _get_def()[3]?.[0] ?? 0;
+            else if (stat === 'hpr') v = _get_def()[2] ?? 0;
+            else if (stat.startsWith('finalSpellCost')) {
+                const spell_num = parseInt(stat.charAt(stat.length - 1));
+                const base_cost = snap.spell_base_costs?.[spell_num];
+                if (base_cost == null) continue;
+                v = getSpellCost(thresh_stats, { cost: base_cost, base_spell: spell_num });
+            } else {
+                v = thresh_stats.get(stat) ?? 0;
+            }
+            if (op === 'ge' && v < value) return null;
+            if (op === 'le' && v > value) return null;
+        }
+    }
+
+    // Mana / HP check (mirrors worker's _eval_combo_mana_check)
+    if (snap.hp_casting) {
+        if (snap.health_config) {
+            const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
+            const sim = simulate_combo_mana_hp(
+                snap.parsed_combo, combo_base, snap.health_config, has_transcendence, snap.boost_registry);
+            if (sim.row_results.some(r => r.hp_warning)) return null;
+        }
+    } else if (snap.combo_time > 0) {
+        let mana_cost = 0;
+        let melee_hits = 0;
+        for (const { qty, spell, mana_excl, recast_penalty_per_cast } of snap.parsed_combo) {
+            if (mana_excl) continue;
+            if (spell?.scaling === 'melee') melee_hits += qty;
+            if (spell.cost == null) continue;
+            mana_cost += (getSpellCost(combo_base, spell) + (recast_penalty_per_cast ?? 0)) * qty;
+        }
+        if (combo_base.get('activeMajorIDs')?.has('ARCANES')) mana_cost *= 0.75;
+        const mr = combo_base.get('mr') ?? 0;
+        const ms = combo_base.get('ms') ?? 0;
+        const item_mana = combo_base.get('maxMana') ?? 0;
+        const int_mana = Math.floor(skillPointsToPercentage(combo_base.get('int') ?? 0) * 100);
+        const start_mana = 100 + item_mana + int_mana;
+        const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * snap.combo_time;
+        let mana_steal = 0;
+        if (ms && melee_hits > 0) {
+            let adjAtkSpd = attackSpeeds.indexOf(combo_base.get('atkSpd'))
+                + (combo_base.get('atkTier') ?? 0);
+            adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+            mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
+        }
+        const flat_mana = snap.flat_mana ?? 0;
+        const end_mana = start_mana - mana_cost + mana_regen + mana_steal + flat_mana;
+        if (snap.allow_downtime) {
+            if (end_mana <= 0) return null;
+        } else {
+            if ((start_mana - end_mana) > 5) return null;
+        }
+    }
+
+    // Score
+    const score = _sensitivity_eval_score(combo_base, snap);
+
+    return {
+        score,
+        items: items.map((it, i) => it ?? new Item(none_items[i])),
+        base_sp: [...base_sp],
+        total_sp: [...total_sp],
+        assigned_sp,
+    };
+}
+
 /**
  * Merge top-5 results from all workers into _solver_state.top5.
  * When include_interim is true, also includes each worker's in-flight
@@ -362,6 +530,8 @@ function _insert_top5(candidate) {
  */
 function _merge_worker_top5(workers, include_interim) {
     _solver_state.top5 = [];
+    // Re-insert the seed build so it competes with worker results
+    if (_solver_state.seed_build) _insert_top5(_solver_state.seed_build);
     for (const w of workers) {
         const sources = include_interim
             ? [w.top5 ?? [], w._cur_top5 ?? []]
@@ -1259,8 +1429,16 @@ function start_solver_search() {
         _solver_state.total = Math.round(total);
     }
 
+    // Evaluate the current UI build as a seed — if it passes all constraints
+    // it stays as top-1 until workers find something better.
+    _solver_state.seed_build = _eval_current_build(snap, restrictions);
+    if (_solver_state.seed_build) {
+        console.log('[solver] seeded current build as baseline, score:', _solver_state.seed_build.score);
+    }
+
     _solver_state.running = true;
     _solver_state.top5 = [];
+    if (_solver_state.seed_build) _insert_top5(_solver_state.seed_build);
     _solver_state.checked = 0;
     _solver_state.feasible = 0;
     _solver_state.start = Date.now();

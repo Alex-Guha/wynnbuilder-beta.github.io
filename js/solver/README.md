@@ -16,6 +16,7 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Necessary Improvements
+- Add tempest hits as a slider since it refreshes if you cast scream before it finishes all of them. Requires modifying the ability in the tree...
 
 
 ### Improve Solver
