@@ -18,7 +18,7 @@
 
 // Scaling fractions for constraint/mana bonuses relative to max sensitivity weight.
 const _CONSTRAINT_WEIGHT_FRACTION = 1.0;
-const _MANA_WEIGHT_FRACTION = 1.5;
+const _MANA_WEIGHT_FRACTION = 2;
 
 // Dampening factor for SP provision sensitivities.
 // Item SP provisions don't translate 1:1 to actual allocated SP — they reduce
@@ -31,6 +31,32 @@ const _INDIRECT_CONSTRAINT_STATS = new Set([
     'ehp', 'ehp_no_agi', 'total_hp', 'ehpr', 'hpr',
     'finalSpellCost1', 'finalSpellCost2', 'finalSpellCost3', 'finalSpellCost4',
 ]);
+
+// Mapping from indirect constraint stats to the direct item stats that contribute to them.
+const _INDIRECT_CONTRIBUTORS = {
+    ehp: ['hpBonus', 'hprRaw', 'hprPct', 'eDef', 'tDef', 'wDef', 'fDef', 'aDef'],
+    ehp_no_agi: ['hpBonus', 'hprRaw', 'hprPct', 'eDef', 'tDef', 'wDef', 'fDef', 'aDef'],
+    total_hp: ['hpBonus'],
+    hpr: ['hprRaw', 'hprPct'],
+    ehpr: ['hprRaw', 'hprPct', 'eDef', 'tDef', 'wDef', 'fDef', 'aDef'],
+};
+
+// Dampening for indirect constraint sensitivity — indirect stats are noisier
+// (non-linear EHP formula, def% interaction) so we reduce their weight.
+const _INDIRECT_SENS_SCALE = 0.5;
+
+/**
+ * Evaluate an indirect constraint stat from a combo_base statMap.
+ * Uses getDefenseStats() to compute derived defensive stats.
+ */
+function _eval_indirect_stat(combo_base, stat) {
+    if (stat === 'ehp') return getDefenseStats(combo_base)[1][0];
+    if (stat === 'ehp_no_agi') return getDefenseStats(combo_base)[1][1];
+    if (stat === 'total_hp') return getDefenseStats(combo_base)[0];
+    if (stat === 'hpr') return getDefenseStats(combo_base)[2];
+    if (stat === 'ehpr') return getDefenseStats(combo_base)[3][0];
+    return 0;
+}
 
 // ── Item stat helpers ────────────────────────────────────────────────────────
 
@@ -527,6 +553,40 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
         }
     }
 
+    // ── Indirect constraint sensitivity (ehp, ehpr, total_hp, hpr) ───────
+    // These stats are computed from the full build via getDefenseStats(), so
+    // we can't just read them from the statMap. Instead, perturb each
+    // contributing direct stat and measure the indirect stat's response.
+    for (const { stat, op, value } of (restrictions.stat_thresholds ?? [])) {
+        if (!_INDIRECT_CONSTRAINT_STATS.has(stat) || value <= 0) continue;
+        if (op !== 'ge') continue;
+        if (!_INDIRECT_CONTRIBUTORS[stat]) continue;  // e.g. finalSpellCost — handled separately
+
+        const baseline_val = _eval_indirect_stat(combo_base, stat);
+        const deficit = value - baseline_val;
+        if (deficit <= 0) continue;  // already met by baseline
+
+        const contributors = _INDIRECT_CONTRIBUTORS[stat];
+        for (const cstat of contributors) {
+            const delta = deltas.get(cstat) || _DEFAULT_DELTAS[cstat] || 1;
+            const old = combo_base.get(cstat) ?? 0;
+            combo_base.set(cstat, old + delta);
+            const perturbed_val = _eval_indirect_stat(combo_base, stat);
+            combo_base.set(cstat, old);  // restore
+
+            const indirect_sens = (perturbed_val - baseline_val) / delta;
+            if (indirect_sens <= 0) continue;
+
+            const stat_delta = deltas.get(cstat) || _DEFAULT_DELTAS[cstat] || 1;
+            const norm = ref_delta / stat_delta;
+            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * (deficit / value) * norm * _INDIRECT_SENS_SCALE * indirect_sens;
+            weights.set(cstat, (weights.get(cstat) ?? 0) + bonus);
+            if (SOLVER_DEBUG_SENSITIVITY) {
+                console.log(`[solver][sensitivity] indirect constraint bonus (${stat}): ${cstat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sens: ${indirect_sens.toFixed(4)}, norm: ×${norm.toFixed(1)})`);
+            }
+        }
+    }
+
     // ── Mana sustainability (combo_time > 0, not hp_casting) ────────────
     const mana_tight = _estimate_mana_tight(snap);
     if (mana_tight) {
@@ -851,6 +911,18 @@ function _build_dominance_stats(snap, dmg_weights, restrictions) {
         if (_INDIRECT_CONSTRAINT_STATS.has(stat)) continue;
         if (op === 'ge') higher.add(stat);
         else if (op === 'le') lower.add(stat);
+    }
+
+    // Indirect EHP/HP constraints: add hpBonus to higher set.
+    // hpBonus is always positive for EHP and is a clear dominant-direction stat.
+    // We skip individual def stats — they interact non-monotonically with EHP
+    // and adding all 5 would make dominance proofs nearly impossible.
+    for (const { stat, op } of (restrictions.stat_thresholds ?? [])) {
+        if (op !== 'ge') continue;
+        if (stat === 'ehp' || stat === 'ehp_no_agi' || stat === 'total_hp') {
+            higher.add('hpBonus');
+            break;
+        }
     }
 
     // Spell cost stats when mana sustainability matters
