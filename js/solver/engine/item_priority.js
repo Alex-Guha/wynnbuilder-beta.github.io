@@ -45,6 +45,15 @@ const _INDIRECT_CONTRIBUTORS = {
 // (non-linear EHP formula, def% interaction) so we reduce their weight.
 const _INDIRECT_SENS_SCALE = 0.5;
 
+// Mapping from indirect stats to SP indices that affect them via skillPointsToPercentage.
+// def (3) and agi (4) affect EHP/EHPR through defense% and agility% in getDefenseStats.
+const _INDIRECT_SP_CONTRIBUTORS = {
+    ehp: [3, 4],       // def%, agi%
+    ehp_no_agi: [3],   // def% only (agi excluded by definition)
+    ehpr: [3, 4],      // def%, agi%
+    // total_hp, hpr: not affected by SP
+};
+
 /**
  * Evaluate an indirect constraint stat from a combo_base statMap.
  * Uses getDefenseStats() to compute derived defensive stats.
@@ -504,7 +513,7 @@ function _compute_sensitivity_weights(snap, locked, pools) {
         console.groupEnd();
     }
 
-    return { weights, baseline_score, combo_base, deltas };
+    return { weights, baseline_score, combo_base, deltas, sp_deltas, total_sp, build_sm };
 }
 
 // ── Step 9: Constraint & mana weight integration ────────────────────────────
@@ -513,7 +522,7 @@ function _compute_sensitivity_weights(snap, locked, pools) {
  * Augment sensitivity weights with constraint bonuses and mana sustainability hints.
  */
 function _augment_sensitivity_weights(result, snap, restrictions) {
-    const { weights, combo_base, deltas } = result;
+    const { weights, combo_base, deltas, sp_deltas, total_sp, build_sm } = result;
 
     // Compute max absolute weight for constraint/mana bonus scaling
     let max_abs = 1.0;
@@ -583,6 +592,30 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
             weights.set(cstat, (weights.get(cstat) ?? 0) + bonus);
             if (SOLVER_DEBUG_SENSITIVITY) {
                 console.log(`[solver][sensitivity] indirect constraint bonus (${stat}): ${cstat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sens: ${indirect_sens.toFixed(4)}, norm: ×${norm.toFixed(1)})`);
+            }
+        }
+
+        // ── SP provision sensitivity for def/agi → EHP/EHPR ─────────────
+        // Items providing def/agi SP improve EHP via skillPointsToPercentage,
+        // but the direct-stat perturbation above doesn't capture this.
+        const sp_indices = _INDIRECT_SP_CONTRIBUTORS[stat];
+        if (sp_indices && sp_deltas && total_sp && build_sm) {
+            for (const si of sp_indices) {
+                const sp_delta = sp_deltas[si] || 10;
+                const trial_sp = [...total_sp];
+                trial_sp[si] += sp_delta;
+                const trial_combo = _assemble_baseline_combo(build_sm, trial_sp, snap);
+                const perturbed_val = _eval_indirect_stat(trial_combo, stat);
+
+                const sp_sens = (perturbed_val - baseline_val) / sp_delta;
+                if (sp_sens <= 0) continue;
+
+                const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * (deficit / value)
+                    * _INDIRECT_SENS_SCALE * sp_sens * _SP_SENSITIVITY_DAMPEN;
+                weights._sp_sensitivities[si] += bonus;
+                if (SOLVER_DEBUG_SENSITIVITY) {
+                    console.log(`[solver][sensitivity] indirect SP constraint bonus (${stat}): ${skp_order[si]} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sp_sens: ${sp_sens.toFixed(4)})`);
+                }
             }
         }
     }

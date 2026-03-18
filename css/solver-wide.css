@@ -56,6 +56,7 @@
 
 .combo-boost-menu-btn.toggleOn,
 #combo-downtime-btn.toggleOn,
+#solver-advanced-btn.toggleOn,
 #combo-mode-text.toggleOn,
 #combo-mode-selection.toggleOn {
     background-color: hsl(0, 0%, 50%) !important;
@@ -1085,4 +1086,36 @@ ul.search-box {
 @keyframes fade-out-msg {
     0%, 70% { opacity: 1; }
     100%    { opacity: 0; }
+}
+
+/* ── Advanced panel ───────────────────────────────────────────────────────── */
+
+.adv-weight-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 0.5em;
+}
+
+.adv-weight-label {
+    color: #ccc;
+    font-size: 0.8em;
+}
+
+.adv-weight-val {
+    color: #fff;
+    font-size: 0.8em;
+    font-family: monospace;
+}
+
+.adv-sp-row {
+    display: flex;
+    gap: 1em;
+    padding: 0 0.5em;
+    flex-wrap: wrap;
+}
+
+.adv-sp-entry {
+    color: #ccc;
+    font-size: 0.8em;
+    font-family: monospace;
 }

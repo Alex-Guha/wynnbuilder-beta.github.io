@@ -1141,6 +1141,14 @@
                     </div>
                 </div>
 
+                <div class="mb-2 scaled-font dark-5 rounded dark-shadow" id="solver-priority-section"
+                    style="display:none">
+                    <div class="fw-bold dark-4 rounded-top p-1 text-center">Priority Heuristics</div>
+                    <div class="px-2 py-2">
+                        <div id="solver-priority-panel"></div>
+                    </div>
+                </div>
+
             </div><!-- /.col-xl-3 (middle) -->
 
             <!-- ═══════ RIGHT COLUMN: Active Boosts + Combo + Restrictions ══════════ -->
@@ -1191,6 +1199,9 @@
                                     title="Copy combo to clipboard">Copy</button>
                                 <button class="btn btn-sm btn-outline-secondary" onclick="combo_import()"
                                     title="Paste combo from clipboard">Paste</button>
+                                <button id="solver-advanced-btn" class="btn btn-sm btn-outline-secondary"
+                                    title="Show advanced solver diagnostics"
+                                    onclick="solver_toggle_advanced()">Advanced</button>
                             </div>
                         </div>
                     </div>
@@ -1207,7 +1218,7 @@
                                     class="combo-row-input" style="width:5em; text-align:center;"
                                     title="Optional - Total cycle time for mana calculations (include cooldown)."
                                     oninput="if(solver_combo_total_node) solver_combo_total_node.mark_dirty().update()">
-                                <button id="combo-downtime-btn" class="btn btn-sm btn-outline-secondary"
+                                <button id="combo-downtime-btn" class="btn btn-sm btn-outline-secondary toggleOn"
                                     title="Allow for time in between cycles to regen mana"
                                     onclick="combo_toggle_downtime()">Allow Downtime</button>
                             </div>

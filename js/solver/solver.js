@@ -543,9 +543,9 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
             }
         }
 
-        if (solver_params.dtime) {
+        if (!solver_params.dtime) {
             const btn = document.getElementById('combo-downtime-btn');
-            if (btn) btn.classList.add('toggleOn');
+            if (btn) btn.classList.remove('toggleOn');
         }
 
         if (solver_params.flat_mana) {

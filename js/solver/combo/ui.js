@@ -20,24 +20,24 @@ function _update_boost_btn_highlight(row) {
 function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_mana_excl, pending_dmg_excl, pending_spell_value) {
     const row = document.createElement('div');
     row.className = 'combo-row d-flex gap-2 align-items-center';
-    if (pending_spell       !== undefined) row.dataset.pendingSpell      = pending_spell;
-    if (pending_spell_value != null)       row.dataset.pendingSpellValue = pending_spell_value;
-    if (pending_boosts      !== undefined) row.dataset.pendingBoosts     = pending_boosts;
-    if (pending_mana_excl)                 row.dataset.pendingManaExcl   = '1';
-    if (pending_dmg_excl)                  row.dataset.pendingDmgExcl    = '1';
+    if (pending_spell !== undefined) row.dataset.pendingSpell = pending_spell;
+    if (pending_spell_value != null) row.dataset.pendingSpellValue = pending_spell_value;
+    if (pending_boosts !== undefined) row.dataset.pendingBoosts = pending_boosts;
+    if (pending_mana_excl) row.dataset.pendingManaExcl = '1';
+    if (pending_dmg_excl) row.dataset.pendingDmgExcl = '1';
 
     const rm_btn = document.createElement('button');
-    rm_btn.className   = 'btn btn-sm btn-outline-danger flex-shrink-0';
+    rm_btn.className = 'btn btn-sm btn-outline-danger flex-shrink-0';
     rm_btn.textContent = '×';
-    rm_btn.title       = 'Remove row';
+    rm_btn.title = 'Remove row';
     rm_btn.addEventListener('click', () => combo_remove_row(rm_btn));
 
     const qty_inp = document.createElement('input');
-    qty_inp.type      = 'number';
+    qty_inp.type = 'number';
     qty_inp.className = 'combo-row-input combo-row-qty flex-shrink-0';
-    qty_inp.value     = String(qty_val);
-    qty_inp.min       = '0';
-    qty_inp.max       = String(COMBO_QTY_MAX);
+    qty_inp.value = String(qty_val);
+    qty_inp.min = '0';
+    qty_inp.max = String(COMBO_QTY_MAX);
     qty_inp.style.cssText = 'width:3em; text-align:center;';
     _wire_encoding_cap(qty_inp, 0, COMBO_QTY_MAX);
     qty_inp.addEventListener('input', () => {
@@ -66,7 +66,7 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     boost_wrap.className = 'combo-boost-btn-wrap position-relative';
 
     const boost_btn = document.createElement('button');
-    boost_btn.className   = 'btn btn-sm btn-outline-secondary combo-boost-menu-btn';
+    boost_btn.className = 'btn btn-sm btn-outline-secondary combo-boost-menu-btn';
     boost_btn.textContent = 'Boosts \u25be';
     boost_btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -77,24 +77,24 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     // NOTE: Do NOT add Bootstrap's position-absolute class here — its `!important`
     // would prevent JS from upgrading to position:fixed for full-column-width display.
     // Absolute positioning defaults come from .boost-popup in solver-wide.css.
-    popup.className   = 'boost-popup combo-row-boosts bg-dark border border-secondary rounded p-2';
+    popup.className = 'boost-popup combo-row-boosts bg-dark border border-secondary rounded p-2';
     popup.style.display = 'none';
 
     boost_wrap.append(boost_btn, popup);
 
     const mana_btn = document.createElement('button');
-    mana_btn.type      = 'button';
+    mana_btn.type = 'button';
     mana_btn.className = 'combo-mana-toggle flex-shrink-0';
-    mana_btn.title     = 'Include ability in mana calculation';
+    mana_btn.title = 'Include ability in mana calculation';
     mana_btn.addEventListener('click', () => {
         mana_btn.classList.toggle('mana-excluded');
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     });
 
     const dmg_btn = document.createElement('button');
-    dmg_btn.type      = 'button';
+    dmg_btn.type = 'button';
     dmg_btn.className = 'combo-dmg-toggle flex-shrink-0';
-    dmg_btn.title     = 'Include ability in damage total';
+    dmg_btn.title = 'Include ability in damage total';
     dmg_btn.addEventListener('click', () => {
         dmg_btn.classList.toggle('dmg-excluded');
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
@@ -104,11 +104,11 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     const dmg_wrap = document.createElement('div');
     dmg_wrap.className = 'combo-row-damage-wrap';
     const dmg_span = document.createElement('span');
-    dmg_span.className   = 'combo-row-damage Damage text-nowrap small ms-1';
+    dmg_span.className = 'combo-row-damage Damage text-nowrap small ms-1';
     dmg_span.textContent = '';
     const heal_span = document.createElement('span');
-    heal_span.className      = 'combo-row-heal text-success text-nowrap small ms-1';
-    heal_span.textContent    = '';
+    heal_span.className = 'combo-row-heal text-success text-nowrap small ms-1';
+    heal_span.textContent = '';
     heal_span.style.visibility = 'hidden';
     const dmg_popup = document.createElement('div');
     dmg_popup.className = 'combo-dmg-popup text-light';
@@ -193,27 +193,27 @@ function combo_toggle_boost_popup(btn) {
     const showing = popup.style.display !== 'none';
     // Hide all popups and clear any fixed-position inline overrides.
     document.querySelectorAll('.boost-popup').forEach(p => {
-        p.style.display  = 'none';
+        p.style.display = 'none';
         p.style.position = '';
-        p.style.top      = '';
-        p.style.right    = '';
-        p.style.left     = '';
-        p.style.width    = '';
+        p.style.top = '';
+        p.style.right = '';
+        p.style.left = '';
+        p.style.width = '';
         p.style.maxWidth = '';
     });
     if (!showing) {
         // Try to span the full combo column using fixed positioning.
         // Use right-anchor so the popup never extends past the column's right edge.
-        const btn_rect  = btn.getBoundingClientRect();
+        const btn_rect = btn.getBoundingClientRect();
         const combo_col = btn.closest('.solver-combo-column');
         if (combo_col) {
             const col_rect = combo_col.getBoundingClientRect();
             const vw = document.documentElement.clientWidth;
             popup.style.position = 'fixed';
-            popup.style.top      = (btn_rect.bottom + 4) + 'px';
-            popup.style.right    = (vw - col_rect.right) + 'px';
-            popup.style.left     = 'auto';
-            popup.style.width    = col_rect.width + 'px';
+            popup.style.top = (btn_rect.bottom + 4) + 'px';
+            popup.style.right = (vw - col_rect.right) + 'px';
+            popup.style.left = 'auto';
+            popup.style.width = col_rect.width + 'px';
         }
         popup.style.display = 'block';
     }
@@ -224,12 +224,12 @@ document.addEventListener('click', (e) => {
     if (e.target.closest('.boost-popup') || e.target.closest('.combo-boost-menu-btn')) return;
     document.querySelectorAll('.boost-popup').forEach(p => {
         if (p.style.display === 'none') return;
-        p.style.display  = 'none';
+        p.style.display = 'none';
         p.style.position = '';
-        p.style.top      = '';
-        p.style.right    = '';
-        p.style.left     = '';
-        p.style.width    = '';
+        p.style.top = '';
+        p.style.right = '';
+        p.style.left = '';
+        p.style.width = '';
         p.style.maxWidth = '';
     });
 });
@@ -244,4 +244,15 @@ function combo_toggle_downtime() {
     if (!btn) return;
     btn.classList.toggle('toggleOn');
     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+}
+
+function solver_toggle_advanced() {
+    const btn = document.getElementById('solver-advanced-btn');
+    if (!btn) return;
+    btn.classList.toggle('toggleOn');
+    _display_priority_weights();
+}
+
+function solver_is_advanced() {
+    return document.getElementById('solver-advanced-btn')?.classList.contains('toggleOn') ?? false;
 }

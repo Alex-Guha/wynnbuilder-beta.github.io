@@ -13,6 +13,7 @@ const _solver_state = {
     workers: [],           // [{worker, done, checked, feasible, top5}]
     progress_timer: 0,     // setInterval handle
     verification_phase: false,
+    dmg_weights: null,
 };
 
 // Bitmask tracking which equipment slots were last filled by the solver.
@@ -767,6 +768,62 @@ function _display_solver_results(top5) {
     }).join('');
     panel.innerHTML =
         `<div class="text-secondary small mb-1">Top builds \u2014 click to load:</div>` + rows;
+    _display_priority_weights();
+}
+
+// ── Priority weights display ─────────────────────────────────────────────────
+
+const _ADV_TOP_N = 15;
+const _STAT_LABEL_MAP = new Map(RESTRICTION_STATS.map(s => [s.key, s.label]));
+const _SP_NAMES = ['Str', 'Dex', 'Int', 'Def', 'Agi'];
+
+function _display_priority_weights() {
+    const section = document.getElementById('solver-priority-section');
+    const panel = document.getElementById('solver-priority-panel');
+    if (!panel) return;
+
+    const weights = _solver_state.dmg_weights;
+    if (!solver_is_advanced() || !weights) {
+        panel.innerHTML = '';
+        if (section) section.style.display = 'none';
+        return;
+    }
+    if (section) section.style.display = '';
+
+    // Merge main weights + _priority_only into a single map for display
+    const merged = new Map();
+    for (const [stat, w] of weights) {
+        if (typeof w !== 'number') continue;
+        merged.set(stat, w);
+    }
+    if (weights._priority_only) {
+        for (const [stat, w] of weights._priority_only) {
+            merged.set(stat, (merged.get(stat) ?? 0) + w);
+        }
+    }
+
+    // Top N stats by |weight|
+    const entries = [...merged.entries()];
+    entries.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+    const topN = entries.slice(0, _ADV_TOP_N);
+
+    const stat_rows = topN.map(([stat, w]) => {
+        const label = _STAT_LABEL_MAP.get(stat) ?? stat;
+        return `<div class="adv-weight-row"><span class="adv-weight-label">${label}</span>`
+            + `<span class="adv-weight-val">${Math.round(w)}</span></div>`;
+    }).join('');
+
+    // SP sensitivities
+    const sp = weights._sp_sensitivities;
+    const sp_rows = sp ? _SP_NAMES.map((name, i) =>
+        `<span class="adv-sp-entry">${name}: ${Math.round(sp[i])}</span>`
+    ).join('') : '';
+
+    panel.innerHTML =
+        `<div class="text-secondary small mt-2 mb-1">Priority Stats (top ${topN.length}):</div>`
+        + stat_rows
+        + (sp_rows ? `<div class="text-secondary small mt-2 mb-1">SP Sensitivities:</div>`
+            + `<div class="adv-sp-row">${sp_rows}</div>` : '');
 }
 
 // ── Worker partitioning ───────────────────────────────────────────────────────
@@ -949,11 +1006,11 @@ function _reconstruct_result_items(item_names) {
         }
         // Handle crafted/custom items (CR-/CI- hashes) that aren't in itemMap
         if (name.slice(0, 3) === 'CR-') {
-            const craft = decodeCraft({hash: name.substring(3)});
+            const craft = decodeCraft({ hash: name.substring(3) });
             if (craft) return _apply_roll_mode_to_item(craft);
         }
         if (name.slice(0, 3) === 'CI-') {
-            const custom = decodeCustom({hash: name.substring(3)});
+            const custom = decodeCustom({ hash: name.substring(3) });
             if (custom) return _apply_roll_mode_to_item(custom);
         }
         const item_obj = itemMap.get(name);
@@ -986,6 +1043,7 @@ function _stop_solver() {
     }
     _solver_state.workers = [];
     _solver_state.snap = null;
+    _solver_state.dmg_weights = null;
     _solver_state._last_merged_top5_refs = [];
     // Clear progress timer
     if (_solver_state.progress_timer) {
@@ -1403,6 +1461,8 @@ function start_solver_search() {
 
     // Pre-compute sensitivity-based weights for pruning and priority sorting.
     const dmg_weights = _build_dmg_weights(snap, locked, pools);
+    _solver_state.dmg_weights = dmg_weights;
+    _display_priority_weights();
 
     // Remove dominated items before sorting; smaller pools benefit search and sort.
     const dominance_stats = _build_dominance_stats(snap, dmg_weights, restrictions);
