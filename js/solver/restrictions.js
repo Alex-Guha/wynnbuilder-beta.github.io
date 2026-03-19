@@ -488,7 +488,15 @@ function _flash_row_limit_warning(container, type) {
 // ── Contradictory constraint detection ────────────────────────────────────────
 //
 // Scans all restriction rows and highlights value inputs with a red border when
-// the same stat has a ge floor > le cap (impossible to satisfy).
+// the same stat has a ge floor > le cap (impossible to satisfy), or when a
+// constraint is impossible given the stat's natural bounds.
+
+// Stats with a known minimum value that the game engine enforces.
+// A "le" constraint below this minimum is impossible to satisfy.
+const _STAT_NATURAL_MIN = {
+    finalSpellCost1: 1, finalSpellCost2: 1, finalSpellCost3: 1, finalSpellCost4: 1,
+    total_hp: 5,
+};
 
 function _validate_restriction_contradictions() {
     const container = document.getElementById('restriction-rows');
@@ -511,18 +519,43 @@ function _validate_restriction_contradictions() {
     }
 
     // For each stat, find the tightest ge floor and le cap.
+    // Also incorporate natural minimum bounds for stats that have them.
     // If floor > cap, mark all involved value inputs as contradictory.
-    const contradictory_inputs = new Set();
-    for (const [, entries] of by_stat) {
+    const contradictory_inputs = new Map(); // val_input -> tooltip message
+    for (const [stat_key, entries] of by_stat) {
         let max_ge = -Infinity, min_le = Infinity;
         const ge_entries = [], le_entries = [];
         for (const e of entries) {
             if (e.op === 'ge') { ge_entries.push(e); if (e.value > max_ge) max_ge = e.value; }
             if (e.op === 'le') { le_entries.push(e); if (e.value < min_le) min_le = e.value; }
         }
+
+        // Check against natural minimum bounds
+        const nat_min = _STAT_NATURAL_MIN[stat_key];
+        if (nat_min != null) {
+            if (min_le < nat_min) {
+                for (const e of le_entries) {
+                    if (e.value < nat_min)
+                        contradictory_inputs.set(e.val_input,
+                            `Impossible: this stat is always ≥ ${nat_min}`);
+                }
+            }
+            // Use natural min as implicit ge floor for cross-constraint check
+            if (nat_min > max_ge) max_ge = nat_min;
+        }
+
         if (max_ge > min_le) {
-            for (const e of ge_entries) contradictory_inputs.add(e.val_input);
-            for (const e of le_entries) contradictory_inputs.add(e.val_input);
+            const msg = nat_min != null && max_ge === nat_min
+                ? `Impossible: this stat is always ≥ ${nat_min}`
+                : 'Contradictory: floor exceeds cap for this stat';
+            for (const e of ge_entries) {
+                if (!contradictory_inputs.has(e.val_input))
+                    contradictory_inputs.set(e.val_input, msg);
+            }
+            for (const e of le_entries) {
+                if (!contradictory_inputs.has(e.val_input))
+                    contradictory_inputs.set(e.val_input, msg);
+            }
         }
     }
 
@@ -531,12 +564,14 @@ function _validate_restriction_contradictions() {
         if (!row.id?.startsWith('restr-row-')) continue;
         const val_input = row.querySelector('.restr-value-input');
         if (!val_input) continue;
-        if (contradictory_inputs.has(val_input)) {
+        const msg = contradictory_inputs.get(val_input);
+        if (msg) {
             val_input.classList.add('restr-contradictory');
-            val_input.title = 'Contradictory: floor exceeds cap for this stat';
+            val_input.title = msg;
         } else {
             val_input.classList.remove('restr-contradictory');
-            if (val_input.title === 'Contradictory: floor exceeds cap for this stat') val_input.title = '';
+            if (val_input.title.startsWith('Contradictory:') || val_input.title.startsWith('Impossible:'))
+                val_input.title = '';
         }
     }
 }
