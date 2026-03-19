@@ -69,7 +69,7 @@ let _current_L = 0;
 function _insert_top5(candidate) {
     _top5.push(candidate);
     _top5.sort((a, b) => b.score - a.score);
-    if (_top5.length > 5) _top5.length = 5;
+    if (_top5.length > 15) _top5.length = 15;
     _top5_version++;
     _checked_at_last_top5_change = _checked;
 }

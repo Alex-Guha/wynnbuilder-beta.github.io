@@ -1,8 +1,11 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 
+const _TOP_N = 15;
+const _TOP_N_DISPLAY = 5;
+
 const _solver_state = {
     running: false,
-    top5: [],              // [{score, items:[Item×8], base_sp, total_sp, assigned_sp}]
+    top5: [],              // [{score, items:[Item×8], base_sp, total_sp, assigned_sp}] (up to _TOP_N entries)
     seed_build: null,      // seeded from current UI build (survives worker merges)
     checked: 0,
     feasible: 0,
@@ -14,6 +17,9 @@ const _solver_state = {
     progress_timer: 0,     // setInterval handle
     verification_phase: false,
     dmg_weights: null,
+    last_topN_change: 0,          // timestamp of last change to merged top-N
+    _prev_topN_fingerprint: '',   // for change detection
+    top15_expanded: false,        // UI expand state
 };
 
 // Bitmask tracking which equipment slots were last filled by the solver.
@@ -353,7 +359,7 @@ function _build_solver_snapshot(restrictions) {
 function _insert_top5(candidate) {
     _solver_state.top5.push(candidate);
     _solver_state.top5.sort((a, b) => b.score - a.score);
-    if (_solver_state.top5.length > 5) _solver_state.top5.length = 5;
+    if (_solver_state.top5.length > _TOP_N) _solver_state.top5.length = _TOP_N;
 }
 
 // ── Seed build from current UI ─────────────────────────────────────────────
@@ -553,6 +559,14 @@ function _merge_worker_top5(workers, include_interim) {
             }
         }
     }
+    // Detect changes to merged top-N for stability tracking
+    const fp = _solver_state.top5.map(r =>
+        r.score.toFixed(4) + '|' + r.items.map(i => i.statMap.get('name') ?? '').join(',')
+    ).join(';');
+    if (fp !== _solver_state._prev_topN_fingerprint) {
+        _solver_state._prev_topN_fingerprint = fp;
+        _solver_state.last_topN_change = Date.now();
+    }
 }
 
 /**
@@ -636,31 +650,29 @@ function _update_solver_progress_ui() {
             if (el_remaining) el_remaining.textContent = '';
         }
     }
-    // Verification phase detection
+    // Verification phase detection — based on main-thread top-N change time
     {
-        let total_staleness = 0;
+        const time_since_change = now - _solver_state.last_topN_change;
         let min_L_ratio = 1.0;
         let any_active = false;
         for (const w of _solver_state.workers) {
             if (w.done) continue;
             any_active = true;
-            total_staleness += w._cur_checked_since_top5 ?? 0;
             const [L, Lmax] = w._cur_L_progress ?? [0, 1];
             min_L_ratio = Math.min(min_L_ratio, Lmax > 0 ? L / Lmax : 1.0);
         }
-        const staleness_threshold = Math.min(150_000_000, 0.05 * _solver_state.total);
         const should_verify = any_active
             && _solver_state.top5.length > 0
             && elapsed_ms > 2000
-            && total_staleness > staleness_threshold
-            && min_L_ratio > 0.15;
+            && time_since_change > 300_000
+            && min_L_ratio > 0.10;
         _solver_state.verification_phase = should_verify;
         const el_status = document.getElementById('solver-status-msg');
         if (el_status) {
             const elapsed_s = elapsed_ms / 1000;
             const rate = elapsed_s > 0 ? _solver_state.checked / elapsed_s : 0;
             if (should_verify) {
-                el_status.textContent = 'Top results stable \u2014 exhaustive check in progress';
+                el_status.textContent = 'Top results possibly stable \u2014 exhaustive check in progress';
                 el_status.className = 'ms-2 text-info';
             } else if (elapsed_s > 20 && rate > 0 && rate < 1000) {
                 el_status.innerHTML = '\u26A0 Very slow iteration \u2014 results may take a long time on this device';
@@ -686,6 +698,9 @@ function _update_solver_progress_ui() {
             }
         }
     }
+
+    // Live-update the "time since last update" counter when expanded
+    if (_solver_state.top15_expanded) _update_top15_time_display();
 }
 
 // sfree URL persistence is now handled by the unified solver hash updater
@@ -731,44 +746,80 @@ function _fill_build_into_ui(result) {
     }
 }
 
-function _display_solver_results(top5) {
+function _build_result_row(r, i, target) {
+    const score_str = _format_solver_score(r.score, target);
+    const item_names = r.items.map(item => {
+        if (item.statMap.has('NONE')) return '\u2014';
+        return item.statMap.get('displayName') ?? item.statMap.get('name') ?? '?';
+    });
+    const non_none = item_names.filter(n => n !== '\u2014');
+    const names_str = non_none.length ? non_none.join(', ') : '(all empty)';
+    const result_hash = solver_compute_result_hash(r);
+    let new_tab_link = '';
+    if (result_hash) {
+        const url = new URL(window.location.href);
+        const current_hash = window.location.hash.slice(1);
+        const sep = current_hash.indexOf(SOLVER_HASH_SEP);
+        url.hash = sep >= 0
+            ? result_hash + current_hash.substring(sep)
+            : result_hash;
+        url.searchParams.delete('sfree');
+        new_tab_link = `<a class="solver-result-newtab" href="${url.toString()}" ` +
+            `target="_blank" title="Open in new tab" onclick="event.stopPropagation()">\u2197</a>`;
+    }
+    return `<div class="solver-result-row" title="${item_names.join(' | ')}" onclick="_fill_build_into_ui(_solver_state.top5[${i}])">` +
+        `<span class="solver-result-rank">#${i + 1}</span>` +
+        `<span class="solver-result-score">${score_str}</span>` +
+        `<span class="solver-result-items small">${names_str}</span>` +
+        new_tab_link +
+        `</div>`;
+}
+
+function _display_solver_results(topN) {
     const panel = document.getElementById('solver-results-panel');
     if (!panel) return;
-    if (!top5.length) { panel.innerHTML = ''; return; }
+    if (!topN.length) { panel.innerHTML = ''; return; }
     const target = document.getElementById('solver-target')?.value ?? 'combo_damage';
-    const rows = top5.map((r, i) => {
-        const score_str = _format_solver_score(r.score, target);
-        const item_names = r.items.map(item => {
-            if (item.statMap.has('NONE')) return '\u2014';
-            return item.statMap.get('displayName') ?? item.statMap.get('name') ?? '?';
-        });
-        const non_none = item_names.filter(n => n !== '\u2014');
-        const names_str = non_none.length ? non_none.join(', ') : '(all empty)';
-        const result_hash = solver_compute_result_hash(r);
-        let new_tab_link = '';
-        if (result_hash) {
-            const url = new URL(window.location.href);
-            // Preserve solver params (combo, restrictions, roll, etc.) from the
-            // current hash.  The full hash format is <build_b64>_<solver_b64>.
-            const current_hash = window.location.hash.slice(1);
-            const sep = current_hash.indexOf(SOLVER_HASH_SEP);
-            url.hash = sep >= 0
-                ? result_hash + current_hash.substring(sep)
-                : result_hash;
-            url.searchParams.delete('sfree');
-            new_tab_link = `<a class="solver-result-newtab" href="${url.toString()}" ` +
-                `target="_blank" title="Open in new tab" onclick="event.stopPropagation()">\u2197</a>`;
-        }
-        return `<div class="solver-result-row" title="${item_names.join(' | ')}" onclick="_fill_build_into_ui(_solver_state.top5[${i}])">` +
-            `<span class="solver-result-rank">#${i + 1}</span>` +
-            `<span class="solver-result-score">${score_str}</span>` +
-            `<span class="solver-result-items small">${names_str}</span>` +
-            new_tab_link +
-            `</div>`;
-    }).join('');
-    panel.innerHTML =
-        `<div class="text-secondary small mb-1">Top builds \u2014 click to load:</div>` + rows;
+
+    const visible = topN.slice(0, _TOP_N_DISPLAY);
+    const extra = topN.slice(_TOP_N_DISPLAY);
+
+    let html = '<div class="text-secondary small mb-1">Top builds \u2014 click to load:</div>';
+    html += visible.map((r, i) => _build_result_row(r, i, target)).join('');
+
+    if (extra.length > 0) {
+        const expanded = _solver_state.top15_expanded;
+        html += `<div id="solver-results-extra" style="display:${expanded ? 'block' : 'none'}">`;
+        html += extra.map((r, i) => _build_result_row(r, i + _TOP_N_DISPLAY, target)).join('');
+        html += '<div id="solver-top15-update-time" class="text-secondary small mt-1"></div>';
+        html += '</div>';
+        html += `<div class="solver-expand-toggle" onclick="_toggle_top15_expand()">`;
+        html += expanded ? '\u25B4' : '\u25BE';
+        html += '</div>';
+    }
+
+    panel.innerHTML = html;
     _display_priority_weights();
+    if (_solver_state.top15_expanded) _update_top15_time_display();
+}
+
+function _toggle_top15_expand() {
+    _solver_state.top15_expanded = !_solver_state.top15_expanded;
+    const extra = document.getElementById('solver-results-extra');
+    if (extra) extra.style.display = _solver_state.top15_expanded ? 'block' : 'none';
+    const toggle = extra?.nextElementSibling;
+    if (toggle && toggle.classList.contains('solver-expand-toggle')) {
+        toggle.textContent = _solver_state.top15_expanded ? '\u25B4' : '\u25BE';
+    }
+    if (_solver_state.top15_expanded && _solver_state.running) _update_top15_time_display();
+}
+
+function _update_top15_time_display() {
+    const el = document.getElementById('solver-top15-update-time');
+    if (!el) return;
+    if (!_solver_state.last_topN_change || !_solver_state.running) { el.textContent = ''; return; }
+    const delta_s = Math.floor((Date.now() - _solver_state.last_topN_change) / 1000);
+    el.textContent = 'Time since last update to top ' + _TOP_N + ': ' + _format_duration(delta_s);
 }
 
 // ── Priority weights display ─────────────────────────────────────────────────
@@ -1043,7 +1094,6 @@ function _stop_solver() {
     }
     _solver_state.workers = [];
     _solver_state.snap = null;
-    _solver_state.dmg_weights = null;
     _solver_state._last_merged_top5_refs = [];
     // Clear progress timer
     if (_solver_state.progress_timer) {
@@ -1255,7 +1305,7 @@ function _run_solver_search_workers(pools, locked, snap) {
     function _insert_wstate_top5(wstate, entry) {
         wstate.top5.push(entry);
         wstate.top5.sort((a, b) => b.score - a.score);
-        if (wstate.top5.length > 5) wstate.top5.length = 5;
+        if (wstate.top5.length > _TOP_N) wstate.top5.length = _TOP_N;
     }
 
     // Send a lightweight 'run' message for subsequent partitions (no heavy data)
@@ -1506,6 +1556,9 @@ function start_solver_search() {
     _solver_state.last_eta = Date.now();
 
     _solver_state.verification_phase = false;
+    _solver_state.last_topN_change = Date.now();
+    _solver_state._prev_topN_fingerprint = '';
+    _solver_state.top15_expanded = false;
     const _sum_el = document.getElementById('solver-summary-text');
     if (_sum_el) _sum_el.textContent = '';
     const _status_el = document.getElementById('solver-status-msg');

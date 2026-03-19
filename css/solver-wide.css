@@ -813,6 +813,21 @@ body {
     opacity: 1;
     color: #9ec5fe;
 }
+.solver-expand-toggle {
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    text-align: center;
+    padding: 0 0.4rem;
+    border-radius: 0.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 0.2rem;
+    user-select: none;
+    color: #adb5bd;
+}
+.solver-expand-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════════
  * Mobile / narrow viewport support
