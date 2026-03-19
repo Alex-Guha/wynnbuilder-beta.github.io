@@ -566,8 +566,10 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
                     const spell_name = node_id_to_spell_name(r.spell_node_id, atree_mg);
                     const spell_value = node_id_to_spell_value(r.spell_node_id);
                     const boost_parts = r.boosts.map(b => {
-                        const name = node_ref_to_boost_name(b.node_id, b.effect_pos, atree_mg);
-                        return b.has_value ? name + ' ' + b.value : name;
+                        const info = node_ref_to_boost_info(b.node_id, b.effect_pos, atree_mg);
+                        if (!b.has_value) return info.name;
+                        if (info.is_calc) return info.name + ' ' + (b.value / 10) + '%';
+                        return info.name + ' ' + b.value;
                     });
 
                     // Disambiguate: has_hits may encode actual DPS hits (for

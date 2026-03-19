@@ -10,6 +10,8 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 ### Bugs
 #### Combo
+- Mindless Slaughter (fallen) isn't handled.
+- ??? No clue what the issue with this is but it isn't finding builds https://alex-guha.github.io/wynnbuilder-beta.github.io/solver/#CQ062IvmFBbuy6CbmnLJAn9W2BWee3+vGNJA+VzB0UtxGb08+VMTZlMu-uzZp3EE72_KXx-91O4M02kB31mkjF02JTzs+30m2120OG040O1480W11G0W5GW0064010M0120OG040O1480W11G0W50X044Ea49X0
 
 
 #### UI

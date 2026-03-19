@@ -463,7 +463,18 @@ class SolverComboTotalNode extends ComputeNode {
                             }
                             for (const inp of area.querySelectorAll('.combo-row-boost-slider')) {
                                 const bn = inp.dataset.boostName.toLowerCase();
-                                if (bn === nl || bn === 'activate ' + nl) inp.value = String(value);
+                                if (bn === nl || bn === 'activate ' + nl) {
+                                    inp.value = String(value);
+                                    // Mark manually-set auto-fill sliders (e.g. Corrupted)
+                                    if (inp.dataset.auto !== undefined) inp.dataset.auto = 'false';
+                                }
+                            }
+                            for (const inp of area.querySelectorAll('.combo-row-boost-calc')) {
+                                const bn = inp.dataset.boostName.toLowerCase();
+                                if (bn === nl || bn === 'activate ' + nl) {
+                                    inp.value = String(value);
+                                    inp.dataset.auto = 'false';
+                                }
                             }
                         }
                     }
@@ -570,14 +581,17 @@ class SolverComboTotalNode extends ComputeNode {
             // Save existing values.
             const old_toggle = new Map();
             const old_slider = new Map();
+            const old_auto = new Map();
             for (const b of area.querySelectorAll('.combo-row-boost-toggle')) {
                 old_toggle.set(b.dataset.boostName, b.classList.contains('toggleOn'));
             }
             for (const i of area.querySelectorAll('.combo-row-boost-calc')) {
                 old_slider.set(i.dataset.boostName, i.value);
+                if (i.dataset.auto !== undefined) old_auto.set(i.dataset.boostName, i.dataset.auto);
             }
             for (const i of area.querySelectorAll('.combo-row-boost-slider')) {
                 old_slider.set(i.dataset.boostName, i.value);
+                if (i.dataset.auto !== undefined) old_auto.set(i.dataset.boostName, i.dataset.auto);
             }
             const old_hits = area.querySelector('.combo-row-hits')?.value ?? null;
 
@@ -683,11 +697,11 @@ class SolverComboTotalNode extends ComputeNode {
                 inp.min = '0';
                 inp.max = String(entry.damage_boost_max ?? 25);
                 inp.step = '0.1';
-                // Restore previous value or mark as auto
+                // Restore previous value and auto state
                 const old_val = old_slider.get(entry.name);
                 if (old_val != null) {
                     inp.value = old_val;
-                    inp.dataset.auto = 'true';
+                    inp.dataset.auto = old_auto.get(entry.name) ?? 'true';
                 } else {
                     inp.value = '';
                     inp.dataset.auto = 'true';
@@ -735,7 +749,7 @@ class SolverComboTotalNode extends ComputeNode {
                 inp.value = old_slider.get(entry.name) ?? '0';
                 // Corrupted slider: auto-fill from simulation in spell-to-spell mode
                 if (entry.name === 'Corrupted') {
-                    inp.dataset.auto = 'true';
+                    inp.dataset.auto = old_auto.get(entry.name) ?? 'true';
                 }
                 const max_lbl = document.createElement('span');
                 max_lbl.className = 'text-secondary small';

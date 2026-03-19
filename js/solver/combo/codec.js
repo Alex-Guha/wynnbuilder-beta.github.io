@@ -192,12 +192,12 @@ function boost_to_node_ref(boost_name, atree_merged) {
  * @param {number} node_id
  * @param {number} effect_pos
  * @param {Map} atree_merged
- * @returns {string} boost name
+ * @returns {{name: string, is_calc: boolean}} boost name and whether it's a calculated boost
  */
-function node_ref_to_boost_name(node_id, effect_pos, atree_merged) {
+function node_ref_to_boost_info(node_id, effect_pos, atree_merged) {
     // Check powder boosts
     if (_POWDER_BOOST_NAMES.has(node_id)) {
-        return _POWDER_BOOST_NAMES.get(node_id);
+        return { name: _POWDER_BOOST_NAMES.get(node_id), is_calc: false };
     }
 
     // Look up atree node
@@ -206,17 +206,25 @@ function node_ref_to_boost_name(node_id, effect_pos, atree_merged) {
         let pos = 0;
         for (const effect of abil.effects) {
             if (effect.type === 'raw_stat' && effect.toggle) {
-                if (pos === effect_pos) return effect.toggle;
+                if (pos === effect_pos) {
+                    const is_calc = abil.properties?.health_cost != null;
+                    return { name: effect.toggle, is_calc };
+                }
                 pos++;
             } else if (effect.type === 'stat_scaling' && effect.slider === true && effect.slider_name) {
-                if (pos === effect_pos) return effect.slider_name;
+                if (pos === effect_pos) return { name: effect.slider_name, is_calc: false };
                 pos++;
             }
         }
     }
 
-    console.warn('[solver] node_ref_to_boost_name: unknown node_id/effect_pos:', node_id, effect_pos);
-    return '';
+    console.warn('[solver] node_ref_to_boost_info: unknown node_id/effect_pos:', node_id, effect_pos);
+    return { name: '', is_calc: false };
+}
+
+/** Convenience wrapper — returns just the boost name string. */
+function node_ref_to_boost_name(node_id, effect_pos, atree_merged) {
+    return node_ref_to_boost_info(node_id, effect_pos, atree_merged).name;
 }
 
 // ── Clipboard export / import ─────────────────────────────────────────────────

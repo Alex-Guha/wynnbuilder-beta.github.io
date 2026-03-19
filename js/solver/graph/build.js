@@ -318,6 +318,14 @@ function _collect_solver_params() {
                 const ref = boost_to_node_ref(name, atree_mg);
                 boosts.push({ node_id: ref.node_id, effect_pos: ref.effect_pos, has_value: true, value: Math.round(val) });
             }
+            for (const inp of row.querySelectorAll('.combo-row-boost-calc')) {
+                const val = parseFloat(inp.value) || 0;
+                if (val <= 0) continue;
+                const name = inp.dataset.boostName;
+                if (!name) continue;
+                const ref = boost_to_node_ref(name, atree_mg);
+                boosts.push({ node_id: ref.node_id, effect_pos: ref.effect_pos, has_value: true, value: Math.round(val * 10) });
+            }
 
             // DPS hits: read from the hits input in the boost area.
             const hits_inp = row.querySelector('.combo-row-hits');
