@@ -10,26 +10,24 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 ### Bugs
 #### Combo
-- Mindless Slaughter (fallen) isn't handled.
-- ??? No clue what the issue with this is but it isn't finding builds https://alex-guha.github.io/wynnbuilder-beta.github.io/solver/#CQ062IvmFBbuy6CbmnLJAn9W2BWee3+vGNJA+VzB0UtxGb08+VMTZlMu-uzZp3EE72_KXx-91O4M02kB31mkjF02JTzs+30m2120OG040O1480W11G0W5GW0064010M0120OG040O1480W11G0W50X044Ea49X0
 
 
 #### UI
 
 
 ### Necessary Improvements
-- Add tempest hits as a slider since it refreshes if you cast scream before it finishes all of them. Requires modifying the ability in the tree...
-
+- Make Tempest hits variable similar to Air Shout
+    - Could add a "default" or similar property to stat_scaling effects, with builder not showing the slider for abilities with this field specified, and solver combo using the value as the default in the boosts
+- Update Transcendence handling - all spells should be castable at any point (i.e. at no point spell cost > remaining mana). This means evaluating cost v mana *before* applying transcendence 20% reduction.
 
 ### Polish
 #### UI
 - Ensure the red and blue solver messages appear at appropriate times. Red requires testing with a poor cpu, and blue probably isn't showing soon enough.
 - Clean the "Checked | Feasible \n Time | Time left | Warning" display up
 - Rainbow and Standard guild tomes are handled a bit differently, resulting in different skill point displays (Remaining 0 vs -4 respectively). This can be confusing.
-
+- Info button that displays an overlay with info on all the buttons and stuff
 
 #### Combo
-- Add healing stuff to atree (Intoxicating Blood, Rejuvenating Skin, that kind of stuff)
 
 
 ### Testing
@@ -37,8 +35,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 - Test tstack builds
 - Add more complicated scenarios to test_dominance.js
 - Add more tests
-
-#### Combo Mana Calculation
 
 ### Long term
 - Cast time/delay-based mana calc with an advanced mode, where the per-spell cast time and durations and spell hits and what not can be specified in greater detail and control
@@ -48,6 +44,10 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
         - Trapper? Mana Trap
         - Acrobat weightless
         - Summoner Aura
-- Automatic combo sequencing - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a lot of work
+    - Handle the variable attack speed
+- Add healing stuff to atree (Intoxicating Blood, Rejuvenating Skin, that kind of stuff)
+- Weighted multi-target solving
+- Major IDs and adding mana/health considerations to items
 - Premade archetype combo selectors
+- Automatic combo sequencing - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a lot of work
 - Tree-assembler: "I want ability X, Y, and Z, give me a tree that gets all 3 if possible"

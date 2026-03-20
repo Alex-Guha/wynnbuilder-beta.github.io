@@ -719,8 +719,11 @@ function _fill_build_into_ui(result) {
     for (let i = 0; i < 8; i++) {
         const slot = equipment_fields[i];
         const item = result.items[i];
+        const hash = item.statMap.get('hash');
         const name = item.statMap.has('NONE') ? '' :
-            (item.statMap.get('displayName') ?? item.statMap.get('name') ?? '');
+            (hash && (hash.slice(0, 3) === 'CI-' || hash.slice(0, 3) === 'CR-'))
+                ? hash
+                : (item.statMap.get('displayName') ?? item.statMap.get('name') ?? '');
         const input = document.getElementById(slot + '-choice');
         if (input) {
             if (input.value !== name) {

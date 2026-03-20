@@ -435,6 +435,9 @@ function _eval_score(combo_base, thresh_stats) {
 
 function _get_item_name(sm) {
     if (sm.has('NONE')) return '';
+    // Custom/crafted items: return the CI-/CR- hash so the main thread can decode them
+    const hash = sm.get('hash');
+    if (hash && (hash.slice(0, 3) === 'CI-' || hash.slice(0, 3) === 'CR-')) return hash;
     return sm.get('displayName') ?? sm.get('name') ?? '';
 }
 

@@ -4956,7 +4956,7 @@
         },
         {
             "display_name": "Bak'al's Grasp",
-            "desc": "Casting War Scream will make you Corrupted. (Shift + War Scream to cancel) </br> While Corrupted, you lose the ability  to heal, and every 1% health you lose will grant you +1% Corrupted. </br> Gain +4 Raw Damage per 2% Corrupted. (Max +120) </br> </br>Cooldown: 10s",
+            "desc": "Casting War Scream will make you Corrupted. (Shift + War Scream to cancel) </br> While Corrupted, you lose the ability to heal, and every 1% health you lose will grant you +1% Corrupted. </br> Gain +4 Raw Damage per 2% Corrupted. (Max +120) </br> </br>Cooldown: 10s",
             "archetype": "Fallen",
             "archetype_req": 2,
             "parents": [
@@ -7618,7 +7618,9 @@
             "desc": "Click Combo: RIGHT-LEFT-LEFT </br> Conjures a slow but powerful meteor from the sky, dealing massive damage over a large area. </br> Mana Cost: 50 </br><span class='mc-white'>Total Damage</span>: 400% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 330%)   </br>&emsp;(<span class='eDam'>Earth</span>: 70%) </br>Range: 18 Blocks </br>Area of Effect: 5 Blocks (Circle-Shaped)",
             "parents": [],
             "dependencies": [],
-            "blockers": [],
+            "blockers": [
+                "Ophanim"
+            ],
             "cost": 1,
             "display": {
                 "row": 0,
