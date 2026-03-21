@@ -5,7 +5,9 @@
 // Dependencies (loaded via importScripts before this file):
 //   - utils.js:       zip2, round_near, clamp, rawToPct, rawToPctUncapped, etc.
 //   - build_utils.js: merge_stat, skp_order, skp_elements, skillPointsToPercentage,
-//                     skillpoint_final_mult, reversedIDs, levelToHPBase
+//                     skillpoint_final_mult, reversedIDs, levelToHPBase,
+//                     STATMAP_STATIC_IDS, STATMAP_STATIC_ID_SET,
+//                     createBaseStatmap, applySetBonuses, finalizeStatmap
 //   - damage_calc.js: calculateSpellDamage
 //   - shared_game_stats.js: classDefenseMultipliers, damageMultipliers,
 //                           specialNames, radiance_affected, getDefenseStats,
@@ -23,9 +25,7 @@
 // ── Build stat assembly (replaces Build.initBuildStats without DOM) ─────────
 
 // ── Incremental stat accumulation helpers ────────────────────────────────────
-
-const _INCR_STATIC_IDS = ["hp", "eDef", "tDef", "wDef", "fDef", "aDef", "str", "dex", "int", "def", "agi", "damMobs", "defMobs"];
-const _INCR_STATIC_ID_SET = new Set(_INCR_STATIC_IDS);
+// Uses STATMAP_STATIC_IDS / STATMAP_STATIC_ID_SET from build_utils.js
 
 /**
  * Add an item's stats to a running statMap (incremental accumulation).
@@ -36,12 +36,12 @@ function _incr_add_item(running_sm, item_sm) {
     const maxRolls = item_sm.get('maxRolls');
     if (maxRolls) {
         for (const [id, value] of maxRolls) {
-            if (_INCR_STATIC_ID_SET.has(id)) continue;
+            if (STATMAP_STATIC_ID_SET.has(id)) continue;
             running_sm.set(id, (running_sm.get(id) || 0) + value);
         }
     }
-    for (let i = 0; i < _INCR_STATIC_IDS.length; i++) {
-        const id = _INCR_STATIC_IDS[i];
+    for (let i = 0; i < STATMAP_STATIC_IDS.length; i++) {
+        const id = STATMAP_STATIC_IDS[i];
         const v = item_sm.get(id);
         if (v) running_sm.set(id, (running_sm.get(id) || 0) + v);
     }
@@ -55,12 +55,12 @@ function _incr_remove_item(running_sm, item_sm) {
     const maxRolls = item_sm.get('maxRolls');
     if (maxRolls) {
         for (const [id, value] of maxRolls) {
-            if (_INCR_STATIC_ID_SET.has(id)) continue;
+            if (STATMAP_STATIC_ID_SET.has(id)) continue;
             running_sm.set(id, (running_sm.get(id) || 0) - value);
         }
     }
-    for (let i = 0; i < _INCR_STATIC_IDS.length; i++) {
-        const id = _INCR_STATIC_IDS[i];
+    for (let i = 0; i < STATMAP_STATIC_IDS.length; i++) {
+        const id = STATMAP_STATIC_IDS[i];
         const v = item_sm.get(id);
         if (v) running_sm.set(id, (running_sm.get(id) || 0) - v);
     }
@@ -71,22 +71,7 @@ function _incr_remove_item(running_sm, item_sm) {
  * This is the base that free items are incrementally added to/removed from during search.
  */
 function _init_running_statmap(level, fixed_item_sms) {
-    const must_ids = [
-        "eMdPct","eMdRaw","eSdPct","eSdRaw","eDamPct","eDamRaw","eDamAddMin","eDamAddMax",
-        "tMdPct","tMdRaw","tSdPct","tSdRaw","tDamPct","tDamRaw","tDamAddMin","tDamAddMax",
-        "wMdPct","wMdRaw","wSdPct","wSdRaw","wDamPct","wDamRaw","wDamAddMin","wDamAddMax",
-        "fMdPct","fMdRaw","fSdPct","fSdRaw","fDamPct","fDamRaw","fDamAddMin","fDamAddMax",
-        "aMdPct","aMdRaw","aSdPct","aSdRaw","aDamPct","aDamRaw","aDamAddMin","aDamAddMax",
-        "nMdPct","nMdRaw","nSdPct","nSdRaw","nDamPct","nDamRaw","nDamAddMin","nDamAddMax",
-        "mdPct","mdRaw","sdPct","sdRaw","damPct","damRaw","damAddMin","damAddMax",
-        "rMdPct","rMdRaw","rSdPct","rSdRaw","rDamPct","rDamRaw","rDamAddMin","rDamAddMax",
-        "healPct","critDamPct"
-    ];
-    const sm = new Map();
-    for (const id of _INCR_STATIC_IDS) sm.set(id, 0);
-    for (const id of must_ids) sm.set(id, 0);
-    sm.set("hp", levelToHPBase(level));
-    sm.set("agiDef", 90);
+    const sm = createBaseStatmap(level);
     for (const item_sm of fixed_item_sms) {
         _incr_add_item(sm, item_sm);
     }
@@ -108,47 +93,8 @@ function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map
         sm = new Map(running_sm);
     }
 
-    // Apply set bonuses (non-SP bonuses only; SP bonuses are in total_sp)
-    for (const [setName, count] of activeSetCounts) {
-        const setData = sets_map.get(setName);
-        if (!setData) continue;
-        const bonus = setData.bonuses[count - 1];
-        if (!bonus) continue;
-        for (const id in bonus) {
-            if (skp_order.includes(id)) continue;
-            sm.set(id, (sm.get(id) || 0) + bonus[id]);
-        }
-    }
-
-    // Multiplier maps (reuse scratch Maps when available)
-    let damMult, defMult, healMult, major_ids;
-    if (inner_scratch) {
-        damMult = inner_scratch.damMult; damMult.clear();
-        defMult = inner_scratch.defMult; defMult.clear();
-        healMult = inner_scratch.healMult; healMult.clear();
-        major_ids = inner_scratch.majorIds; major_ids.clear();
-    } else {
-        damMult = new Map();
-        defMult = new Map();
-        healMult = new Map();
-        major_ids = new Set();
-    }
-    damMult.set('tome', sm.get('damMobs') || 0);
-    defMult.set('tome', sm.get('defMobs') || 0);
-    sm.set('damMult', damMult);
-    sm.set('defMult', defMult);
-
-    // Major IDs (rebuilt at leaf — rare, so not tracked incrementally)
-    for (const item_sm of all_equip_sms) {
-        const mids = item_sm.get("majorIds");
-        if (mids) for (const mid of mids) major_ids.add(mid);
-    }
-    sm.set("activeMajorIDs", major_ids);
-
-    sm.set("poisonPct", 0);
-    healMult.set('item', sm.get('healPct') || 0);
-    sm.set("healMult", healMult);
-    sm.set("atkSpd", weapon_sm.get("atkSpd"));
+    applySetBonuses(sm, activeSetCounts, sets_map);
+    finalizeStatmap(sm, weapon_sm, all_equip_sms, inner_scratch);
 
     return sm;
 }

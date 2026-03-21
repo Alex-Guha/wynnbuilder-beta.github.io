@@ -316,6 +316,94 @@ function idRound(id){
     }
 }
 
+// ── Shared stat assembly constants and functions ─────────────────────────────
+// Used by both Build.initBuildStats() and solver worker_shims.js.
+
+const STATMAP_STATIC_IDS = ["hp", "eDef", "tDef", "wDef", "fDef", "aDef", "str", "dex", "int", "def", "agi", "damMobs", "defMobs"];
+const STATMAP_STATIC_ID_SET = new Set(STATMAP_STATIC_IDS);
+
+const STATMAP_MUST_IDS = [
+    "eMdPct","eMdRaw","eSdPct","eSdRaw","eDamPct","eDamRaw","eDamAddMin","eDamAddMax",
+    "tMdPct","tMdRaw","tSdPct","tSdRaw","tDamPct","tDamRaw","tDamAddMin","tDamAddMax",
+    "wMdPct","wMdRaw","wSdPct","wSdRaw","wDamPct","wDamRaw","wDamAddMin","wDamAddMax",
+    "fMdPct","fMdRaw","fSdPct","fSdRaw","fDamPct","fDamRaw","fDamAddMin","fDamAddMax",
+    "aMdPct","aMdRaw","aSdPct","aSdRaw","aDamPct","aDamRaw","aDamAddMin","aDamAddMax",
+    "nMdPct","nMdRaw","nSdPct","nSdRaw","nDamPct","nDamRaw","nDamAddMin","nDamAddMax",
+    "mdPct","mdRaw","sdPct","sdRaw","damPct","damRaw","damAddMin","damAddMax",
+    "rMdPct","rMdRaw","rSdPct","rSdRaw","rDamPct","rDamRaw","rDamAddMin","rDamAddMax",
+    "healPct","critDamPct"
+];
+
+/**
+ * Create a base statMap initialized with zeros for all known stat IDs,
+ * plus level-based HP and agiDef.
+ */
+function createBaseStatmap(level) {
+    const sm = new Map();
+    for (const id of STATMAP_STATIC_IDS) sm.set(id, 0);
+    for (const id of STATMAP_MUST_IDS) sm.set(id, 0);
+    sm.set("hp", levelToHPBase(level));
+    sm.set("agiDef", 90);
+    return sm;
+}
+
+/**
+ * Apply set bonuses to a statMap (non-SP bonuses only).
+ * Null-safe: skips missing set data or bonus entries.
+ */
+function applySetBonuses(sm, activeSetCounts, sets_map) {
+    for (const [setName, count] of activeSetCounts) {
+        const setData = sets_map.get(setName);
+        if (!setData) continue;
+        const bonus = setData.bonuses[count - 1];
+        if (!bonus) continue;
+        for (const id in bonus) {
+            if (skp_order.includes(id)) continue;
+            sm.set(id, (sm.get(id) || 0) + bonus[id]);
+        }
+    }
+}
+
+/**
+ * Finalize a statMap: set up damMult/defMult/healMult, collect majorIDs,
+ * set poisonPct and atkSpd.
+ *
+ * @param {Map} sm - The statMap to finalize (mutated in place)
+ * @param {Map} weapon_sm - Weapon's statMap (for atkSpd)
+ * @param {Map[]} all_equip_sms - All equipment statMaps (for majorID collection)
+ * @param {Object} [scratch] - Optional pre-allocated Maps for GC reuse:
+ *   { damMult: Map, defMult: Map, healMult: Map, majorIds: Set }
+ */
+function finalizeStatmap(sm, weapon_sm, all_equip_sms, scratch) {
+    let damMult, defMult, healMult, major_ids;
+    if (scratch) {
+        damMult = scratch.damMult; damMult.clear();
+        defMult = scratch.defMult; defMult.clear();
+        healMult = scratch.healMult; healMult.clear();
+        major_ids = scratch.majorIds; major_ids.clear();
+    } else {
+        damMult = new Map();
+        defMult = new Map();
+        healMult = new Map();
+        major_ids = new Set();
+    }
+    damMult.set('tome', sm.get('damMobs') || 0);
+    defMult.set('tome', sm.get('defMobs') || 0);
+    sm.set('damMult', damMult);
+    sm.set('defMult', defMult);
+
+    for (const item_sm of all_equip_sms) {
+        const mids = item_sm.get("majorIds");
+        if (mids) for (const mid of mids) major_ids.add(mid);
+    }
+    sm.set("activeMajorIDs", major_ids);
+
+    sm.set("poisonPct", 0);
+    healMult.set('item', sm.get('healPct') || 0);
+    sm.set("healMult", healMult);
+    sm.set("atkSpd", weapon_sm.get("atkSpd"));
+}
+
 /**
  * stupid stupid multiplicative stats
  */

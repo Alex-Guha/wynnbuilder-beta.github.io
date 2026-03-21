@@ -66,75 +66,26 @@ class Build {
         @pre The build itself should be valid. No checking of validity of pieces is done here.
     */
     initBuildStats(){
+        const statMap = createBaseStatmap(this.level);
 
-        let staticIDs = ["hp", "eDef", "tDef", "wDef", "fDef", "aDef", "str", "dex", "int", "def", "agi", "damMobs", "defMobs"];
-
-        let must_ids = [
-            "eMdPct","eMdRaw","eSdPct","eSdRaw","eDamPct","eDamRaw","eDamAddMin","eDamAddMax",
-            "tMdPct","tMdRaw","tSdPct","tSdRaw","tDamPct","tDamRaw","tDamAddMin","tDamAddMax",
-            "wMdPct","wMdRaw","wSdPct","wSdRaw","wDamPct","wDamRaw","wDamAddMin","wDamAddMax",
-            "fMdPct","fMdRaw","fSdPct","fSdRaw","fDamPct","fDamRaw","fDamAddMin","fDamAddMax",
-            "aMdPct","aMdRaw","aSdPct","aSdRaw","aDamPct","aDamRaw","aDamAddMin","aDamAddMax",
-            "nMdPct","nMdRaw","nSdPct","nSdRaw","nDamPct","nDamRaw","nDamAddMin","nDamAddMax",      // neutral which is now an element
-            "mdPct","mdRaw","sdPct","sdRaw","damPct","damRaw","damAddMin","damAddMax",          // These are the old ids. Become proportional.
-            "rMdPct","rMdRaw","rSdPct","rSdRaw","rDamPct","rDamRaw","rDamAddMin","rDamAddMax",  // rainbow (the "element" of all minus neutral). rSdRaw is rainraw
-            "healPct", "critDamPct"
-        ]
-
-        //Create a map of this build's stats
-        let statMap = new Map();
-
-        for (const staticID of staticIDs) {
-            statMap.set(staticID, 0);
-        }
-        for (const staticID of must_ids) {
-            statMap.set(staticID, 0);
-        }
-        statMap.set("hp", levelToHPBase(this.level)); 
-        statMap.set("agiDef", 90);
-
-        let major_ids = new Set();
+        // Accumulate item stats
         for (const item of this.items){
             const item_stats = item.statMap;
-            for (let [id, value] of item_stats.get("maxRolls")) {
-                if (staticIDs.includes(id)) {
-                    continue;
-                }
-                statMap.set(id,(statMap.get(id) || 0)+value);
-            }
-            for (const staticID of staticIDs) {
-                if (item_stats.get(staticID)) {
-                        statMap.set(staticID, statMap.get(staticID) + item_stats.get(staticID));
+            const maxRolls = item_stats.get("maxRolls");
+            if (maxRolls) {
+                for (const [id, value] of maxRolls) {
+                    if (STATMAP_STATIC_ID_SET.has(id)) continue;
+                    statMap.set(id, (statMap.get(id) || 0) + value);
                 }
             }
-            if (item_stats.get("majorIds")) {
-                for (const major_id of item_stats.get("majorIds")) {
-                    major_ids.add(major_id);
-                }
+            for (const staticID of STATMAP_STATIC_IDS) {
+                const v = item_stats.get(staticID);
+                if (v) statMap.set(staticID, statMap.get(staticID) + v);
             }
         }
-        statMap.set('damMult', new Map());
-        statMap.set('defMult', new Map());
-        statMap.get('damMult').set('tome', statMap.get('damMobs'));
-        statMap.get('defMult').set('tome', statMap.get('defMobs'));
-        statMap.set("activeMajorIDs", major_ids);
-        for (const [setName, count] of this.activeSetCounts) {
-            const bonus = sets.get(setName).bonuses[count-1];
-            for (const id in bonus) {
-                if (skp_order.includes(id)) {
-                    // pass. Don't include skillpoints in ids
-                }
-                else {
-                    statMap.set(id,(statMap.get(id) || 0)+bonus[id]);
-                }
-            }
-        }
-        statMap.set("poisonPct", 0);
-        statMap.set("healMult", new Map());
-        statMap.get('healMult').set('item', statMap.get('healPct'));
 
-        // The stuff relevant for damage calculation!!! @ferricles
-        statMap.set("atkSpd", this.weapon.statMap.get("atkSpd"));
+        applySetBonuses(statMap, this.activeSetCounts, sets);
+        finalizeStatmap(statMap, this.weapon.statMap, this.items.map(i => i.statMap));
 
         this.statMap = statMap;
     }

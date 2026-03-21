@@ -1,10 +1,17 @@
 // Tests for bidirectional dominance pruning.
 // Run: node js/solver/tests/test_dominance.js
 
-const {
-    _item_stat_val, _build_dominance_stats, _prune_dominated_items,
-    _INDIRECT_CONSTRAINT_STATS,
-} = require('../engine/item_priority.js');
+'use strict';
+
+const { createSandbox, TestRunner } = require('./harness');
+
+const ctx = createSandbox();
+const t = new TestRunner('Dominance Pruning');
+
+// Access functions from the sandbox (function declarations are global).
+const _prune_dominated_items = ctx._prune_dominated_items;
+const _build_dominance_stats = ctx._build_dominance_stats;
+const _item_stat_val = ctx._item_stat_val;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -26,19 +33,6 @@ function makeNoneItem() {
     return { statMap: sm };
 }
 
-let _pass = 0, _fail = 0;
-function assert(cond, msg) {
-    if (cond) { _pass++; }
-    else { _fail++; console.error('FAIL:', msg); }
-}
-
-function assertSetEqual(actual, expected, msg) {
-    const a = [...actual].sort();
-    const e = [...expected].sort();
-    assert(a.length === e.length && a.every((v, i) => v === e[i]),
-        `${msg} — got [${a}], expected [${e}]`);
-}
-
 // ── _prune_dominated_items tests ─────────────────────────────────────────────
 
 // Test 1: Higher-only (regression test for current behavior)
@@ -49,10 +43,10 @@ function assertSetEqual(actual, expected, msg) {
     const pools = { helmet: [A, B, C] };
     const ds = { higher: new Set(['damPct', 'sdPct']), lower: new Set() };
     _prune_dominated_items(pools, ds);
-    assert(pools.helmet.length === 2, 'Test 1: pool should have 2 items');
-    assert(pools.helmet.includes(A), 'Test 1: A should remain');
-    assert(!pools.helmet.includes(B), 'Test 1: B should be pruned');
-    assert(pools.helmet.includes(C), 'Test 1: C should remain');
+    t.assert(pools.helmet.length === 2, 'Test 1: pool should have 2 items');
+    t.assert(pools.helmet.includes(A), 'Test 1: A should remain');
+    t.assert(!pools.helmet.includes(B), 'Test 1: B should be pruned');
+    t.assert(pools.helmet.includes(C), 'Test 1: C should remain');
 }
 
 // Test 2: Lower-only
@@ -62,8 +56,8 @@ function assertSetEqual(actual, expected, msg) {
     const pools = { helmet: [A, B] };
     const ds = { higher: new Set(), lower: new Set(['spRaw1']) };
     _prune_dominated_items(pools, ds);
-    assert(pools.helmet.length === 1, 'Test 2: pool should have 1 item');
-    assert(pools.helmet.includes(A), 'Test 2: A should remain');
+    t.assert(pools.helmet.length === 1, 'Test 2: pool should have 1 item');
+    t.assert(pools.helmet.includes(A), 'Test 2: A should remain');
 }
 
 // Test 3: Bidirectional — A dominates B on both directions
@@ -73,8 +67,8 @@ function assertSetEqual(actual, expected, msg) {
     const pools = { helmet: [A, B] };
     const ds = { higher: new Set(['damPct']), lower: new Set(['spRaw1']) };
     _prune_dominated_items(pools, ds);
-    assert(pools.helmet.length === 1, 'Test 3: B should be pruned');
-    assert(pools.helmet.includes(A), 'Test 3: A should remain');
+    t.assert(pools.helmet.length === 1, 'Test 3: B should be pruned');
+    t.assert(pools.helmet.includes(A), 'Test 3: A should remain');
 }
 
 // Test 4: No dominance when one direction fails
@@ -84,7 +78,7 @@ function assertSetEqual(actual, expected, msg) {
     const pools = { helmet: [A, B] };
     const ds = { higher: new Set(['damPct']), lower: new Set(['spRaw1']) };
     _prune_dominated_items(pools, ds);
-    assert(pools.helmet.length === 2, 'Test 4: neither should be pruned');
+    t.assert(pools.helmet.length === 2, 'Test 4: neither should be pruned');
 }
 
 // Test 5: SP requirements break dominance
@@ -94,7 +88,7 @@ function assertSetEqual(actual, expected, msg) {
     const pools = { helmet: [A, B] };
     const ds = { higher: new Set(['damPct']), lower: new Set() };
     _prune_dominated_items(pools, ds);
-    assert(pools.helmet.length === 2, 'Test 5: B not pruned due to lower reqs');
+    t.assert(pools.helmet.length === 2, 'Test 5: B not pruned due to lower reqs');
 }
 
 // Test 6: SP provisions break dominance
@@ -104,7 +98,7 @@ function assertSetEqual(actual, expected, msg) {
     const pools = { helmet: [A, B] };
     const ds = { higher: new Set(['damPct']), lower: new Set() };
     _prune_dominated_items(pools, ds);
-    assert(pools.helmet.length === 2, 'Test 6: B not pruned due to SP provisions');
+    t.assert(pools.helmet.length === 2, 'Test 6: B not pruned due to SP provisions');
 }
 
 // Test 7: NONE items never pruned
@@ -114,8 +108,8 @@ function assertSetEqual(actual, expected, msg) {
     const pools = { helmet: [A, N] };
     const ds = { higher: new Set(['damPct']), lower: new Set() };
     _prune_dominated_items(pools, ds);
-    assert(pools.helmet.length === 2, 'Test 7: NONE item not pruned');
-    assert(pools.helmet.includes(N), 'Test 7: NONE item still in pool');
+    t.assert(pools.helmet.length === 2, 'Test 7: NONE item not pruned');
+    t.assert(pools.helmet.includes(N), 'Test 7: NONE item still in pool');
 }
 
 // Test 8: Empty lower set — same behavior as original
@@ -125,7 +119,7 @@ function assertSetEqual(actual, expected, msg) {
     const pools = { helmet: [A, B] };
     const ds = { higher: new Set(['damPct', 'sdPct']), lower: new Set() };
     _prune_dominated_items(pools, ds);
-    assert(pools.helmet.length === 1, 'Test 8: B pruned with empty lower set');
+    t.assert(pools.helmet.length === 1, 'Test 8: B pruned with empty lower set');
 }
 
 // ── _build_dominance_stats tests ─────────────────────────────────────────────
@@ -136,9 +130,9 @@ function assertSetEqual(actual, expected, msg) {
     const dmg_weights = new Map([['damPct', 1], ['sdPct', 1]]);
     const restrictions = { stat_thresholds: [] };
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);
-    assert(ds.higher.has('damPct'), 'Test 9: damPct in higher');
-    assert(ds.higher.has('sdPct'), 'Test 9: sdPct in higher');
-    assert(ds.lower.size === 0, 'Test 9: lower is empty');
+    t.assert(ds.higher.has('damPct'), 'Test 9: damPct in higher');
+    t.assert(ds.higher.has('sdPct'), 'Test 9: sdPct in higher');
+    t.assert(ds.lower.size === 0, 'Test 9: lower is empty');
 }
 
 // Test 10: Mana-constrained combo — spell cost stats in lower
@@ -153,11 +147,11 @@ function assertSetEqual(actual, expected, msg) {
     const dmg_weights = new Map([['damPct', 1]]);
     const restrictions = { stat_thresholds: [] };
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);
-    assert(ds.lower.has('spRaw1'), 'Test 10: spRaw1 in lower');
-    assert(ds.lower.has('spPct1'), 'Test 10: spPct1 in lower');
-    assert(ds.lower.has('spRaw3'), 'Test 10: spRaw3 in lower');
-    assert(ds.lower.has('spPct3'), 'Test 10: spPct3 in lower');
-    assert(!ds.lower.has('spRaw2'), 'Test 10: spRaw2 NOT in lower');
+    t.assert(ds.lower.has('spRaw1'), 'Test 10: spRaw1 in lower');
+    t.assert(ds.lower.has('spPct1'), 'Test 10: spPct1 in lower');
+    t.assert(ds.lower.has('spRaw3'), 'Test 10: spRaw3 in lower');
+    t.assert(ds.lower.has('spPct3'), 'Test 10: spPct3 in lower');
+    t.assert(!ds.lower.has('spRaw2'), 'Test 10: spRaw2 NOT in lower');
 }
 
 // Test 11: hp_casting excludes spell costs
@@ -171,8 +165,8 @@ function assertSetEqual(actual, expected, msg) {
     const dmg_weights = new Map([['damPct', 1]]);
     const restrictions = { stat_thresholds: [] };
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);
-    assert(!ds.lower.has('spRaw1'), 'Test 11: no spell cost stats when hp_casting');
-    assert(ds.lower.size === 0, 'Test 11: lower is empty');
+    t.assert(!ds.lower.has('spRaw1'), 'Test 11: no spell cost stats when hp_casting');
+    t.assert(ds.lower.size === 0, 'Test 11: lower is empty');
 }
 
 // Test 12: le restriction adds to lower
@@ -181,7 +175,7 @@ function assertSetEqual(actual, expected, msg) {
     const dmg_weights = new Map([['damPct', 1]]);
     const restrictions = { stat_thresholds: [{ stat: 'atkTier', op: 'le', value: 3 }] };
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);
-    assert(ds.lower.has('atkTier'), 'Test 12: atkTier in lower from le restriction');
+    t.assert(ds.lower.has('atkTier'), 'Test 12: atkTier in lower from le restriction');
 }
 
 // Test 13: Conflict resolution — stat in both sets removed from both
@@ -190,8 +184,8 @@ function assertSetEqual(actual, expected, msg) {
     const dmg_weights = new Map([['atkTier', 1]]);  // higher
     const restrictions = { stat_thresholds: [{ stat: 'atkTier', op: 'le', value: 3 }] };  // lower
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);
-    assert(!ds.higher.has('atkTier'), 'Test 13: atkTier removed from higher');
-    assert(!ds.lower.has('atkTier'), 'Test 13: atkTier removed from lower');
+    t.assert(!ds.higher.has('atkTier'), 'Test 13: atkTier removed from higher');
+    t.assert(!ds.lower.has('atkTier'), 'Test 13: atkTier removed from lower');
 }
 
 // Test 14: atkTier special case — melee + mana sustain
@@ -199,15 +193,15 @@ function assertSetEqual(actual, expected, msg) {
     const snap = {
         combo_time: 10, allow_downtime: false,
         parsed_combo: [
-            { spell: { base_spell: 1, scaling: 'melee' }, mana_excl: false },
+            { spell: { base_spell: 1, scaling: 'melee', cost: 60 }, qty: 1, mana_excl: false },
         ],
         hp_casting: false,
     };
     const dmg_weights = new Map([['atkTier', 1], ['damPct', 1]]);
     const restrictions = { stat_thresholds: [] };
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);
-    assert(!ds.higher.has('atkTier'), 'Test 14: atkTier removed from higher (melee+sustain)');
-    assert(ds.higher.has('damPct'), 'Test 14: damPct still in higher');
+    t.assert(!ds.higher.has('atkTier'), 'Test 14: atkTier removed from higher (melee+sustain)');
+    t.assert(ds.higher.has('damPct'), 'Test 14: damPct still in higher');
 }
 
 // Test 15: Indirect stats filtered — ge ehp not added to higher
@@ -219,8 +213,8 @@ function assertSetEqual(actual, expected, msg) {
         { stat: 'finalSpellCost1', op: 'le', value: 5 },
     ]};
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);
-    assert(!ds.higher.has('ehp'), 'Test 15: ehp not in higher (indirect)');
-    assert(!ds.lower.has('finalSpellCost1'), 'Test 15: finalSpellCost1 not in lower (indirect)');
+    t.assert(!ds.higher.has('ehp'), 'Test 15: ehp not in higher (indirect)');
+    t.assert(!ds.lower.has('finalSpellCost1'), 'Test 15: finalSpellCost1 not in lower (indirect)');
 }
 
 // Test 16: mana_excl rows skipped
@@ -235,9 +229,9 @@ function assertSetEqual(actual, expected, msg) {
     const dmg_weights = new Map();
     const restrictions = { stat_thresholds: [] };
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);
-    assert(ds.lower.has('spRaw1'), 'Test 16: spRaw1 in lower');
-    assert(!ds.lower.has('spRaw2'), 'Test 16: spRaw2 NOT in lower (mana_excl)');
-    assert(!ds.lower.has('spPct2'), 'Test 16: spPct2 NOT in lower (mana_excl)');
+    t.assert(ds.lower.has('spRaw1'), 'Test 16: spRaw1 in lower');
+    t.assert(!ds.lower.has('spRaw2'), 'Test 16: spRaw2 NOT in lower (mana_excl)');
+    t.assert(!ds.lower.has('spPct2'), 'Test 16: spPct2 NOT in lower (mana_excl)');
 }
 
 // Test 17: Melee rows (bs=0) skipped
@@ -252,11 +246,14 @@ function assertSetEqual(actual, expected, msg) {
     const dmg_weights = new Map();
     const restrictions = { stat_thresholds: [] };
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);
-    assert(!ds.lower.has('spRaw0'), 'Test 17: spRaw0 NOT in lower (melee bs=0)');
-    assert(ds.lower.has('spRaw1'), 'Test 17: spRaw1 in lower');
+    t.assert(!ds.lower.has('spRaw0'), 'Test 17: spRaw0 NOT in lower (melee bs=0)');
+    t.assert(ds.lower.has('spRaw1'), 'Test 17: spRaw1 in lower');
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 
-console.log(`\nResults: ${_pass} passed, ${_fail} failed out of ${_pass + _fail} assertions`);
-if (_fail > 0) process.exit(1);
+const summary = t.summary();
+if (require.main === module) {
+    if (summary.fail > 0) process.exit(1);
+}
+module.exports = summary;
