@@ -488,11 +488,13 @@ function _eval_current_build(snap, restrictions) {
     } else if (snap.combo_time > 0) {
         let mana_cost = 0;
         let melee_hits = 0;
-        for (const { qty, spell, mana_excl, recast_penalty_per_cast } of snap.parsed_combo) {
+        for (const { qty, spell, boost_tokens, mana_excl, recast_penalty_per_cast } of snap.parsed_combo) {
             if (mana_excl) continue;
             if (spell?.scaling === 'melee') melee_hits += qty;
-            if (spell.cost == null) continue;
-            mana_cost += (getSpellCost(combo_base, spell) + (recast_penalty_per_cast ?? 0)) * qty;
+            if (spell == null || spell.cost == null) continue;
+            // Apply per-row combo boosts (e.g. spell cost reductions) before computing cost.
+            const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, snap.boost_registry);
+            mana_cost += (getSpellCost(stats, spell) + (recast_penalty_per_cast ?? 0)) * qty;
         }
         if (combo_base.get('activeMajorIDs')?.has('ARCANES')) mana_cost *= 0.75;
         const mr = combo_base.get('mr') ?? 0;
