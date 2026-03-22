@@ -84,3 +84,14 @@ let equipment_keys   = ['helmet', 'chestplate', 'leggings', 'boots', 'ring1', 'r
 let tome_keys        = ['weaponTome1', 'weaponTome2', 'armorTome1', 'armorTome2', 'armorTome3', 'armorTome4',
                         'guildTome1', 'lootrunTome1', 'gatherXpTome1', 'gatherXpTome2',
                         'dungeonXpTome1', 'dungeonXpTome2', 'mobXpTome1', 'mobXpTome2'];
+
+// ── Known add_spell_prop meta fields ────────────────────────────────────────
+// Fields in an add_spell_prop effect that are part of the effect schema (not
+// custom spell-level numeric fields). Used by atree.js and boost.js to
+// distinguish schema keys from generic numeric fields like hp_cost, corruption_rate.
+const _ASPELL_META = new Set([
+    'type', 'base_spell', 'target_part', 'behavior', 'cost',
+    'multipliers', 'power', 'hits', 'hide', 'ignored_mults',
+    'display', 'use_str', 'name', 'mana_derived_from',
+    'spell_type', 'scaling',
+]);

@@ -37,6 +37,7 @@ class SolverComboTotalNode extends ComputeNode {
             if (tier === 0) continue;
             aug_spell_map.set(-1000 - ps_idx, make_powder_special_spell(ps_idx, tier));
         }
+        apply_deferred_powder_special_effects(aug_spell_map, spell_map);
         this._spell_map_cache = aug_spell_map;
         this._refresh_selection_spells(aug_spell_map);
 
@@ -55,14 +56,35 @@ class SolverComboTotalNode extends ComputeNode {
         const ctime_inp = document.getElementById('combo-time');
         if (ctime_inp) ctime_inp.placeholder = spell_to_spell_mode ? 'auto' : 'sec';
         if (ctime_inp && ctime_inp.dataset.auto === 'true' && spell_to_spell_mode) {
+            let adjAtkSpd_t = attackSpeeds.indexOf(base_stats.get('atkSpd'))
+                + (base_stats.get('atkTier') ?? 0);
+            adjAtkSpd_t = Math.max(0, Math.min(6, adjAtkSpd_t));
+            const melee_period = 1 / baseDamageMultiplier[adjAtkSpd_t];
+
             let auto_time = 0;
-            for (const { qty, spell } of rows) {
-                if (spell && spell.cost != null) {
-                    const recast_base = spell.mana_derived_from ?? spell.base_spell;
-                    if (recast_base !== 0) auto_time += qty * (SPELL_CAST_TIME + SPELL_CAST_DELAY);
+            let melee_cd = 0;
+            for (const { qty, spell, dom_row } of rows) {
+                if (!spell) continue;
+                const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
+                    ?.classList.contains('mana-excluded') ?? false;
+                const recast_base = spell.mana_derived_from ?? spell.base_spell;
+                const is_melee = recast_base === 0;
+                if (is_melee && mana_excl) continue;
+                for (let i = 0; i < qty; i++) {
+                    if (is_melee) {
+                        auto_time += melee_cd;
+                        melee_cd = melee_period;
+                    } else if (spell.cost != null) {
+                        const spell_dt = SPELL_CAST_TIME + SPELL_CAST_DELAY;
+                        const wall_dt = Math.max(spell_dt, melee_cd);
+                        melee_cd = Math.max(0, melee_cd - wall_dt);
+                        auto_time += wall_dt;
+                    }
                 }
             }
-            ctime_inp.value = auto_time > 0 ? String(Math.round(auto_time * 10) / 10) : '';
+            // Flush any remaining melee cooldown at end of combo
+            auto_time += melee_cd;
+            ctime_inp.value = auto_time > 0 ? String(Math.round(auto_time * 100) / 100) : '';
         }
 
         // In spell-to-spell mode, run simulation pre-pass to determine per-row
@@ -92,7 +114,11 @@ class SolverComboTotalNode extends ComputeNode {
                 ?.classList.contains('dmg-excluded') ?? false;
             let pseudo = null;
             if (spell_id === MANA_RESET_SPELL_ID) pseudo = 'mana_reset';
-            else if (spell_id === CANCEL_BAKALS_SPELL_ID) pseudo = 'cancel_bakals';
+            else {
+                for (const [state_name, cancel_id] of STATE_CANCEL_IDS) {
+                    if (spell_id === cancel_id) { pseudo = 'cancel_state:' + state_name; break; }
+                }
+            }
             // DPS hits override from DOM input
             const hits_inp = dom_row?.querySelector('.combo-row-hits');
             const dps_hits_override = hits_inp ? (parseFloat(hits_inp.value) || undefined) : undefined;
@@ -107,7 +133,7 @@ class SolverComboTotalNode extends ComputeNode {
             console.log('[COMBO-DEBUG][PAGE] items:', item_names.join(', '));
             console.log('[COMBO-DEBUG][PAGE] sim results:', JSON.stringify(sim_result.row_results.map((r, i) => ({
                 row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
-                corruption: Math.round(r.corruption_pct), hp_warn: r.hp_warning,
+                states: r.state_values, hp_warn: r.hp_warning,
             }))));
             console.log('[COMBO-DEBUG][PAGE] sim end_mana:', sim_result.end_mana,
                 'end_hp:', Math.round(sim_result.end_hp), 'max_hp:', sim_result.max_hp,
@@ -344,7 +370,12 @@ class SolverComboTotalNode extends ComputeNode {
             }
             for (const inp of sliders) {
                 const val = parseFloat(inp.value) || 0;
-                if (val > 0) boost_tokens.push({ name: inp.dataset.boostName, value: val, is_pct: false });
+                const rm = parseInt(inp.dataset.realMin || '0');
+                if (val > 0 && (rm === 0 || val >= rm)) {
+                    const tok = { name: inp.dataset.boostName, value: val, is_pct: false };
+                    if (inp.dataset.auto === 'false') tok.manual = true;
+                    boost_tokens.push(tok);
+                }
             }
             // Calculated boost fields (Blood Pact): read the value as a percentage token.
             for (const inp of calcs) {
@@ -369,16 +400,21 @@ class SolverComboTotalNode extends ComputeNode {
             const dps_info = spell ? compute_dps_spell_hits_info(spell) : null;
             const allow_decimal = spell_is_dps(spell) && !dps_info;
             if (!allow_decimal) qty = Math.round(qty);
-            const spell_name = spell_id === MANA_RESET_SPELL_ID ? 'Mana Reset'
-                : spell_id === CANCEL_BAKALS_SPELL_ID ? "Cancel Bak'al's Grasp"
-                    : (spell?.name ?? '');
+            let spell_name = spell?.name ?? '';
+            if (spell_id === MANA_RESET_SPELL_ID) spell_name = 'Mana Reset';
+            else {
+                for (const [state_name, cancel_id] of STATE_CANCEL_IDS) {
+                    if (spell_id === cancel_id) { spell_name = 'Cancel ' + state_name; break; }
+                }
+            }
             const boost_parts = [];
             for (const btn of toggles) {
                 boost_parts.push(btn.dataset.boostName);
             }
             for (const inp of sliders) {
                 const val = parseFloat(inp.value) || 0;
-                if (val > 0) boost_parts.push(inp.dataset.boostName + ' ' + val);
+                const rm = parseInt(inp.dataset.realMin || '0');
+                if (val > 0 && (rm === 0 || val >= rm)) boost_parts.push(inp.dataset.boostName + ' ' + val);
             }
             for (const inp of calcs) {
                 const val = parseFloat(inp.value) || 0;
@@ -531,13 +567,16 @@ class SolverComboTotalNode extends ComputeNode {
             reset_opt.value = String(MANA_RESET_SPELL_ID);
             reset_opt.textContent = 'Mana Reset';
             sel.appendChild(reset_opt);
-            // Cancel Bak'al's Grasp pseudo-spell: ends corruption state.
-            // Only shown when Bak'al's Grasp is active in the atree.
-            if (this._health_config?.corruption?.active) {
-                const cancel_opt = document.createElement('option');
-                cancel_opt.value = String(CANCEL_BAKALS_SPELL_ID);
-                cancel_opt.textContent = "Cancel Bak'al's Grasp";
-                sel.appendChild(cancel_opt);
+            // Cancel pseudo-spells: data-driven from buff_state effects.
+            for (const bs of (this._health_config?.buff_states ?? [])) {
+                if (bs.deactivate === 'cancel') {
+                    const cancel_id = get_cancel_spell_id(bs.state_name);
+                    if (cancel_id == null) continue;
+                    const opt = document.createElement('option');
+                    opt.value = String(cancel_id);
+                    opt.textContent = 'Cancel ' + bs.state_name;
+                    sel.appendChild(opt);
+                }
             }
 
             if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
@@ -651,10 +690,9 @@ class SolverComboTotalNode extends ComputeNode {
                 }
             }
 
-            // Render toggles first, then calculated fields, then sliders (with max-modifier toggles).
+            // Render toggles first, then sliders (with max-modifier toggles).
             // Filter by relevance to the selected spell.
             const toggles = registry.filter(e => e.type === 'toggle' && is_boost_relevant(e, spell));
-            const calculated = registry.filter(e => e.type === 'calculated' && is_boost_relevant(e, spell));
             const sliders = registry.filter(e => e.type === 'slider' && is_boost_relevant(e, spell));
 
             for (const entry of toggles) {
@@ -681,51 +719,7 @@ class SolverComboTotalNode extends ComputeNode {
                 area.appendChild(btn);
             }
 
-            // Calculated boost fields (e.g. Blood Pact bonus %)
-            for (const entry of calculated) {
-                const wrap = document.createElement('div');
-                wrap.className = 'd-inline-flex align-items-center gap-1 m-1';
-                const lbl = document.createElement('span');
-                lbl.className = 'text-secondary small text-nowrap';
-                lbl.textContent = (entry.name.replace(/^Activate\s+/, '')) + ':';
-                const inp = document.createElement('input');
-                inp.type = 'number';
-                inp.className = 'combo-row-input combo-row-boost-calc';
-                inp.style.cssText = 'width:4.5em; text-align:center;';
-                inp.dataset.boostName = entry.name;
-                inp.dataset.calcKey = entry.calc_key;
-                inp.min = '0';
-                inp.max = String(entry.damage_boost_max ?? 25);
-                inp.step = '0.1';
-                // Restore previous value and auto state
-                const old_val = old_slider.get(entry.name);
-                if (old_val != null) {
-                    inp.value = old_val;
-                    inp.dataset.auto = old_auto.get(entry.name) ?? 'true';
-                } else {
-                    inp.value = '';
-                    inp.dataset.auto = 'true';
-                }
-                inp.placeholder = 'auto';
-                const pct_lbl = document.createElement('span');
-                pct_lbl.className = 'text-secondary small';
-                pct_lbl.textContent = '%';
-                inp.addEventListener('input', () => {
-                    // Manual edit: remove auto flag
-                    if (inp.value.trim() !== '') {
-                        inp.dataset.auto = 'false';
-                    } else {
-                        // Clearing the field restores auto-calculation
-                        inp.dataset.auto = 'true';
-                    }
-                    _update_boost_btn_highlight(row);
-                    if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
-                });
-                wrap.append(lbl, inp, pct_lbl);
-                area.appendChild(wrap);
-            }
-
-            if ((toggles.length > 0 || calculated.length > 0) && sliders.length > 0) {
+            if (toggles.length > 0 && sliders.length > 0) {
                 const sep = document.createElement('hr');
                 sep.className = 'my-1';
                 area.appendChild(sep);
@@ -742,18 +736,32 @@ class SolverComboTotalNode extends ComputeNode {
                 inp.className = 'combo-row-input combo-row-boost-slider';
                 inp.style.cssText = 'width:4em; text-align:center;';
                 inp.dataset.boostName = entry.name;
-                inp.min = '0';
+                const real_min = entry.min ?? 0;
+                const off_pos = real_min > 0 ? real_min - (entry.step ?? 1) : 0;
+                inp.min = String(off_pos);
+                if (real_min > 0) inp.dataset.realMin = String(real_min);
                 const effective_max = Math.min(entry.max ?? 100, BOOST_SLIDER_MAX);
                 inp.max = String(effective_max);
-                inp.step = String(entry.step ?? 1);
-                inp.value = old_slider.get(entry.name) ?? '0';
-                // Corrupted slider: auto-fill from simulation in spell-to-spell mode
-                if (entry.name === 'Corrupted') {
+                // Auto-fill sliders: simulation-driven sliders (Corrupted, Blood Pact, etc.)
+                const _is_auto_bp = this._health_config?.damage_boost?.slider_name === entry.name;
+                const _is_auto_state = (this._health_config?.buff_states ?? []).some(bs => bs.slider_name === entry.name);
+                const _is_auto_slider = _is_auto_bp || _is_auto_state;
+                if (_is_auto_bp) {
+                    // Blood Pact: percentage display with decimal precision
+                    inp.step = '0.1';
+                    inp.style.cssText = 'width:4.5em; text-align:center;';
+                    inp.placeholder = 'auto';
+                    inp.value = old_slider.get(entry.name) ?? '';
+                } else {
+                    inp.step = String(entry.step ?? 1);
+                    inp.value = old_slider.get(entry.name) ?? String(off_pos);
+                }
+                if (_is_auto_slider) {
                     inp.dataset.auto = old_auto.get(entry.name) ?? 'true';
                 }
                 const max_lbl = document.createElement('span');
                 max_lbl.className = 'text-secondary small';
-                max_lbl.textContent = '/' + effective_max;
+                max_lbl.textContent = _is_auto_bp ? '' : '/' + effective_max;
                 _wire_encoding_cap(inp, 0, BOOST_SLIDER_MAX);
                 inp.addEventListener('input', () => {
                     // Mark manual edit for auto-fill sliders
@@ -769,7 +777,7 @@ class SolverComboTotalNode extends ComputeNode {
             _update_boost_btn_highlight(row);
             area.dataset.renderedSpellId = cur_spell_id_str;
             const boost_btn_el = row.querySelector('.combo-boost-menu-btn');
-            const any_visible = toggles.length > 0 || calculated.length > 0 || sliders.length > 0;
+            const any_visible = toggles.length > 0 || sliders.length > 0;
             if (boost_btn_el) boost_btn_el.disabled = (!any_visible && !dps_info);
         }
     }

@@ -14,7 +14,7 @@
 const { Worker } = require('worker_threads');
 const {
     createSandbox, loadGameData, decodeSolverUrl, decodeActiveNodes,
-    buildAtreeMerged, collectSpells, collectRawStats,
+    buildAtreeMerged, collectSpells, collectRawStats, extractAtreeInteractiveDefaults,
     TestRunner, loadSnapshot, checkSnapshotFreshness, extractLockedItemStats,
     REPO_ROOT,
 } = require('./harness');
@@ -39,6 +39,13 @@ vm.runInContext(`
     };
 `, ctx);
 
+// Load combo/boost.js, combo/codec.js, and combo/simulate.js for boost registry,
+// name resolution, and health config extraction.
+for (const relPath of ['js/solver/combo/boost.js', 'js/solver/combo/codec.js', 'js/solver/combo/simulate.js']) {
+    const absPath = path.join(REPO_ROOT, relPath);
+    vm.runInContext(fs.readFileSync(absPath, 'utf8'), ctx, { filename: absPath });
+}
+
 // Load search.js for the pool-building / weight / prune / priority pipeline.
 const searchPath = path.join(REPO_ROOT, 'js', 'solver', 'engine', 'search.js');
 vm.runInContext(fs.readFileSync(searchPath, 'utf8'), ctx, { filename: searchPath });
@@ -52,6 +59,11 @@ vm.runInContext(`
     globalThis._apply_roll_mode_to_item = _apply_roll_mode_to_item;
     globalThis._partition_work = _partition_work;
     globalThis._TOP_N = typeof _TOP_N !== 'undefined' ? _TOP_N : 15;
+    globalThis.build_combo_boost_registry = typeof build_combo_boost_registry !== 'undefined' ? build_combo_boost_registry : null;
+    globalThis.node_ref_to_boost_name = typeof node_ref_to_boost_name !== 'undefined' ? node_ref_to_boost_name : null;
+    globalThis.node_id_to_spell_value = typeof node_id_to_spell_value !== 'undefined' ? node_id_to_spell_value : null;
+    globalThis.extract_health_config = typeof extract_health_config !== 'undefined' ? extract_health_config : null;
+    globalThis.compute_dps_spell_hits_info = typeof compute_dps_spell_hits_info !== 'undefined' ? compute_dps_spell_hits_info : null;
 `, ctx);
 
 // ── Slot constants ───────────────────────────────────────────────────────────
@@ -60,14 +72,43 @@ const SLOT_NAMES = ['helmet', 'chestplate', 'leggings', 'boots', 'ring1', 'ring2
 const NONE_IDX = { helmet: 0, chestplate: 1, leggings: 2, boots: 3, ring1: 4, ring2: 5, bracelet: 6, necklace: 7 };
 const WORKER_THREAD_PATH = path.join(__dirname, 'worker_thread.js');
 
+// ── Powder parsing helper ────────────────────────────────────────────────────
+
+/**
+ * Convert decoded powder data to an array of integer powder IDs.
+ * Handles both formats:
+ *   - Modern (array of ints): already correct, return as-is
+ *   - Legacy (string like "f7f7f7"): parse 2-char codes via powderIDs map
+ */
+function parsePowderData(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw !== 'string' || raw === '') return [];
+    const ids = [];
+    for (let i = 0; i + 1 < raw.length; i += 2) {
+        const code = raw.substring(i, i + 2);
+        const pid = ctx.powderIDs.get(code);
+        if (pid !== undefined) ids.push(pid);
+    }
+    return ids;
+}
+
 // ── Build solver snapshot from decoded URL ───────────────────────────────────
 
 function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
+    const sp = decoded.solverParams || {};
+
+    // ── 1. Weapon with powders ──────────────────────────────────────────────
+    // Apply roll mode to weapon (expandItem only creates minRolls/maxRolls;
+    // _apply_roll_mode_to_item selects actual values for the top-level statMap).
     const weaponItem = ctx.itemMap.get(decoded.equipment[8]);
-    const weaponSM = ctx.expandItem(weaponItem);
-    weaponSM.set('powders', []);
+    const weaponIt = ctx._apply_roll_mode_to_item(new ctx.Item(weaponItem));
+    const weaponSM = weaponIt.statMap;
+    // Apply weapon powders from decoded URL (powderables map: slot 8 → index 4)
+    const weaponPowders = parsePowderData(decoded.powders && decoded.powders[4]);
+    weaponSM.set('powders', weaponPowders);
     ctx.apply_weapon_powders(weaponSM);
 
+    // ── 2. Tomes ────────────────────────────────────────────────────────────
     const tomeNames = decoded.tomes || [];
     const tomes = [];
     for (let i = 0; i < 7; i++) {
@@ -76,45 +117,216 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
         tomes.push({ statMap: ctx.expandItem(tome) });
     }
 
-    // Guild tome (index 2)
-    const guildTomeSM = tomes[2].statMap;
+    // ── 3. SP budget with guild tome handling (mirrors search.js:210-224) ───
+    // Note: expandItem() does not set the 'NONE' flag — that flag is set by
+    // the graph node system at runtime.  Detect NONE guild tomes by checking
+    // whether a real tome name was decoded from the URL.
+    const guildTomeName = tomeNames[2];
+    const has_real_guild_tome = !!(guildTomeName && ctx.tomeMap.has(guildTomeName));
+    let sp_budget = ctx.levelToSkillPoints(decoded.level);
+    if (!has_real_guild_tome) {
+        const gtome_mode = sp.gtome ?? 0;
+        if (gtome_mode === 1) {
+            // Standard: +4 freely assignable SP
+            sp_budget = ctx.levelToSkillPoints(decoded.level) + 4;
+        } else if (gtome_mode === 2) {
+            // Rainbow: fixed [1,1,1,1,1] synthetic tome
+            const synth = new Map();
+            synth.set('skillpoints', [1, 1, 1, 1, 1]);
+            synth.set('reqs', [0, 0, 0, 0, 0]);
+            tomes[2] = { statMap: synth };
+        }
+    }
 
-    // SP budget
-    const sp_budget = ctx.SP_TOTAL_CAP;
-
-    // Atree raw stats
+    // ── 4. Atree raw stats ──────────────────────────────────────────────────
     const atreeRaw = new Map();
     for (const [stat, value] of rawStats) ctx.merge_stat(atreeRaw, stat, value);
 
-    // Button/slider states
-    const buttonStates = snap.button_states ? new Map(Object.entries(snap.button_states)) : new Map();
-    const sliderStates = snap.slider_states ? new Map(Object.entries(snap.slider_states)) : new Map();
+    // Button/slider states — use snapshot overrides if present, else atree defaults.
+    // After combo parsing, we infer slider/button states from combo boost tokens
+    // (the URL doesn't encode atree interactive state, but the combo rows reflect it).
+    const atreeDefaults = extractAtreeInteractiveDefaults(atreeMerged);
+    const buttonStates = snap.button_states
+        ? new Map(Object.entries(snap.button_states))
+        : new Map(atreeDefaults.button_states);
+    const sliderStates = snap.slider_states
+        ? new Map(Object.entries(snap.slider_states))
+        : new Map(atreeDefaults.slider_states);
 
-    // Atree scaling
-    const [, scaleStats] = ctx.atree_compute_scaling(atreeMerged, new Map(), buttonStates, sliderStates);
+    // Static boosts — in the real app these come from compute_boosts() (potion
+    // toggle buttons on the page).  No potions are active for headless tests,
+    // so static_boosts is empty.
     const staticBoosts = new Map();
-    for (const [stat, value] of scaleStats) ctx.merge_stat(staticBoosts, stat, value);
 
-    // Parse combo from decoded solver params
-    const sp = decoded.solverParams || {};
+    // ── 5. Augmented spell map with powder specials (mirrors search.js:111-118)
+    const augSpellMap = new Map(spellMap);
+    for (const ps_idx of [0, 1, 3]) {
+        const tier = ctx.get_element_powder_tier(weaponPowders, ps_idx);
+        if (tier > 0) augSpellMap.set(-1000 - ps_idx, ctx.make_powder_special_spell(ps_idx, tier));
+    }
+    ctx.apply_deferred_powder_special_effects(augSpellMap, spellMap);
+
+    // ── 6. Boost registry with weapon + armor powders ───────────────────────
+    // Create minimal mock build so build_combo_boost_registry includes powder
+    // buff entries (weapon buffs + armor sliders).
+    const mockEquip = [];
+    for (let i = 0; i < 4; i++) {
+        const sm = new Map();
+        sm.set('powders', parsePowderData(decoded.powders && decoded.powders[i]));
+        mockEquip.push({ statMap: sm });
+    }
+    const mockBuild = { weapon: { statMap: weaponSM }, equipment: mockEquip };
+    const boostRegistry = ctx.build_combo_boost_registry
+        ? ctx.build_combo_boost_registry(atreeMerged, mockBuild)
+        : [];
+
+    // ── 7. Health config / Blood Pact ───────────────────────────────────────
+    const health_config = ctx.extract_health_config
+        ? ctx.extract_health_config(atreeMerged)
+        : null;
+    const hp_casting = health_config?.hp_casting ?? false;
+
+    // ── 8. Parse combo rows (powder specials + pseudo-spells) ───────────────
     const parsedCombo = [];
     for (const row of (sp.combo_rows || [])) {
-        const spell = spellMap.get(row.spell_node_id);
+        const node_id = row.spell_node_id;
+
+        // Pseudo-spell: Mana Reset
+        if (node_id === ctx.MANA_RESET_NODE_ID) {
+            parsedCombo.push({ pseudo: 'mana_reset', mana_excl: row.mana_excl });
+            continue;
+        }
+
+        // Pseudo-spell: Cancel state (e.g. Cancel Corrupted)
+        let cancel_pseudo = null;
+        if (ctx.STATE_CANCEL_NODE_IDS) {
+            for (const [state_name, cancel_node_id] of ctx.STATE_CANCEL_NODE_IDS) {
+                if (node_id === cancel_node_id) {
+                    cancel_pseudo = 'cancel_state:' + state_name;
+                    break;
+                }
+            }
+        }
+        if (cancel_pseudo) {
+            parsedCombo.push({ pseudo: cancel_pseudo, mana_excl: row.mana_excl });
+            continue;
+        }
+
+        // Regular spell or powder special: resolve to spell map key
+        const spell_value_str = ctx.node_id_to_spell_value
+            ? ctx.node_id_to_spell_value(node_id)
+            : String(node_id);
+        const spell_key = parseInt(spell_value_str);
+        const spell = augSpellMap.get(spell_key);
         if (!spell) continue;
-        parsedCombo.push({
+
+        const entry = {
             qty: row.qty,
             spell,
             boost_tokens: (row.boosts || []).map(b => ({
-                name: `node_${b.node_id}_${b.effect_pos}`,
+                name: ctx.node_ref_to_boost_name
+                    ? ctx.node_ref_to_boost_name(b.node_id, b.effect_pos, atreeMerged)
+                    : `node_${b.node_id}_${b.effect_pos}`,
                 value: b.has_value ? b.value : 1,
                 is_pct: b.has_value,
             })),
             mana_excl: row.mana_excl,
             dmg_excl: row.dmg_excl,
-        });
+        };
+
+        // DPS spell info
+        if (ctx.compute_dps_spell_hits_info) {
+            const dps_info = ctx.compute_dps_spell_hits_info(spell);
+            if (dps_info) {
+                entry.dps_per_hit_name = dps_info.per_hit_name;
+                entry.dps_hits = row.has_hits ? row.hits : dps_info.max_hits;
+            }
+        }
+
+        parsedCombo.push(entry);
     }
 
-    // Restrictions
+    // ── 8b. Atree interactive state ─────────────────────────────────────────
+    // The URL hash doesn't encode atree interactive state (button/slider).
+    // We leave button_states and slider_states at defaults.  Toggle stat
+    // bonuses (e.g. spPctXFinal from "Activate Dimensional Tear") are
+    // applied per-row by combo boost tokens — NOT globally — to avoid the
+    // double-counting bug documented in TOGGLE_DOUBLE_COUNT_BUG.md.
+    // Snapshots can override via explicit button_states / slider_states fields.
+
+    // ── 9. Recast penalties (mirrors search.js:245-297) ─────────────────────
+    {
+        const PENALTY = ctx.RECAST_MANA_PENALTY ?? 5;
+        let _rc_last_base = null, _rc_consec = 0, _rc_penalty = 0;
+        for (const row of parsedCombo) {
+            if (row.pseudo) {
+                if (row.pseudo === 'mana_reset' && !row.mana_excl) {
+                    _rc_last_base = null; _rc_consec = 0; _rc_penalty = 0;
+                }
+                continue;
+            }
+            const { qty, spell, mana_excl } = row;
+            row.recast_penalty_per_cast = 0;
+            if (!spell || qty <= 0 || mana_excl || spell.cost == null) continue;
+            const rc_base = spell.mana_derived_from ?? spell.base_spell;
+            if (rc_base === 0) continue;
+
+            let row_penalty = 0;
+            let is_switch = false;
+            if (rc_base !== _rc_last_base) {
+                is_switch = true;
+                if (_rc_consec <= 1) { _rc_penalty = 0; } else { _rc_penalty += 1; }
+                _rc_consec = 0;
+                _rc_last_base = rc_base;
+            }
+            if (is_switch && _rc_penalty > 0) {
+                row_penalty = _rc_penalty * PENALTY;
+                _rc_penalty = 0;
+                _rc_consec = 1;
+                const remaining = qty - 1;
+                if (remaining > 0) {
+                    const free_remaining = Math.min(remaining, 1);
+                    const penalty_remaining = remaining - free_remaining;
+                    if (penalty_remaining > 0) {
+                        row_penalty += PENALTY * penalty_remaining * (penalty_remaining + 1) / 2;
+                        _rc_penalty = penalty_remaining;
+                    }
+                    _rc_consec += remaining;
+                }
+            } else if (_rc_penalty > 0) {
+                row_penalty = PENALTY * (qty * _rc_penalty + qty * (qty + 1) / 2);
+                _rc_penalty += qty;
+                _rc_consec += qty;
+            } else {
+                const free_casts = Math.max(0, Math.min(qty, 2 - _rc_consec));
+                const penalty_casts = qty - free_casts;
+                if (penalty_casts > 0) {
+                    row_penalty = PENALTY * penalty_casts * (penalty_casts + 1) / 2;
+                    _rc_penalty = penalty_casts;
+                }
+                _rc_consec += qty;
+            }
+            row.recast_penalty_per_cast = qty > 0 ? row_penalty / qty : 0;
+        }
+    }
+
+    // ── 10. Auto-slider stripping (mirrors search.js:300-315) ───────────────
+    const auto_slider_names_set = new Set();
+    if (hp_casting && health_config) {
+        if (health_config.damage_boost?.slider_name)
+            auto_slider_names_set.add(health_config.damage_boost.slider_name);
+        for (const bs of (health_config.buff_states || []))
+            if (bs.slider_name) auto_slider_names_set.add(bs.slider_name);
+    }
+    if (auto_slider_names_set.size > 0) {
+        for (const row of parsedCombo) {
+            if (row.boost_tokens) {
+                row.boost_tokens = row.boost_tokens.filter(t => !auto_slider_names_set.has(t.name));
+            }
+        }
+    }
+
+    // ── 11. Restrictions ────────────────────────────────────────────────────
     const rStats = vm.runInContext('RESTRICTION_STATS', ctx);
     const restrictions = {
         stat_thresholds: (sp.restrictions || []).map(r => ({
@@ -124,11 +336,17 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
         })),
     };
 
-    // Spell base costs
+    // ── 12. Spell base costs ────────────────────────────────────────────────
     const spellBaseCosts = {};
-    for (const [id, spell] of spellMap) {
-        if (id >= 1 && id <= 4 && spell.cost != null) {
+    for (const [id, spell] of augSpellMap) {
+        if (typeof id === 'number' && id >= 1 && id <= 4 && spell.cost != null) {
             spellBaseCosts[id] = spell.cost;
+        }
+    }
+    // Prefer costs from parsed combo rows (user's active spells)
+    for (const row of parsedCombo) {
+        if (row.spell?.base_spell >= 1 && row.spell?.base_spell <= 4 && row.spell.cost != null) {
+            spellBaseCosts[row.spell.base_spell] = row.spell.cost;
         }
     }
 
@@ -137,7 +355,7 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
         weapon_sm: weaponSM,
         level: decoded.level,
         tomes,
-        guild_tome_item: { statMap: guildTomeSM },
+        guild_tome_item: { statMap: tomes[2].statMap },
         sp_budget,
         atree_mgd: atreeMerged,
         atree_raw: atreeRaw,
@@ -146,14 +364,14 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
         radiance_boost: 1.0,
         static_boosts: staticBoosts,
         parsed_combo: parsedCombo,
-        boost_registry: [],
+        boost_registry: boostRegistry,
         scoring_target: snap.scoring_target || 'combo_damage',
         combo_time: sp.ctime || 0,
         allow_downtime: sp.dtime || false,
         flat_mana: sp.flat_mana || 0,
-        hp_casting: false,
-        health_config: null,
-        corruption_slider_name: null,
+        hp_casting,
+        health_config,
+        auto_slider_names: [...auto_slider_names_set],
         spell_base_costs: spellBaseCosts,
         restrictions,
         // Pool building restrictions
@@ -283,6 +501,55 @@ function runSolverWorkers(initMsgBase, ringPoolSer, partitions, numWorkers, time
     });
 }
 
+// ── Seed build helper ────────────────────────────────────────────────────────
+
+/**
+ * Build a statMap from the URL-hash items to extract activeMajorIDs.
+ * This mirrors the real solver which uses the pre-search UI build state
+ * for the atree merge (major ID abilities depend on equipped items).
+ */
+function _buildSeedStatMap(decoded) {
+    const sp = decoded.solverParams || {};
+    if (sp.roll_groups) {
+        vm.runInContext(`current_roll_mode = ${JSON.stringify(sp.roll_groups)}`, ctx);
+    }
+
+    // Build equipment statMaps
+    const equipSMs = [];
+    for (let i = 0; i < 8; i++) {
+        const name = decoded.equipment[i];
+        const item_obj = (name && ctx.itemMap.has(name)) ? ctx.itemMap.get(name) : ctx.none_items[NONE_IDX[SLOT_NAMES[i]]];
+        const it = ctx._apply_roll_mode_to_item(new ctx.Item(item_obj));
+        equipSMs.push(it.statMap);
+    }
+
+    // Build weapon statMap with powders (roll mode + powders)
+    const weaponIt = ctx._apply_roll_mode_to_item(new ctx.Item(ctx.itemMap.get(decoded.equipment[8])));
+    const weaponSM = weaponIt.statMap;
+    const weaponPowders = parsePowderData(decoded.powders && decoded.powders[4]);
+    weaponSM.set('powders', weaponPowders);
+    ctx.apply_weapon_powders(weaponSM);
+
+    // Build tome statMaps
+    const tomeSMs = [];
+    for (let i = 0; i < 7; i++) {
+        const name = (decoded.tomes || [])[i];
+        const tome = (name && ctx.tomeMap.has(name)) ? ctx.tomeMap.get(name) : ctx.none_tomes[i];
+        tomeSMs.push(ctx.expandItem(tome));
+    }
+
+    // Assemble via worker-shim path to get activeMajorIDs from finalizeStatmap
+    const locked_sms = [weaponSM, ...tomeSMs];
+    const running = ctx._init_running_statmap(decoded.level, locked_sms);
+    for (const sm of equipSMs) ctx._incr_add_item(running, sm);
+    const activeSetCounts = ctx.calculate_skillpoints(
+        [...equipSMs, tomeSMs[2]], weaponSM, ctx.levelToSkillPoints(decoded.level))?.[3];
+    const build_sm = ctx._finalize_leaf_statmap(
+        running, weaponSM, activeSetCounts || new Map(), ctx.sets,
+        [...equipSMs, ...tomeSMs, weaponSM], null, null);
+    return build_sm;
+}
+
 // ── Test runner ──────────────────────────────────────────────────────────────
 
 async function runSolverTest(snapName) {
@@ -293,12 +560,13 @@ async function runSolverTest(snapName) {
     t.assert(decoded.playerClass !== null, `${snapName}: decoded class = ${decoded.playerClass}`);
 
     // 2. Build atree + spells
+    // Build a seed statMap from the URL-hash items so activeMajorIDs are populated
+    // (mirrors the real solver which uses atree_merge.value from the pre-search UI state).
     const activeNodes = decodeActiveNodes(ctx, decoded.playerClass, decoded.atree_data);
     t.assert(activeNodes.length > 0, `${snapName}: ${activeNodes.length} atree nodes`);
 
-    const roughSM = new Map();
-    roughSM.set('activeMajorIDs', []);
-    const atreeMerged = buildAtreeMerged(ctx, decoded.playerClass, activeNodes, roughSM, decoded.aspects);
+    const seedSM = _buildSeedStatMap(decoded);
+    const atreeMerged = buildAtreeMerged(ctx, decoded.playerClass, activeNodes, seedSM, decoded.aspects);
     const rawStats = collectRawStats(ctx, atreeMerged);
     const spellMap = collectSpells(ctx, atreeMerged);
 
@@ -307,7 +575,9 @@ async function runSolverTest(snapName) {
 
     // 4. Set roll mode in sandbox for pool building
     const sp = decoded.solverParams || {};
-    if (sp.roll_groups) ctx.current_roll_mode = sp.roll_groups;
+    if (sp.roll_groups) {
+        vm.runInContext(`current_roll_mode = ${JSON.stringify(sp.roll_groups)}`, ctx);
+    }
 
     // 5. Build pools using the real _build_item_pools
     const buildDir = {};
@@ -338,6 +608,13 @@ async function runSolverTest(snapName) {
             const name = decoded.equipment[i];
             const item = (name && ctx.itemMap.has(name)) ? ctx.itemMap.get(name) : ctx.none_items[NONE_IDX[slot]];
             const it = ctx._apply_roll_mode_to_item(new ctx.Item(item));
+            // Apply armor powders from decoded URL (powderables indices 0-3 = armor slots 0-3)
+            if (i < 4) {
+                const armorPowders = parsePowderData(decoded.powders && decoded.powders[i]);
+                if (armorPowders.length > 0) {
+                    it.statMap.set('powders', armorPowders);
+                }
+            }
             locked[slot] = { statMap: it.statMap, _illegalSet: null, _illegalSetName: null };
         }
     }
@@ -407,7 +684,7 @@ async function runSolverTest(snapName) {
         flat_mana: solverSnap.flat_mana,
         hp_casting: solverSnap.hp_casting,
         health_config: solverSnap.health_config,
-        corruption_slider_name: solverSnap.corruption_slider_name,
+        auto_slider_names: solverSnap.auto_slider_names,
         spell_base_costs: solverSnap.spell_base_costs,
         restrictions: solverSnap.restrictions,
         sets_data: [...ctx.sets],

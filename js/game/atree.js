@@ -42,7 +42,11 @@ replace_spell: {
 
 add_spell_prop: {
     type:           "add_spell_prop"
-    base_spell:     int             // spell identifier
+    base_spell:     int | "powder_special"
+                                    // spell identifier, OR the string "powder_special" to target
+                                    //     powder-special spells (which are synthetic / generated later).
+                                    //     Effects targeting "powder_special" are deferred and attached to
+                                    //     ret_spells._powder_special_effects for later application.
     target_part:    Optional[str]   // Part of the spell to modify. Can be not present/empty for ex. cost modifier.
                                     //     If target part does not exist, a new part is created.
     behavior:       Optional[str]   // One of: "merge", "modify", "overwrite". default: merge
@@ -59,6 +63,9 @@ add_spell_prop: {
     display:        Optional[str]   // Optional change to the displayed entry. Replaces old
     hide:           Optional[str]   // Modify this part to be hidden.
     ignored_mults:  List[str]       // Damage multiplier effects to ignore.
+    <extra numeric>: Optional[float] // Any additional numeric key not in _ASPELL_META (e.g. hp_cost,
+                                    //     corruption_rate) is additively merged onto the spell object.
+                                    //     See _ASPELL_META in shared_constants.js for the set of reserved keys.
 }
 
 convert_spell_conv: {
@@ -97,6 +104,8 @@ stat_scaling: {
   multiplicative: bool                      // Actually whether or not the stat scaling is exponential.
                                             //     The slider scaling value is interpreted as a "multiplier" (100+x)/100,
                                             //     which is raised to the power of the slider value.
+  slider_min: Optional[int]                 // Minimum slider value (default: 0). When > 0, an "off" detent
+                                            //     is added one step below min, and the slider reads as 0 at that detent.
   slider_max: Optional[int]                 // affected by behavior
   slider_default: Optional[int]             // affected by behavior
   inputs: Optional[list[scaling_target]]    // List of things to scale. Omit this if using slider
@@ -471,12 +480,22 @@ const atree_merge = new (class extends ComputeNode {
             abils_merged.set(abil.id, tmp_abil);
         }
 
+        // Track redirects for chained base_abil merges (e.g. Mindless Slaughter
+        // → Massacre → Warrior Melee).  When an ability with base_abil merges into
+        // a target, record its own id so later abilities that reference it can
+        // follow the chain.
+        const merge_redirect = new Map();
+
         function merge_abil(abil) {
             if ('base_abil' in abil) {
-                if (abils_merged.has(abil.base_abil)) {
+                // Follow redirect chain to find the actual merged target.
+                let target_id = abil.base_abil;
+                while (!abils_merged.has(target_id) && merge_redirect.has(target_id)) {
+                    target_id = merge_redirect.get(target_id);
+                }
+                if (abils_merged.has(target_id)) {
                     // Merge abilities.
-                    // TODO: What if there is more than one base abil?
-                    let base_abil = abils_merged.get(abil.base_abil);
+                    let base_abil = abils_merged.get(target_id);
                     if (abil.desc) {
                         if (Array.isArray(abil.desc)) { base_abil.desc = base_abil.desc.concat(abil.desc); }
                         else { base_abil.desc.push(abil.desc); }
@@ -489,7 +508,10 @@ const atree_merge = new (class extends ComputeNode {
                         }
                         else { base_abil.properties[propname] = abil.properties[propname]; }
                     }
-                } 
+                    if (abil.id != null) {
+                        merge_redirect.set(abil.id, target_id);
+                    }
+                }
                 // do nothing otherwise.
             }
             else {
@@ -625,6 +647,11 @@ const atree_make_interactives = new (class extends ComputeNode {
             for (const [effect, abil_id, ability] of to_process) {
                 if (effect['type'] === "stat_scaling" && effect['slider'] === true) {
                     const { slider_name, behavior = 'merge', slider_max = 0, slider_step, slider_default = 0, scaling = [0], max = 0} = effect;
+                    const slider_min = effect.slider_min ?? 0;
+                    // Off-state: when slider_min > 0, add an "off" detent one step below min
+                    const has_off = slider_min > 0;
+                    const effective_min = has_off ? slider_min - (slider_step ?? 1) : slider_min;
+                    const effective_default = has_off ? effective_min : slider_default;
                     if (slider_map.has(slider_name)) {
                         const slider_info = slider_map.get(slider_name);
                         if (behavior === 'overwrite') {
@@ -634,7 +661,7 @@ const atree_make_interactives = new (class extends ComputeNode {
                                 slider_info.default_val = slider_default;
                             if('scaling' in effect){
                                 for(let j = 0; j < slider_info.abil.effects.length; ++j){
-                                    if('scaling' in slider_info.abil.effects[j] && slider_info.abil.effects[j] !== effect &&slider_info.abil.effects[j].output.name === effect.output.name){ 
+                                    if('scaling' in slider_info.abil.effects[j] && slider_info.abil.effects[j] !== effect &&slider_info.abil.effects[j].output.name === effect.output.name){
                                         slider_info.abil.effects[j].scaling = [0];
                                     }
                                 }
@@ -649,9 +676,11 @@ const atree_make_interactives = new (class extends ComputeNode {
                     else if (behavior === 'merge') {
                         slider_map.set(slider_name, {
                             label_name: slider_name+' ('+ability.display_name+')',
+                            min: effective_min,
                             max: slider_max,
-                            default_val: slider_default,
+                            default_val: effective_default,
                             step: slider_step,
+                            real_min: slider_min,
                             id: "ability-slider"+ability.id,
                             //color: effect['slider_color'] TODO: add colors to json
                             abil: ability
@@ -721,7 +750,9 @@ const atree_scaling = new (class extends ComputeNode {
         }
         const slider_states = new Map();
         for (const [name, info] of slider_map) {
-            slider_states.set(name, parseInt(info.slider.value));
+            const raw = parseInt(info.slider.value);
+            const rm = info.real_min ?? 0;
+            slider_states.set(name, (rm > 0 && raw < rm) ? 0 : raw);
         }
 
         return atree_compute_scaling(atree_merged, pre_scale_stats, button_states, slider_states);
@@ -833,6 +864,7 @@ const atree_collect_spells = new (class extends ComputeNode {
         const atree_merged = input_map.get('atree-merged');
         
         let ret_spells = new Map();
+        const pending_powder_special = [];
         for (const [abil_id, abil] of atree_merged.entries()) {
             // TODO: Possibly, make a better way for detecting "spell abilities"?
             for (const effect of abil.effects) {
@@ -868,6 +900,12 @@ const atree_collect_spells = new (class extends ComputeNode {
                     continue;
                 case 'add_spell_prop': {
                     const { base_spell, target_part = null, cost = 0, behavior = 'merge'} = effect;
+                    // Powder special targeting: PS spells are synthetic (generated
+                    // later), so effects targeting them must be deferred.
+                    if (base_spell === 'powder_special') {
+                        pending_powder_special.push(effect);
+                        continue;
+                    }
                     if (!ret_spells.has(base_spell)) {
                         continue;
                     }
@@ -879,6 +917,14 @@ const atree_collect_spells = new (class extends ComputeNode {
                     // target_part doesn't exist for spell cost modification abilities
                     // except when it does... in which case it should apply exactly once.
                     if ('cost' in ret_spell) { ret_spell.cost += cost; }
+
+                    // Generic spell-level numeric fields (hp_cost, corruption_rate, etc.)
+                    // Any numeric key not in _ASPELL_META is merged onto the spell object.
+                    for (const key in effect) {
+                        if (_ASPELL_META.has(key)) continue;
+                        if (typeof effect[key] !== 'number') continue;
+                        ret_spell[key] = (ret_spell[key] ?? 0) + effect[key];
+                    }
 
                     // NOTE: see above comment for the weird placement of this code block.
                     if (target_part === null) { continue; }
@@ -976,6 +1022,9 @@ const atree_collect_spells = new (class extends ComputeNode {
             }
         }
 
+        // Attach deferred powder special effects (readable via ret_spells._powder_special_effects).
+        // Setting a plain property on a Map won't interfere with Map iteration.
+        ret_spells._powder_special_effects = pending_powder_special;
         return ret_spells;
     }
 })().link_to(atree_scaling_tree, 'atree-merged');

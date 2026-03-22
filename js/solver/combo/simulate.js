@@ -11,57 +11,87 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Extract health-related ability config from merged atree by scanning properties.
- * Detection is property-based (no hardcoded ability IDs):
- *   - health_cost        → HP casting (Blood Pact)
- *   - suppress_healing   → corruption system (Bak'al's Grasp)
- *   - corruption_exit_heal → heal on corruption exit (Exhilarate)
+ * Extract health-related ability config from merged atree.
+ * Reads from the new data format: buff_state effects, trigger effects,
+ * stat_scaling sliders with slider_min/slider_max.
  */
 function extract_health_config(atree_mg) {
     const config = {
         hp_casting: false,
         health_cost: 0,
-        damage_boost_min: 0,
-        damage_boost_max: 0,
-        corruption: { active: false, suppress_healing: false },
-        corruption_exit_heal: 0,
+        damage_boost: null,     // { min, max, slider_name }
+        buff_states: [],        // [{ state_name, activate_on, deactivate, slider_name,
+                                //    tracking, suppress_healing, spell_rate_field, spell_flat_field }]
+        exit_triggers: [],      // [{ on, state, effect, value, cooldown?, slider_name? }]
     };
     if (!atree_mg) return config;
 
     for (const [, abil] of atree_mg) {
         const props = abil.properties;
-        if (!props) continue;
 
-        // HP casting (Blood Pact): inferred from health_cost property existing
-        if (props.health_cost != null) {
+        // HP casting (Blood Pact): inferred from health_cost property
+        if (props?.health_cost != null) {
             config.hp_casting = true;
             let health_cost = props.health_cost;
             // Apply prop modifications merged into effects (e.g. Haemorrhage's -0.115)
             for (const effect of abil.effects) {
                 if (effect.type === 'raw_stat' && !effect.toggle) {
                     for (const bonus of (effect.bonuses ?? [])) {
-                        if (bonus.type === 'prop' && bonus.name === 'health_cost') {
+                        if (bonus.type === 'prop' && bonus.name === 'health_cost')
                             health_cost += bonus.value;
-                        }
                     }
                 }
             }
             config.health_cost = health_cost;
-            config.damage_boost_min = props.damage_boost_min ?? 0;
-            config.damage_boost_max = props.damage_boost ?? 0;
+            // Find the Blood Pact slider for damage boost auto-fill
+            for (const effect of abil.effects) {
+                if (effect.type === 'stat_scaling' && effect.slider && effect.slider_name) {
+                    config.damage_boost = {
+                        min: effect.slider_min ?? 0,
+                        max: effect.slider_max ?? 0,
+                        slider_name: effect.slider_name,
+                    };
+                    break;
+                }
+            }
         }
 
-        // Corruption system (Bak'al's Grasp): inferred from suppress_healing
-        if (props.suppress_healing) {
-            config.corruption.active = true;
-            config.corruption.suppress_healing = true;
+        // Buff states: standalone buff_state effects
+        for (const effect of abil.effects) {
+            if (effect.type === 'buff_state') {
+                config.buff_states.push({
+                    state_name: effect.state_name,
+                    activate_on: effect.activate_on,
+                    deactivate: effect.deactivate,
+                    slider_name: effect.state_name,  // links to stat_scaling slider by name
+                    tracking: effect.tracking,
+                    suppress_healing: effect.suppress_healing ?? false,
+                    spell_rate_field: effect.spell_rate_field ?? null,
+                    spell_flat_field: effect.spell_flat_field ?? null,
+                });
+            }
         }
 
-        // Corruption exit healing (Exhilarate): additive
-        if (props.corruption_exit_heal != null) {
-            config.corruption_exit_heal += props.corruption_exit_heal;
+        // Triggers: standalone trigger effects
+        for (const effect of abil.effects) {
+            if (effect.type === 'trigger') {
+                config.exit_triggers.push(effect);
+            }
         }
     }
+
+    // Broaden hp_casting: also true if any add_spell_prop injects hp_cost
+    if (!config.hp_casting) {
+        outer: for (const [, abil] of atree_mg) {
+            for (const effect of abil.effects) {
+                if (effect.type === 'add_spell_prop' && (effect.hp_cost ?? 0) > 0) {
+                    config.hp_casting = true;
+                    break outer;
+                }
+            }
+        }
+    }
+
     return config;
 }
 
@@ -88,8 +118,13 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
             ?.classList.contains('mana-excluded') ?? false;
 
         let pseudo = null;
-        if (spell_id === CANCEL_BAKALS_SPELL_ID) pseudo = 'cancel_bakals';
-        else if (spell_id === MANA_RESET_SPELL_ID) pseudo = 'mana_reset';
+        if (spell_id === MANA_RESET_SPELL_ID) pseudo = 'mana_reset';
+        else {
+            // Check if this spell_id is a cancel pseudo-spell for any buff state
+            for (const [state_name, cancel_id] of STATE_CANCEL_IDS) {
+                if (spell_id === cancel_id) { pseudo = 'cancel_state:' + state_name; break; }
+            }
+        }
 
         // Mana Reset resets recast counter
         if (pseudo === 'mana_reset' && !mana_excl) {
@@ -163,18 +198,26 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
         if (!dom_row) continue;
         const res = result.row_results[i];
 
-        // Blood Pact calc field
-        const bp_inp = dom_row.querySelector('.combo-row-boost-calc[data-calc-key="blood_pact"]');
-        if (bp_inp && bp_inp.dataset.auto === 'true') {
-            bp_inp.value = res.blood_pact_bonus > 0 ? (Math.round(res.blood_pact_bonus * 10) / 10) : '';
+        // Generic: auto-fill state sliders (Corrupted, etc.)
+        for (const bs of (health_config.buff_states ?? [])) {
+            const inp = dom_row.querySelector(`.combo-row-boost-slider[data-boost-name="${bs.slider_name}"]`);
+            if (inp) {
+                if (inp.dataset.auto === undefined) inp.dataset.auto = 'true';
+                if (inp.dataset.auto === 'true') {
+                    inp.value = String(Math.round(res.state_values?.[bs.state_name] ?? 0));
+                }
+            }
         }
-
-        // Corrupted slider (auto-fill if data-auto is set)
-        const corr_inp = dom_row.querySelector('.combo-row-boost-slider[data-boost-name="Corrupted"]');
-        if (corr_inp) {
-            if (corr_inp.dataset.auto === undefined) corr_inp.dataset.auto = 'true';
-            if (corr_inp.dataset.auto === 'true') {
-                corr_inp.value = String(Math.round(res.corruption_pct));
+        // Generic: auto-fill damage boost slider (Blood Pact)
+        const db = health_config.damage_boost;
+        if (db?.slider_name) {
+            const inp = dom_row.querySelector(`.combo-row-boost-slider[data-boost-name="${db.slider_name}"]`);
+            if (inp) {
+                if (inp.dataset.auto === undefined) inp.dataset.auto = 'true';
+                if (inp.dataset.auto === 'true') {
+                    inp.value = res.blood_pact_bonus > 0
+                        ? String(Math.round(res.blood_pact_bonus * 10) / 10) : '';
+                }
             }
         }
 

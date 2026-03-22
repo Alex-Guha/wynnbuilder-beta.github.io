@@ -1297,17 +1297,18 @@ function assert_error(func_binding, msg) {
 /**
  * 
  */
-function gen_slider_labeled({label_name, label_classlist = [], min = 0, max = 100, step = 1, default_val = min, id = undefined, color = "#FFFFFF", classlist = []}) {
+function gen_slider_labeled({label_name, label_classlist = [], min = 0, max = 100, step = 1, default_val = min, id = undefined, color = "#FFFFFF", classlist = [], real_min = 0}) {
     let slider_container = document.createElement("div");
     slider_container.classList.add("col");
 
     let buf_col = document.createElement("div");
-    
+
     let label = document.createElement("div");
     label.classList.add(...label_classlist);
-    label.textContent = label_name + ": " + default_val;
+    const display_val = (real_min > 0 && default_val < real_min) ? "Off" : default_val;
+    label.textContent = label_name + ": " + display_val;
 
-    let slider = gen_slider(min, max, step, default_val, id, color, classlist, label);
+    let slider = gen_slider(min, max, step, default_val, id, color, classlist, label, real_min);
 
     //we set IDs here because the slider's id is potentially only meaningful after gen_slider() is called
     label.id = slider.id + "_label";
@@ -1330,7 +1331,7 @@ function gen_slider_labeled({label_name, label_classlist = [], min = 0, max = 10
  * @param {Array<String>} classlist - A list of classes to add to the slider.
  * @returns 
  */
-function gen_slider(min = 0, max = 100, step = 1, default_val = min, id = undefined, color = "#FFFFFF", classlist = [], label = undefined) {
+function gen_slider(min = 0, max = 100, step = 1, default_val = min, id = undefined, color = "#FFFFFF", classlist = [], label = undefined, real_min = 0) {
     //simple attribute vals
     let slider = document.createElement("input");
     slider.type = "range";
@@ -1338,6 +1339,7 @@ function gen_slider(min = 0, max = 100, step = 1, default_val = min, id = undefi
     slider.max = max;
     slider.step = step;
     slider.value = default_val;
+    if (real_min > 0) slider.dataset.realMin = String(real_min);
     slider.autocomplete = "off";
     if (id) {
         if (document.getElementById(id)) {
@@ -1380,7 +1382,9 @@ function recolor_slider(slider, label) {
 
     if (label) {
         //convention is that the number goes at the end... I parse by separating it at ':'
-        label.textContent = label.textContent.split(":")[0] + ": " + slider.value;
+        const real_min = parseInt(slider.dataset.realMin || '0');
+        const display_val = (real_min > 0 && parseInt(slider.value) < real_min) ? "Off" : slider.value;
+        label.textContent = label.textContent.split(":")[0] + ": " + display_val;
     }
 } 
 

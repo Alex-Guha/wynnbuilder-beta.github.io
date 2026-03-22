@@ -60,7 +60,12 @@ const _NODE_TO_PS_IDX = new Map([..._PS_IDX_TO_NODE].map(([k, v]) => [v, k]));
 function spell_to_node_id(base_spell_id) {
     // Pseudo-spells
     if (base_spell_id === MANA_RESET_SPELL_ID) return MANA_RESET_NODE_ID;
-    if (base_spell_id === CANCEL_BAKALS_SPELL_ID) return CANCEL_BAKALS_NODE_ID;
+    // Check cancel state pseudo-spells
+    for (const [state_name, cancel_spell_id] of STATE_CANCEL_IDS) {
+        if (base_spell_id === cancel_spell_id) {
+            return STATE_CANCEL_NODE_IDS.get(state_name) ?? 120;
+        }
+    }
 
     // Powder specials: -1000 - ps_idx → reserved ID
     if (base_spell_id < 0) {
@@ -84,7 +89,10 @@ function spell_to_node_id(base_spell_id) {
 function node_id_to_spell_name(node_id, atree_merged) {
     // Pseudo-spells
     if (node_id === MANA_RESET_NODE_ID) return 'Mana Reset';
-    if (node_id === CANCEL_BAKALS_NODE_ID) return "Cancel Bak'al's Grasp";
+    // Check cancel state pseudo-spells
+    for (const [state_name, cancel_node_id] of STATE_CANCEL_NODE_IDS) {
+        if (node_id === cancel_node_id) return 'Cancel ' + state_name;
+    }
 
     // Reserved powder specials
     if (_NODE_TO_PS_IDX.has(node_id)) {
@@ -119,7 +127,13 @@ function node_id_to_spell_name(node_id, atree_merged) {
 function node_id_to_spell_value(node_id) {
     // Pseudo-spells
     if (node_id === MANA_RESET_NODE_ID) return String(MANA_RESET_SPELL_ID);
-    if (node_id === CANCEL_BAKALS_NODE_ID) return String(CANCEL_BAKALS_SPELL_ID);
+    // Check cancel state pseudo-spells
+    for (const [state_name, cancel_node_id] of STATE_CANCEL_NODE_IDS) {
+        if (node_id === cancel_node_id) {
+            const spell_id = STATE_CANCEL_IDS.get(state_name);
+            if (spell_id != null) return String(spell_id);
+        }
+    }
 
     // Reserved melee → base_spell 0
     if (node_id === _RESERVED_SPELL_IDS.MELEE) return '0';
@@ -207,8 +221,7 @@ function node_ref_to_boost_info(node_id, effect_pos, atree_merged) {
         for (const effect of abil.effects) {
             if (effect.type === 'raw_stat' && effect.toggle) {
                 if (pos === effect_pos) {
-                    const is_calc = abil.properties?.health_cost != null;
-                    return { name: effect.toggle, is_calc };
+                    return { name: effect.toggle, is_calc: false };
                 }
                 pos++;
             } else if (effect.type === 'stat_scaling' && effect.slider === true && effect.slider_name) {

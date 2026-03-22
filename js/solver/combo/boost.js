@@ -210,22 +210,8 @@ function build_combo_boost_registry(atree_merged, build = null) {
                     existing.stat_bonuses.push(...stat_bonuses);
                     existing.prop_bonuses.push(...prop_bonuses);
                 } else {
-                    // Blood Pact: convert to 'calculated' type — the bonus % is
-                    // auto-computed by the spell-to-spell simulation engine.
-                    const is_blood_pact = abil.properties?.health_cost != null;
-                    if (is_blood_pact) {
-                        toggle_seen.set(toggle_name, registry.length);
-                        registry.push({
-                            name: toggle_name, aliases: [], type: 'calculated',
-                            stat_bonuses, prop_bonuses,
-                            calc_key: 'blood_pact',
-                            damage_boost_min: abil.properties?.damage_boost_min ?? 15,
-                            damage_boost_max: abil.properties?.damage_boost ?? 25,
-                        });
-                    } else {
-                        toggle_seen.set(toggle_name, registry.length);
-                        registry.push({ name: toggle_name, aliases: [], type: 'toggle', stat_bonuses, prop_bonuses });
-                    }
+                    toggle_seen.set(toggle_name, registry.length);
+                    registry.push({ name: toggle_name, aliases: [], type: 'toggle', stat_bonuses, prop_bonuses });
                 }
             } else if (effect.type === 'stat_scaling' && effect.slider === true) {
                 const slider_name = effect.slider_name;
@@ -263,6 +249,7 @@ function build_combo_boost_registry(atree_merged, build = null) {
                         display_label: slider_name === 'Hits dealt' ? abil.display_name : undefined,
                         aliases: [],
                         type: 'slider',
+                        min: effect.slider_min ?? 0,
                         max:  slider_total_max.get(slider_name) ?? (effect.slider_max ?? 10),
                         step: effect.slider_step ?? 1,
                         stat_bonuses,
@@ -327,6 +314,24 @@ function build_combo_boost_registry(atree_merged, build = null) {
                 type: 'slider',
                 max, step,
                 stat_bonuses: [{ key: 'damMult.' + ps.armorSpecialName, value: per_unit, mode: 'add' }],
+                prop_bonuses: [],
+            });
+        }
+    }
+
+    // ── Trigger slider entries (e.g. Intoxicating Blood's "Enemies Per Hit") ──
+    for (const [, abil] of atree_merged) {
+        for (const effect of abil.effects) {
+            if (effect.type !== 'trigger') continue;
+            if (!effect.slider_name || slider_idx.has(effect.slider_name)) continue;
+            slider_idx.set(effect.slider_name, registry.length);
+            registry.push({
+                name: effect.slider_name,
+                aliases: [],
+                type: 'slider',
+                max: effect.slider_max ?? 10,
+                step: effect.slider_step ?? 1,
+                stat_bonuses: [],
                 prop_bonuses: [],
             });
         }
@@ -399,6 +404,27 @@ function parse_combo_boost_tokens(boost_str) {
         }
     }
     return boost_tokens;
+}
+
+/**
+ * Apply deferred powder special effects from atree_collect_spells to
+ * all powder special entries in an augmented spell map.
+ * @param {Map} aug_map - Augmented spell map (with PS entries keyed as -100x)
+ * @param {Map} base_spell_map - Return value of atree_collect_spells (has _powder_special_effects)
+ */
+function apply_deferred_powder_special_effects(aug_map, base_spell_map) {
+    const ps_effects = base_spell_map?._powder_special_effects;
+    if (!ps_effects?.length) return;
+    for (const [, spell] of aug_map) {
+        if (!spell._is_powder_special) continue;
+        for (const eff of ps_effects) {
+            for (const key in eff) {
+                if (_ASPELL_META.has(key)) continue;
+                if (typeof eff[key] !== 'number') continue;
+                spell[key] = (spell[key] ?? 0) + eff[key];
+            }
+        }
+    }
 }
 
 // ── SolverComboTotalNode ──────────────────────────────────────────────────────

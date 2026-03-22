@@ -115,15 +115,21 @@ function _parse_combo_for_search(spell_map, weapon) {
         const tier = get_element_powder_tier(weapon_powders, ps_idx);
         if (tier > 0) aug.set(-1000 - ps_idx, make_powder_special_spell(ps_idx, tier));
     }
+    apply_deferred_powder_special_effects(aug, spell_map);
     const rows = solver_combo_total_node._read_combo_rows(aug);
     return rows
         .map(r => {
             // Pseudo-spells: include as marker rows for worker state tracking.
             const spell_id = parseInt(r.dom_row?.querySelector('.combo-row-spell')?.value);
-            if (spell_id === CANCEL_BAKALS_SPELL_ID) {
+            // Check cancel state pseudo-spells
+            let cancel_pseudo = null;
+            for (const [state_name, cancel_id] of STATE_CANCEL_IDS) {
+                if (spell_id === cancel_id) { cancel_pseudo = 'cancel_state:' + state_name; break; }
+            }
+            if (cancel_pseudo) {
                 const mana_excl = r.dom_row?.querySelector('.combo-mana-toggle')
                     ?.classList.contains('mana-excluded') ?? false;
-                return { pseudo: 'cancel_bakals', mana_excl };
+                return { pseudo: cancel_pseudo, mana_excl };
             }
             if (spell_id === MANA_RESET_SPELL_ID) {
                 const mana_excl = r.dom_row?.querySelector('.combo-mana-toggle')
@@ -166,7 +172,9 @@ function _serialize_atree_interactive(atree_interactive_val) {
         button_states.set(name, entry.button?.classList.contains("toggleOn") ?? false);
     }
     for (const [name, entry] of slider_map) {
-        slider_states.set(name, parseInt(entry.slider?.value ?? '0'));
+        const raw = parseInt(entry.slider?.value ?? '0');
+        const rm = entry.real_min ?? 0;
+        slider_states.set(name, (rm > 0 && raw < rm) ? 0 : raw);
     }
     return { button_states, slider_states };
 }
@@ -226,16 +234,10 @@ function _build_solver_snapshot(restrictions) {
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
     const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
 
-    // Blood Pact: when active, spells are paid with HP, so skip mana gating in workers.
-    // Also extract health_config so workers can dynamically compute per-candidate
-    // blood pact bonuses instead of using frozen values from the current build.
-    let hp_casting = false;
-    let health_config = null;
-    if (atree_mgd) {
-        for (const [, abil] of atree_mgd) {
-            if (abil.properties?.health_cost != null) { hp_casting = true; break; }
-        }
-    }
+    // Extract health_config so workers can dynamically compute per-candidate
+    // blood pact bonuses, corruption state, etc.
+    const health_config = atree_mgd ? extract_health_config(atree_mgd) : null;
+    const hp_casting = health_config?.hp_casting ?? false;
     // Precompute per-row recast penalty (build-independent, combo-sequence-dependent).
     // Workers need this for accurate mana tracking in both blood pact bonus computation
     // and the non-blood-pact mana budget check (_eval_combo_mana_check).
@@ -295,31 +297,19 @@ function _build_solver_snapshot(restrictions) {
         }
     }
 
-    let corruption_slider_name = null;
-    if (hp_casting) {
-        health_config = extract_health_config(atree_mgd);
-        // Strip calculated (Blood Pact) boost tokens from parsed_combo rows —
-        // the worker computes these dynamically per candidate build based on
-        // that build's mana pool, rather than using the frozen snapshot value.
-        const strip_names = new Set(
-            boost_registry.filter(e => e.type === 'calculated').map(e => e.name));
-
-        // Also strip auto-filled Corrupted slider tokens when corruption is active —
-        // corruption % depends on per-build blood pact HP costs, so it must be
-        // recomputed dynamically in the worker just like Blood Pact bonus.
-        if (health_config.corruption.active) {
-            for (const entry of boost_registry) {
-                if (entry.type === 'slider' && entry.name === 'Corrupted') {
-                    corruption_slider_name = entry.name;
-                    strip_names.add(entry.name);
-                    break;
-                }
-            }
-        }
-
+    // Build set of auto-filled slider names that must be stripped from parsed_combo
+    // rows — workers compute these dynamically per candidate build.
+    const auto_slider_names = new Set();
+    if (hp_casting && health_config) {
+        if (health_config.damage_boost?.slider_name)
+            auto_slider_names.add(health_config.damage_boost.slider_name);
+        for (const bs of health_config.buff_states)
+            if (bs.slider_name) auto_slider_names.add(bs.slider_name);
+    }
+    if (auto_slider_names.size > 0) {
         for (const row of parsed_combo) {
             if (row.boost_tokens) {
-                row.boost_tokens = row.boost_tokens.filter(t => !strip_names.has(t.name));
+                row.boost_tokens = row.boost_tokens.filter(t => t.manual || !auto_slider_names.has(t.name));
             }
         }
     }
@@ -343,6 +333,14 @@ function _build_solver_snapshot(restrictions) {
     // Serialize atree interactive state for workers
     const { button_states, slider_states } = _serialize_atree_interactive(atree_interactive_val);
 
+    // Strip toggles that appear in the boost registry from button_states.
+    // These toggles' stat bonuses are already applied per-row via
+    // apply_combo_row_boosts; leaving them ON in button_states would cause
+    // atree_compute_scaling to apply them a second time (double-counting).
+    for (const entry of boost_registry) {
+        if (entry.type === 'toggle') button_states.set(entry.name, false);
+    }
+
     const weapon_sm = weapon?.statMap ?? new Map();
 
     return {
@@ -350,13 +348,25 @@ function _build_solver_snapshot(restrictions) {
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
         restrictions, button_states, slider_states, scoring_target,
-        combo_time, allow_downtime, flat_mana, hp_casting, health_config, corruption_slider_name, spell_base_costs,
+        combo_time, allow_downtime, flat_mana, hp_casting, health_config, auto_slider_names: [...auto_slider_names], spell_base_costs,
     };
 }
 
 // ── Top-5 heap ────────────────────────────────────────────────────────────────
 
 function _insert_top5(candidate) {
+    // Dedup: if a build with the same item names already exists, keep the higher score
+    const cand_names = candidate.items.map(i => i.statMap.get('name') ?? '').join(',');
+    for (let i = 0; i < _solver_state.top5.length; i++) {
+        const existing = _solver_state.top5[i];
+        const ex_names = existing.items.map(i => i.statMap.get('name') ?? '').join(',');
+        if (ex_names === cand_names) {
+            if (candidate.score > existing.score) {
+                _solver_state.top5[i] = candidate;
+            }
+            return;
+        }
+    }
     _solver_state.top5.push(candidate);
     _solver_state.top5.sort((a, b) => b.score - a.score);
     if (_solver_state.top5.length > _TOP_N) _solver_state.top5.length = _TOP_N;
@@ -383,7 +393,7 @@ function _eval_current_build(snap, restrictions) {
 
     // Check that at least one non-NONE armor/accessory exists
     const has_any = equip_sms.some(sm => !sm.has('NONE'));
-    if (!has_any) return null;
+    if (!has_any) { console.warn('[seed] rejected: no non-NONE items'); return null; }
 
     // Build statMap using worker_shims (same path as the search worker)
     const fixed_sms = [snap.weapon_sm];
@@ -406,47 +416,23 @@ function _eval_current_build(snap, restrictions) {
     const all_equip_sms = [...equip_sms, ...snap.tomes.map(t => t?.statMap).filter(Boolean), snap.weapon_sm];
     const build_sm = _finalize_leaf_statmap(running_sm, snap.weapon_sm, activeSetCounts, sets, all_equip_sms);
 
-    // SP calculation
-    const sp_equip = [...equip_sms, snap.guild_tome_item.statMap];
-    const sp_result = calculate_skillpoints(sp_equip, snap.weapon_sm, snap.sp_budget);
-    if (!sp_result) return null;  // SP infeasible
-
-    const base_sp = sp_result[0];
-    const total_sp = sp_result[1];
-    let assigned_sp = sp_result[2];
-
-    // Greedy SP allocation (mirrors _greedy_sp_alloc_main in item_priority.js)
-    let remaining = snap.sp_budget - assigned_sp;
-    if (remaining > 0) {
-        function _trial_score() {
-            const cb = _assemble_baseline_combo(build_sm, total_sp, snap);
-            return _sensitivity_eval_score(cb, snap);
-        }
-        let cur = _trial_score();
-        for (const step of [20, 4, 1]) {
-            let progress = true;
-            while (progress && remaining > 0) {
-                progress = false;
-                let best_i = -1, best_s = cur;
-                for (let i = 0; i < 5; i++) {
-                    const a = Math.min(step, remaining, 100 - base_sp[i], 150 - total_sp[i]);
-                    if (a <= 0) continue;
-                    total_sp[i] += a;
-                    const s = _trial_score();
-                    total_sp[i] -= a;
-                    if (s > best_s) { best_s = s; best_i = i; }
-                }
-                if (best_i >= 0) {
-                    const a = Math.min(step, remaining, 100 - base_sp[best_i], 150 - total_sp[best_i]);
-                    base_sp[best_i] += a;
-                    total_sp[best_i] += a;
-                    remaining -= a;
-                    assigned_sp += a;
-                    cur = best_s;
-                    progress = true;
-                }
-            }
-        }
+    // SP calculation — use the UI's SP values when available (from
+    // _solver_sp_override, which is set from URL-decoded greedy SP or a
+    // previous solver result).  This ensures the seed evaluates the build
+    // with the same SPs the user sees in the stat display / mana panel.
+    // Falling back to calculate_skillpoints only when no override exists.
+    let base_sp, total_sp, assigned_sp;
+    if (_solver_sp_override?.total_sp) {
+        base_sp  = [..._solver_sp_override.base_sp];
+        total_sp = [..._solver_sp_override.total_sp];
+        assigned_sp = _solver_sp_override.assigned_sp ?? base_sp.reduce((a, b) => a + b, 0);
+    } else {
+        const sp_equip = [...equip_sms, snap.guild_tome_item.statMap];
+        const sp_result = calculate_skillpoints(sp_equip, snap.weapon_sm, snap.sp_budget);
+        if (!sp_result) { console.warn('[seed] rejected: SP infeasible'); return null; }
+        base_sp  = sp_result[0];
+        total_sp = sp_result[1];
+        assigned_sp = sp_result[2];
     }
 
     // Assemble combo stats
@@ -472,8 +458,8 @@ function _eval_current_build(snap, restrictions) {
             } else {
                 v = thresh_stats.get(stat) ?? 0;
             }
-            if (op === 'ge' && v < value) return null;
-            if (op === 'le' && v > value) return null;
+            if (op === 'ge' && v < value) { console.warn(`[seed] rejected: threshold ${stat} ${op} ${value}, got ${v}`); return null; }
+            if (op === 'le' && v > value) { console.warn(`[seed] rejected: threshold ${stat} ${op} ${value}, got ${v}`); return null; }
         }
     }
 
@@ -483,7 +469,7 @@ function _eval_current_build(snap, restrictions) {
             const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
             const sim = simulate_combo_mana_hp(
                 snap.parsed_combo, combo_base, snap.health_config, has_transcendence, snap.boost_registry);
-            if (sim.row_results.some(r => r.hp_warning)) return null;
+            if (sim.row_results.some(r => r.hp_warning)) { console.warn('[seed] rejected: HP casting sim has hp_warning'); return null; }
         }
     } else if (snap.combo_time > 0) {
         let mana_cost = 0;
@@ -513,9 +499,9 @@ function _eval_current_build(snap, restrictions) {
         const flat_mana = snap.flat_mana ?? 0;
         const end_mana = start_mana - mana_cost + mana_regen + mana_steal + flat_mana;
         if (snap.allow_downtime) {
-            if (end_mana <= 0) return null;
+            if (end_mana <= 0) { console.warn('[seed] rejected: mana depleted (downtime mode), end_mana:', end_mana); return null; }
         } else {
-            if ((start_mana - end_mana) > 5) return null;
+            if ((start_mana - end_mana) > 5) { console.warn('[seed] rejected: mana deficit too high:', start_mana - end_mana); return null; }
         }
     }
 
@@ -1034,7 +1020,7 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         flat_mana: snap.flat_mana,
         hp_casting: snap.hp_casting,
         health_config: snap.health_config,
-        corruption_slider_name: snap.corruption_slider_name,
+        auto_slider_names: snap.auto_slider_names,
         spell_base_costs: snap.spell_base_costs,
         restrictions: snap.restrictions,
         // Global data
@@ -1189,31 +1175,33 @@ function _debug_reeval_top1() {
 
         console.log('[COMBO-DEBUG][SOLVER] sim results:', JSON.stringify(sim.row_results.map((r, i) => ({
             row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
-            corruption: Math.round(r.corruption_pct), hp_warn: r.hp_warning,
+            states: r.state_values, hp_warn: r.hp_warning,
         }))));
         console.log('[COMBO-DEBUG][SOLVER] sim end_mana:', sim.end_mana,
             'end_hp:', Math.round(sim.end_hp), 'max_hp:', sim.max_hp,
             'start_mana:', sim.start_mana);
 
-        // Compute bp_entry_name from boost_registry (same logic as worker init)
-        let bp_name = null;
-        for (const entry of snap.boost_registry) {
-            if (entry.type === 'calculated' && entry.calc_key === 'blood_pact') {
-                bp_name = entry.name; break;
-            }
+        const hc = snap.health_config;
+        const bp_name = hc.damage_boost?.slider_name ?? null;
+        const state_slider_names = {};
+        for (const bs of (hc.buff_states ?? [])) {
+            if (bs.slider_name) state_slider_names[bs.state_name] = bs.slider_name;
         }
-        const corr_name = snap.corruption_slider_name;
 
         damage_rows = [];
         for (let i = 0; i < snap.parsed_combo.length; i++) {
             const row = snap.parsed_combo[i];
             const res = sim.row_results[i];
-            const has_bp = res.blood_pact_bonus > 0 && bp_name;
-            const has_corr = corr_name && res.corruption_pct > 0;
-            if (!has_bp && !has_corr) { damage_rows.push(row); continue; }
             const extra = [];
-            if (has_bp) extra.push({ name: bp_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
-            if (has_corr) extra.push({ name: corr_name, value: Math.round(res.corruption_pct), is_pct: false });
+            const _has_manual = (n) => row.boost_tokens.some(t => t.manual && t.name === n);
+            if (res.blood_pact_bonus > 0 && bp_name && !_has_manual(bp_name)) {
+                extra.push({ name: bp_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
+            }
+            for (const [state_name, slider_name] of Object.entries(state_slider_names)) {
+                const val = res.state_values?.[state_name] ?? 0;
+                if (val > 0 && !_has_manual(slider_name)) extra.push({ name: slider_name, value: Math.round(val), is_pct: false });
+            }
+            if (extra.length === 0) { damage_rows.push(row); continue; }
             damage_rows.push({ ...row, boost_tokens: [...row.boost_tokens, ...extra] });
         }
     }

@@ -144,6 +144,13 @@ function createSandbox() {
         globalThis._damage_keys = typeof damage_keys !== 'undefined' ? damage_keys : null;
         globalThis._powderNames = typeof powderNames !== 'undefined' ? powderNames : null;
         globalThis.Item = typeof Item !== 'undefined' ? Item : null;
+        globalThis.SP_TOTAL_CAP = SP_TOTAL_CAP;
+        globalThis.POWDER_TIERS = typeof POWDER_TIERS !== 'undefined' ? POWDER_TIERS : 7;
+        globalThis.powderIDs = typeof powderIDs !== 'undefined' ? powderIDs : new Map();
+        globalThis.RECAST_MANA_PENALTY = typeof RECAST_MANA_PENALTY !== 'undefined' ? RECAST_MANA_PENALTY : 5;
+        globalThis.MANA_RESET_NODE_ID = typeof MANA_RESET_NODE_ID !== 'undefined' ? MANA_RESET_NODE_ID : 126;
+        globalThis.STATE_CANCEL_NODE_IDS = typeof STATE_CANCEL_NODE_IDS !== 'undefined' ? STATE_CANCEL_NODE_IDS : new Map();
+        globalThis.levelToSkillPoints = levelToSkillPoints;
     `, ctx);
 
     // Alias for convenience so callers can use ctx.item_fields etc.
@@ -588,6 +595,80 @@ function buildAtreeMerged(ctx, playerClass, activeNodes, buildStatMap, aspects) 
 }
 
 /**
+ * Extract slider and button default states from a merged ability tree.
+ * Standalone version of atree_make_interactives — no DOM, just data.
+ *
+ * Sliders are initialised to their default value (from the atree JSON).
+ * Buttons default to false (off).
+ *
+ * @param {Map} atree_merged - From buildAtreeMerged().
+ * @returns {{ slider_states: Map<string,number>, button_states: Map<string,boolean> }}
+ */
+function extractAtreeInteractiveDefaults(atree_merged) {
+    const slider_states = new Map();
+    const button_states = new Map();
+    const slider_meta = new Map();   // name → { max, default_val, overwritten }
+
+    // Collect slider/button definitions, replicating the merge logic
+    // from atree_make_interactives (atree.js:620-690).
+    let to_process = [];
+    for (const [, ability] of atree_merged) {
+        for (const effect of ability.effects) {
+            if (effect.type === 'stat_scaling' && effect.slider === true) {
+                to_process.push([effect, ability]);
+            }
+            if (effect.type === 'raw_stat' && effect.toggle) {
+                button_states.set(effect.toggle, false);
+            }
+        }
+    }
+
+    let unprocessed = [];
+    const k = to_process.length;
+    for (let i = 0; i < k; ++i) {
+        for (const [effect, ability] of to_process) {
+            if (effect.type !== 'stat_scaling' || !effect.slider) continue;
+            const { slider_name, behavior = 'merge', slider_max = 0, slider_default = 0 } = effect;
+            const slider_min = effect.slider_min ?? 0;
+            const slider_step = effect.slider_step ?? 1;
+            const has_off = slider_min > 0;
+            const effective_default = has_off ? (slider_min - slider_step) : slider_default;
+
+            if (slider_meta.has(slider_name)) {
+                const info = slider_meta.get(slider_name);
+                if (behavior === 'overwrite') {
+                    if ('slider_max' in effect) info.max = slider_max;
+                    if ('slider_default' in effect) info.default_val = slider_default;
+                    info.overwritten = true;
+                } else if (!info.overwritten) {
+                    info.max += slider_max;
+                    info.default_val += slider_default;
+                }
+            } else if (behavior === 'merge') {
+                slider_meta.set(slider_name, {
+                    max: slider_max,
+                    default_val: effective_default,
+                    real_min: slider_min,
+                    overwritten: false,
+                });
+            } else {
+                unprocessed.push([effect, ability]);
+            }
+        }
+        if (unprocessed.length === to_process.length) break;
+        to_process = unprocessed;
+        unprocessed = [];
+    }
+
+    // Set each slider to its default value.
+    for (const [name, info] of slider_meta) {
+        slider_states.set(name, info.default_val);
+    }
+
+    return { slider_states, button_states };
+}
+
+/**
  * Collect spells from merged abilities.
  * Standalone version of atree_collect_spells.compute_func (atree.js:832-980).
  *
@@ -622,6 +703,9 @@ function collectSpells(ctx, atree_merged) {
         }
     }
 
+    // Accumulate powder_special deferred effects for apply_deferred_powder_special_effects.
+    const _pending_powder_special = [];
+
     // Second pass: add_spell_prop + convert_spell_conv.
     for (const [abil_id, abil] of atree_merged.entries()) {
         for (const effect of abil.effects) {
@@ -630,6 +714,10 @@ function collectSpells(ctx, atree_merged) {
                 continue;
             case 'add_spell_prop': {
                 const { base_spell, target_part = null, cost = 0, behavior = 'merge' } = effect;
+                if (base_spell === 'powder_special') {
+                    _pending_powder_special.push(effect);
+                    continue;
+                }
                 if (!ret_spells.has(base_spell)) continue;
                 const ret_spell = ret_spells.get(base_spell);
 
@@ -712,6 +800,9 @@ function collectSpells(ctx, atree_merged) {
             }
         }
     }
+
+    // Attach deferred powder_special effects so apply_deferred_powder_special_effects works.
+    ret_spells._powder_special_effects = _pending_powder_special;
 
     return ret_spells;
 }
@@ -971,6 +1062,7 @@ module.exports = {
     checkSnapshotFreshness,
     extractLockedItemStats,
     extractEquipmentStats,
+    extractAtreeInteractiveDefaults,
     computeFileHash,
     REPO_ROOT,
     SNAP_DIR,

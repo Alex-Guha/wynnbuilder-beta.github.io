@@ -31,7 +31,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Testing
-- Testing framework ;-;
 - Test tstack builds
 - Add more complicated scenarios to test_dominance.js
 - Add more tests
@@ -45,7 +44,12 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
         - Acrobat weightless
         - Summoner Aura
     - Handle the variable attack speed
-- Add healing stuff to atree (Intoxicating Blood, Rejuvenating Skin, that kind of stuff)
+- Add healing stuff to atree
+    - Rejuvenating Skin
+    - Dawn (lb ult)
+    - Beyond Salvation (fallen ult)?
+    - Heavenly Trumpet
+- Verify Sanguine Strike bleeding is accounted for
 - Weighted multi-target solving
 - Major IDs and adding mana/health considerations to items
 - Premade archetype combo selectors

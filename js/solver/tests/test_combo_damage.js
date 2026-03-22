@@ -190,7 +190,7 @@ function resolveComboRows(decodedRows, spellMap, atree_merged) {
         // Resolve pseudo-spells
         let pseudo = null;
         if (raw.spell_node_id === vm.runInContext('MANA_RESET_NODE_ID', ctx)) pseudo = 'mana_reset';
-        else if (raw.spell_node_id === vm.runInContext('CANCEL_BAKALS_NODE_ID', ctx)) pseudo = 'cancel_bakals';
+        else if (raw.spell_node_id === vm.runInContext('CANCEL_BAKALS_NODE_ID', ctx)) pseudo = 'cancel_state:Corrupted';
 
         // Resolve boost tokens via node_ref_to_boost_info
         const boost_tokens = [];

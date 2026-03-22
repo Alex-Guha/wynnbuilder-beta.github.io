@@ -152,21 +152,26 @@ function _eval_sensitivity_combo_damage(combo_base, snap) {
         const sim = simulate_combo_mana_hp(
             snap.parsed_combo, combo_base, snap.health_config, has_transcendence, snap.boost_registry);
 
-        const bp_name = snap.boost_registry?.find(e => e.type === 'calculated')?.name;
-        const corr_name = snap.corruption_slider_name;
+        const hc = snap.health_config;
+        const bp_name = hc.damage_boost?.slider_name ?? null;
+        const state_slider_names = {};
+        for (const bs of (hc.buff_states ?? [])) {
+            if (bs.slider_name) state_slider_names[bs.state_name] = bs.slider_name;
+        }
         damage_rows = [];
         for (let i = 0; i < snap.parsed_combo.length; i++) {
             const row = snap.parsed_combo[i];
             const res = sim.row_results[i];
-            const has_bp = res.blood_pact_bonus > 0 && bp_name;
-            const has_corr = corr_name && res.corruption_pct > 0;
-            if (!has_bp && !has_corr) {
-                damage_rows.push(row);
-                continue;
-            }
             const extra = [];
-            if (has_bp) extra.push({ name: bp_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
-            if (has_corr) extra.push({ name: corr_name, value: Math.round(res.corruption_pct), is_pct: false });
+            const _has_manual = (n) => row.boost_tokens.some(t => t.manual && t.name === n);
+            if (res.blood_pact_bonus > 0 && bp_name && !_has_manual(bp_name)) {
+                extra.push({ name: bp_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
+            }
+            for (const [state_name, slider_name] of Object.entries(state_slider_names)) {
+                const val = res.state_values?.[state_name] ?? 0;
+                if (val > 0 && !_has_manual(slider_name)) extra.push({ name: slider_name, value: Math.round(val), is_pct: false });
+            }
+            if (extra.length === 0) { damage_rows.push(row); continue; }
             damage_rows.push({ ...row, boost_tokens: [...row.boost_tokens, ...extra] });
         }
     }

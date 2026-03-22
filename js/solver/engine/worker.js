@@ -297,29 +297,31 @@ function _eval_combo_damage(combo_base, debug) {
         if (debug) {
             console.log('[COMBO-DEBUG][WORKER] sim results:', JSON.stringify(sim.row_results.map((r, i) => ({
                 row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
-                corruption: Math.round(r.corruption_pct), hp_warn: r.hp_warning,
+                states: r.state_values, hp_warn: r.hp_warning,
             }))));
             console.log('[COMBO-DEBUG][WORKER] sim end_mana:', sim.end_mana,
                 'end_hp:', Math.round(sim.end_hp), 'max_hp:', sim.max_hp,
                 'start_mana:', sim.start_mana);
         }
 
-        // Inject simulation-derived boost tokens (blood pact bonus, corruption %)
-        const bp_name = _cfg.bp_entry_name;
-        const corr_name = _cfg.corruption_slider_name;
+        // Inject simulation-derived boost tokens (blood pact bonus, state values)
         damage_rows = [];
         for (let i = 0; i < _cfg.parsed_combo.length; i++) {
             const row = _cfg.parsed_combo[i];
             const res = sim.row_results[i];
-            const has_bp = res.blood_pact_bonus > 0 && bp_name;
-            const has_corr = corr_name && res.corruption_pct > 0;
-            if (!has_bp && !has_corr) {
+            const extra = [];
+            const _has_manual = (n) => row.boost_tokens.some(t => t.manual && t.name === n);
+            if (res.blood_pact_bonus > 0 && _cfg.bp_slider_name && !_has_manual(_cfg.bp_slider_name)) {
+                extra.push({ name: _cfg.bp_slider_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
+            }
+            for (const [state_name, slider_name] of Object.entries(_cfg.state_slider_names)) {
+                const val = res.state_values?.[state_name] ?? 0;
+                if (val > 0 && !_has_manual(slider_name)) extra.push({ name: slider_name, value: Math.round(val), is_pct: false });
+            }
+            if (extra.length === 0) {
                 damage_rows.push(row);
                 continue;
             }
-            const extra = [];
-            if (has_bp) extra.push({ name: bp_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
-            if (has_corr) extra.push({ name: corr_name, value: Math.round(res.corruption_pct), is_pct: false });
             damage_rows.push({ ...row, boost_tokens: [...row.boost_tokens, ...extra] });
         }
     }
@@ -342,7 +344,7 @@ function _eval_combo_damage(combo_base, debug) {
 function _eval_combo_mana_check(combo_base) {
     _cached_hp_sim = null;
     if (_cfg.hp_casting) {
-        // Blood Pact: spells paid with HP, skip mana gating but check HP viability.
+        // HP casting: run HP simulation, check viability.
         const hc = _cfg.health_config;
         if (!hc) return true;
         const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
@@ -350,7 +352,9 @@ function _eval_combo_mana_check(combo_base) {
             _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry, _scratch_row);
         _cached_hp_sim = sim;
         // Reject if any row would kill the player (HP insufficient for blood cost)
-        return !sim.row_results.some(r => r.hp_warning);
+        if (sim.row_results.some(r => r.hp_warning)) return false;
+        // Blood Pact (health_cost > 0): skip mana gating since spells paid with HP
+        if (hc.health_cost > 0) return true;
     }
     const combo_time = _cfg.combo_time ?? 0;
     if (!combo_time) return true;
@@ -745,7 +749,7 @@ function _run_level_enum() {
     const _scratch_rescue_total = new Int32Array(5);
 
     function _mana_rescue(build_sm, base_sp, total_sp, orig_base_sp, weapon_sm) {
-        if (_cfg.hp_casting) return false;
+        if (_cfg.hp_casting && _cfg.health_config?.health_cost > 0) return false;
         if (!(_cfg.combo_time ?? 0)) return false;
 
         const INT_IDX = 2;
@@ -1228,15 +1232,11 @@ self.onmessage = function (e) {
         sets = new Map(msg.sets_data);
         _cfg = msg;
         _cancelled = false;
-        // Precompute Blood Pact registry entry name for boost token injection
-        _cfg.bp_entry_name = null;
-        if (_cfg.hp_casting && _cfg.boost_registry) {
-            for (const entry of _cfg.boost_registry) {
-                if (entry.type === 'calculated' && entry.calc_key === 'blood_pact') {
-                    _cfg.bp_entry_name = entry.name;
-                    break;
-                }
-            }
+        // Precompute generic slider names for boost token injection
+        _cfg.bp_slider_name = _cfg.health_config?.damage_boost?.slider_name ?? null;
+        _cfg.state_slider_names = {};
+        for (const bs of (_cfg.health_config?.buff_states ?? [])) {
+            if (bs.slider_name) _cfg.state_slider_names[bs.state_name] = bs.slider_name;
         }
         try {
             _build_constraint_prechecks();

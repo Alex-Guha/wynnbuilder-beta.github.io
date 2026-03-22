@@ -310,14 +310,6 @@ function find_all_matching_boosts(token_name, token_value, is_pct, registry) {
 
         if (entry.type === 'toggle') {
             if (exact_match) results.push({ entry, effective_value: 1 });
-        } else if (entry.type === 'calculated') {
-            // Calculated boost (e.g. Blood Pact): the token value IS the final
-            // percentage, applied as a direct override to the stat_bonuses value.
-            // effective_value is set so that value * effective_value = token_value.
-            if (exact_match && is_pct) {
-                const base_val = entry.stat_bonuses[0]?.value || 1;
-                results.push({ entry, effective_value: token_value / base_val });
-            }
         } else {
             // slider
             if (exact_match) {
@@ -757,15 +749,15 @@ function _apply_radiance_scale_inplace(statMap, boost) {
 // ── Combo mana/HP simulation ────────────────────────────────────────────────
 
 /**
- * Pure mana+HP simulation kernel for Blood Pact / Bak'al's Grasp / Corruption.
- * Shared by both main thread and worker. DOM-free.
+ * Pure mana+HP simulation kernel for Blood Pact / Bak'al's Grasp / Corruption /
+ * Massacre / Mindless Slaughter. Shared by both main thread and worker. DOM-free.
  *
- * Tracks mana state, HP pool, blood pact bonus, corruption accumulation,
- * Exhilarate heal on Cancel Bak'al, HP regen ticks, and mana steal.
+ * Uses generic buff_state / trigger mechanism from extract_health_config().
+ * Melee-cooldown-aware wall-clock timing model.
  *
  * @param {Object[]} rows - Pre-parsed combo rows. Each row:
  *   { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast }
- *   pseudo: null | 'cancel_bakals' | 'mana_reset'
+ *   pseudo: null | 'cancel_state:<name>' | 'mana_reset'
  * @param {Map} base_stats - Aggregated build statMap
  * @param {Object} health_config - From extract_health_config()
  * @param {boolean} has_transcendence - Whether ARCANES major ID is active
@@ -799,11 +791,23 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
     adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
     const ms_per_hit = ms > 0 ? ms / 3 / baseDamageMultiplier[adjAtkSpd] : 0;
 
+    // Generic buff state tracking
+    const active_states = {};
+    for (const bs of health_config.buff_states) {
+        active_states[bs.state_name] = { active: false, value: 0 };
+    }
+    const state_melee_hits = {};
+    for (const bs of health_config.buff_states) {
+        state_melee_hits[bs.state_name] = 0;
+    }
+
+    // Melee cooldown tracking
+    const melee_period = 1 / baseDamageMultiplier[adjAtkSpd];
+    let melee_cd_remaining = 0;
+
     // State
     let mana = start_mana;
     let hp = max_hp;
-    let corrupted = false;
-    let corruption_pct = 0;
     let elapsed_time = 0;
 
     const row_results = [];
@@ -815,35 +819,40 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
     for (const row of rows) {
         const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0 } = row;
 
-        // Cancel Bak'al's Grasp pseudo-spell
-        if (pseudo === 'cancel_bakals') {
-            if (!mana_excl && corrupted) {
-                // Exhilarate heal: heal % of corruption bar as max hp
-                if (health_config.corruption_exit_heal > 0) {
-                    hp = Math.min(max_hp, hp + corruption_pct * health_config.corruption_exit_heal / 100 * max_hp);
+        // Cancel state pseudo-spell (e.g. "cancel_state:Corrupted")
+        if (pseudo?.startsWith('cancel_state:')) {
+            const state_name = pseudo.slice('cancel_state:'.length);
+            const st = active_states[state_name];
+            if (st?.active && !mana_excl) {
+                for (const trigger of health_config.exit_triggers) {
+                    if (trigger.state === state_name && trigger.on === 'exit') {
+                        hp = _apply_exit_trigger(trigger, st.value, max_hp, hp,
+                            boost_tokens, state_melee_hits[state_name], elapsed_time);
+                    }
                 }
-                corrupted = false;
-                corruption_pct = 0;
+                st.active = false;
+                st.value = 0;
+                state_melee_hits[state_name] = 0;
             }
-            row_results.push({ blood_pact_bonus: 0, corruption_pct: 0, hp_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false });
             continue;
         }
 
         // Mana Reset pseudo-spell
         if (pseudo === 'mana_reset') {
-            row_results.push({ blood_pact_bonus: 0, corruption_pct: 0, hp_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false });
             continue;
         }
 
         if (qty <= 0 || !spell) {
-            row_results.push({ blood_pact_bonus: 0, corruption_pct, hp_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false });
             continue;
         }
 
         // Mana-excluded rows: skip cost/regen tracking entirely
         if (mana_excl) {
             if (spell.scaling === 'melee') melee_hits += qty;
-            row_results.push({ blood_pact_bonus: 0, corruption_pct, hp_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false });
             continue;
         }
 
@@ -864,17 +873,28 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         let row_mana_cost = 0;
 
         for (let c = 0; c < qty; c++) {
-            // Time passage (spells only, melee = 0 time)
-            if (is_spell && !is_melee) {
-                const time_delta = SPELL_CAST_TIME + SPELL_CAST_DELAY;
+            // ── Wall-clock time advancement (melee cooldown + spell overlap) ──
+            let wall_dt = 0;
+            if (is_melee) {
+                wall_dt = melee_cd_remaining;
+                melee_cd_remaining = melee_period;
+            } else if (is_spell) {
+                const spell_dt = SPELL_CAST_TIME + SPELL_CAST_DELAY;
+                wall_dt = Math.max(spell_dt, melee_cd_remaining);
+                melee_cd_remaining = Math.max(0, melee_cd_remaining - wall_dt);
+            }
+
+            if (wall_dt > 0) {
                 const prev_time = elapsed_time;
-                elapsed_time += time_delta;
+                elapsed_time += wall_dt;
 
-                // Mana regen
-                mana = Math.min(max_mana, mana + mr_per_sec * time_delta);
+                // Mana regen (proportional to wall time)
+                mana = Math.min(max_mana, mana + mr_per_sec * wall_dt);
 
-                // HP regen tick check (suppressed while corrupted if suppress_healing)
-                if (!(corrupted && health_config.corruption.suppress_healing)) {
+                // HP regen tick check (suppressed by active buff states with suppress_healing)
+                const any_suppress = health_config.buff_states.some(
+                    bs => bs.suppress_healing && active_states[bs.state_name]?.active);
+                if (!any_suppress) {
                     const prev_ticks = Math.floor(prev_time / HPR_TICK_SECONDS);
                     const cur_ticks = Math.floor(elapsed_time / HPR_TICK_SECONDS);
                     if (cur_ticks > prev_ticks) {
@@ -883,9 +903,52 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                 }
             }
 
+            // Melee hit tracking for states
+            if (is_melee_scaling) {
+                for (const bs of health_config.buff_states) {
+                    if (active_states[bs.state_name]?.active) {
+                        state_melee_hits[bs.state_name] += 1;
+                    }
+                }
+            }
+
             // Mana steal from melee hits
             if (is_melee_scaling && ms_per_hit > 0) {
                 mana = Math.min(max_mana, mana + ms_per_hit);
+            }
+
+            // Spell-level HP cost & state tracking (Massacre / Mindless Slaughter)
+            for (const bs of health_config.buff_states) {
+                const st = active_states[bs.state_name];
+                if (!st?.active) continue;
+
+                // Per-second rate (Massacre: melee corruption while corrupted)
+                if (bs.spell_rate_field) {
+                    const rate = spell[bs.spell_rate_field] ?? 0;
+                    if (rate > 0) st.value = Math.min(100, st.value + rate / baseDamageMultiplier[adjAtkSpd]);
+                }
+                // Per-cast flat (Massacre: powder special corruption)
+                if (bs.spell_flat_field) {
+                    const flat = spell[bs.spell_flat_field] ?? 0;
+                    if (flat > 0) st.value = Math.min(100, st.value + flat);
+                }
+
+                // HP cost from spell (Mindless Slaughter) — gated on THIS state being active
+                const spell_hp_cost = spell.hp_cost ?? 0;
+                if (spell_hp_cost > 0) {
+                    const hp_deduction = spell_hp_cost / 100 * max_hp;
+                    if (hp < hp_deduction) hp_warning = true;
+                    hp -= hp_deduction;
+                    // Track state value via hp_loss_pct
+                    if (bs.tracking === 'hp_loss_pct') {
+                        st.value = Math.min(100, st.value + spell_hp_cost);
+                    }
+                    // Blood Pact at 100% blood ratio (entire cost is HP)
+                    if (health_config.damage_boost) {
+                        row_blood_total += health_config.damage_boost.max;
+                        row_blood_casts++;
+                    }
+                }
             }
 
             // Spell cost payment
@@ -908,22 +971,29 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                     if (hp < hp_cost) hp_warning = true;
                     hp -= hp_cost;
 
-                    // Track corruption from health costs while corrupted
-                    if (corrupted) {
-                        corruption_pct = Math.min(100, corruption_pct + hp_cost / max_hp * 100);
+                    // Track corruption from HP costs
+                    for (const bs of health_config.buff_states) {
+                        const st = active_states[bs.state_name];
+                        if (st?.active && bs.tracking === 'hp_loss_pct') {
+                            st.value = Math.min(100, st.value + hp_cost / max_hp * 100);
+                        }
                     }
 
-                    row_blood_total += health_config.damage_boost_min +
-                        (health_config.damage_boost_max - health_config.damage_boost_min) * blood_ratio;
-                    row_blood_casts++;
+                    const db = health_config.damage_boost;
+                    if (db) {
+                        row_blood_total += db.min + (db.max - db.min) * blood_ratio;
+                        row_blood_casts++;
+                    }
                 }
 
                 row_mana_cost += adj_cost;
 
-                // Corruption system: War Scream (base_spell 4) activates corruption
-                if (health_config.corruption.active && spell.base_spell === 4 && !corrupted) {
-                    corrupted = true;
-                    corruption_pct = 0;
+                // State activation (generic: replaces hardcoded base_spell === 4)
+                for (const bs of health_config.buff_states) {
+                    if (bs.activate_on?.spell != null && spell.base_spell === bs.activate_on.spell) {
+                        const st = active_states[bs.state_name];
+                        if (st && !st.active) { st.active = true; st.value = 0; }
+                    }
                 }
             }
         }
@@ -934,7 +1004,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
             spell_costs.push({ name: spell.name, qty, cost: cost_per, recast_penalty: recast_penalty_per_cast * qty });
         }
 
-        row_results.push({ blood_pact_bonus: avg_blood_bonus, corruption_pct, hp_warning });
+        row_results.push({ blood_pact_bonus: avg_blood_bonus, state_values: _snapshot_states(active_states), hp_warning });
     }
 
     return {
@@ -949,6 +1019,35 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         melee_hits,
         recast_penalty_total,
     };
+}
+
+function _snapshot_states(active_states) {
+    const out = {};
+    for (const [k, v] of Object.entries(active_states)) out[k] = v.value;
+    return out;
+}
+
+function _apply_exit_trigger(trigger, state_value, max_hp, hp, boost_tokens, melee_hits, elapsed_time) {
+    switch (trigger.effect) {
+        case 'heal_pct_of_state':
+            return Math.min(max_hp, hp + state_value * trigger.value / 100 * max_hp);
+        case 'heal_per_hit': {
+            const enemies = _get_boost_token_value(boost_tokens, trigger.slider_name);
+            const max_procs = trigger.cooldown > 0 ? Math.floor(elapsed_time / trigger.cooldown) : melee_hits;
+            const procs = Math.min(melee_hits, max_procs);
+            const missing_ratio = Math.max(0, (max_hp - hp) / max_hp);
+            return Math.min(max_hp, hp + procs * enemies * trigger.value * missing_ratio * max_hp);
+        }
+    }
+    return hp;
+}
+
+function _get_boost_token_value(boost_tokens, name) {
+    if (!boost_tokens || !name) return 0;
+    for (const t of boost_tokens) {
+        if (t.name === name) return t.value;
+    }
+    return 0;
 }
 
 // ── Combo damage totals ─────────────────────────────────────────────────────

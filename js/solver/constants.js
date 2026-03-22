@@ -59,6 +59,17 @@ const CANCEL_BAKALS_SPELL_ID = -2001;
 /** Reserved 7-bit node ID for Cancel Bak'al's Grasp in binary URL encoding. */
 const CANCEL_BAKALS_NODE_ID = 119;
 
+// ── Generic buff state cancel mappings ───────────────────────────────────────
+// Static spell ID → state name mapping for cancel pseudo-spells.
+// Do NOT auto-generate IDs — they appear in URL-encoded combos.
+const STATE_CANCEL_IDS = new Map([['Corrupted', CANCEL_BAKALS_SPELL_ID]]);
+const STATE_CANCEL_NODE_IDS = new Map([['Corrupted', CANCEL_BAKALS_NODE_ID]]);
+
+/** Look up the cancel pseudo-spell ID for a buff state name. */
+function get_cancel_spell_id(state_name) {
+    return STATE_CANCEL_IDS.get(state_name) ?? null;
+}
+
 // ── Solver-specific constants ────────────────────────────────────────────────
 
 /**

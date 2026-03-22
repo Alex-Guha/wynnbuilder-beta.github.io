@@ -4976,8 +4976,7 @@
                 "icon": "node_3"
             },
             "properties": {
-                "cooldown": 15,
-                "suppress_healing": true
+                "cooldown": 15
             },
             "effects": [
                 {
@@ -4994,6 +4993,16 @@
                     "scaling": [
                         2
                     ]
+                },
+                {
+                    "type": "buff_state",
+                    "state_name": "Corrupted",
+                    "activate_on": { "spell": 4 },
+                    "deactivate": "cancel",
+                    "tracking": "hp_loss_pct",
+                    "suppress_healing": true,
+                    "spell_rate_field": "corruption_rate",
+                    "spell_flat_field": "corruption_per_use"
                 }
             ]
         },
@@ -5169,21 +5178,18 @@
                 "icon": "node_3"
             },
             "properties": {
-                "health_cost": 0.35,
-                "damage_boost": 25,
-                "damage_boost_min": 15
+                "health_cost": 0.35
             },
             "effects": [
                 {
-                    "type": "raw_stat",
-                    "toggle": "Activate Blood Pact",
-                    "bonuses": [
-                        {
-                            "type": "stat",
-                            "name": "damMult.BloodPact",
-                            "value": "Blood Pact.damage_boost"
-                        }
-                    ]
+                    "type": "stat_scaling",
+                    "slider": true,
+                    "slider_name": "Bonus Damage %",
+                    "slider_min": 15,
+                    "slider_max": 25,
+                    "slider_step": 1,
+                    "output": { "type": "stat", "name": "damMult.BloodPact" },
+                    "scaling": [1]
                 }
             ]
         },
@@ -5474,10 +5480,16 @@
                 "col": 0,
                 "icon": "node_1"
             },
-            "properties": {
-                "corruption_exit_heal": 0.30
-            },
-            "effects": []
+            "properties": {},
+            "effects": [
+                {
+                    "type": "trigger",
+                    "on": "exit",
+                    "state": "Corrupted",
+                    "effect": "heal_pct_of_state",
+                    "value": 0.30
+                }
+            ]
         },
         {
             "display_name": "Cheaper War Scream I",
@@ -5622,11 +5634,20 @@
                 "col": 1,
                 "icon": "node_1"
             },
-            "properties": {
-                "corruption_exit_heal_per_hit": 0.025,
-                "corruption_exit_heal_hit_cooldown": 0.45
-            },
-            "effects": []
+            "properties": {},
+            "effects": [
+                {
+                    "type": "trigger",
+                    "on": "exit",
+                    "state": "Corrupted",
+                    "effect": "heal_per_hit",
+                    "value": 0.025,
+                    "cooldown": 0.45,
+                    "slider_name": "Hits dealt",
+                    "slider_max": 10,
+                    "slider_step": 1
+                }
+            ]
         },
         {
             "display_name": "Comet",
@@ -5738,10 +5759,7 @@
                 "col": 8,
                 "icon": "node_4"
             },
-            "properties": {
-                "damage_regen_pct": 0.30,
-                "damage_regen_duration": 15
-            },
+            "properties": {},
             "effects": []
         },
         {
@@ -6222,7 +6240,20 @@
                 "icon": "node_1"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 0,
+                    "target_part": null,
+                    "corruption_rate": 1.5
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": "powder_special",
+                    "target_part": null,
+                    "corruption_per_use": 3
+                }
+            ]
         },
         {
             "display_name": "Axe Kick",
@@ -6848,7 +6879,22 @@
                 "icon": "node_1"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 0,
+                    "target_part": null,
+                    "hp_cost": 0.5,
+                    "corruption_rate": 1.5
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": "powder_special",
+                    "target_part": null,
+                    "hp_cost": 0.5,
+                    "corruption_per_use": 3
+                }
+            ]
         },
         {
             "display_name": "Pressure",
