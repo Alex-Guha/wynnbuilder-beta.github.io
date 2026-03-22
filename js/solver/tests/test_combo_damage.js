@@ -1,15 +1,17 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // COMBO DAMAGE CROSS-VALIDATION TESTS
 //
-// For each COMBO ROW (not just unique spell), computes damage via two paths:
-//   1. Builder path:  calculateSpellDamage → per-element min/max/crit arrays
-//                     → manual crit-weighted average
-//   2. Solver path:   computeSpellDisplayAvg (crit-weighted avg via _eval_spell_parts)
+// Cross-validates per-spell damage between two independent stat assembly paths:
+//   1. Builder path:  Build class (same as BuildAssembleNode on the page) →
+//                     builder statMap → calculateSpellDamage → crit-weighted avg
+//   2. Solver path:   _init_running_statmap / _incr_add_item / _finalize_leaf_statmap
+//                     (same as solver worker) → solver statMap →
+//                     compute_combo_damage_totals (via computeSpellDisplayAvg)
 //
-// Both paths receive the same boosted stats and modified spell (after boost
-// application and spell prop overrides), so this cross-validates the entire
-// combo pipeline: boost resolution, stat application, prop overrides, DPS
-// detection, and damage aggregation.
+// The test first compares the statMaps produced by both paths (pre- and
+// post-atree), then cross-validates per-row combo damage using each path's
+// own statMap.  This catches divergences in stat assembly, SP calculation,
+// set bonuses, and damage computation.
 //
 // Test cases are defined by solver URL hashes in snapshots/combo_*.snap.json.
 //
@@ -39,6 +41,23 @@ for (const relPath of ['js/solver/combo/boost.js', 'js/solver/combo/codec.js']) 
     const code = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
     vm.runInContext(code, ctx, { filename: path.join(REPO_ROOT, relPath) });
 }
+
+// Export tome_fields and classDefenseMultipliers for builder path.
+vm.runInContext(`
+    globalThis.tome_fields = tome_fields;
+    globalThis.classDefenseMultipliers = classDefenseMultipliers;
+`, ctx);
+
+// 14-slot → 7-type none_tome index mapping (mirrors _NONE_TOME_KEY in solver/graph/build.js).
+const _NONE_TOME_KEY = {
+    weaponTome1: 0, weaponTome2: 0,
+    armorTome1: 1, armorTome2: 1, armorTome3: 1, armorTome4: 1,
+    guildTome1: 2,
+    lootrunTome1: 3,
+    gatherXpTome1: 4, gatherXpTome2: 4,
+    dungeonXpTome1: 5, dungeonXpTome2: 5,
+    mobXpTome1: 6, mobXpTome2: 6,
+};
 
 const t = new TestRunner('Combo Damage Cross-Validation');
 
@@ -223,6 +242,41 @@ function resolveComboRows(decodedRows, spellMap, atree_merged) {
     return rows;
 }
 
+// ── StatMap comparison helper ────────────────────────────────────────────────
+
+/**
+ * Compare two statMaps and report differences.  Skips nested Map/Set entries
+ * (damMult, defMult, healMult, activeMajorIDs) since those are set up by
+ * the same finalizeStatmap function on both paths.
+ */
+function compareStatMaps(label, builderSM, solverSM, t) {
+    const allKeys = new Set([...builderSM.keys(), ...solverSM.keys()]);
+    let mismatches = 0;
+    for (const key of allKeys) {
+        const bv = builderSM.get(key);
+        const sv = solverSM.get(key);
+        // Skip nested structures (Maps, Sets) — compared identically via finalizeStatmap.
+        if (bv instanceof Map || bv instanceof Set || sv instanceof Map || sv instanceof Set) continue;
+        if (typeof bv === 'string' || typeof sv === 'string') {
+            if (bv !== sv) {
+                t.assert(false, `${label} statMap mismatch: "${key}" builder="${bv}" solver="${sv}"`);
+                mismatches++;
+            }
+            continue;
+        }
+        const bn = bv ?? 0;
+        const sn = sv ?? 0;
+        if (bn !== sn) {
+            t.assert(false, `${label} statMap mismatch: "${key}" builder=${bn} solver=${sn}`);
+            mismatches++;
+        }
+    }
+    if (mismatches === 0) {
+        t.assert(true, `${label} statMaps match (${allKeys.size} keys)`);
+    }
+    return mismatches;
+}
+
 // ── Test runner ──────────────────────────────────────────────────────────────
 
 function runComboTest(snapName) {
@@ -233,7 +287,7 @@ function runComboTest(snapName) {
     checkSnapshotFreshness(snap, t, extractEquipmentStats(decoded, ctx), false);
     t.assert(decoded.playerClass !== null, `${snapName}: decoded class = ${decoded.playerClass}`);
 
-    // 2. Resolve items.
+    // 2. Resolve items (raw item data from itemMap).
     const equipNames = decoded.equipment;
     const equips = [];
     for (let i = 0; i < 8; i++) {
@@ -244,54 +298,121 @@ function runComboTest(snapName) {
     const weapon = (weaponName && ctx.itemMap.has(weaponName)) ? ctx.itemMap.get(weaponName) : ctx.none_items[8];
     t.assert(weapon, `${snapName}: weapon "${weaponName}" found`);
 
-    // Tomes.
+    // Tomes: decode all 14 slots with correct none_tome fallback per slot type.
     const tomeNames = decoded.tomes || [];
     const resolvedTomes = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < ctx.tome_fields.length; i++) {
         const name = tomeNames[i];
-        resolvedTomes.push((name && ctx.tomeMap.has(name)) ? ctx.tomeMap.get(name) : ctx.none_tomes[i]);
+        const noneIdx = _NONE_TOME_KEY[ctx.tome_fields[i]];
+        resolvedTomes.push((name && ctx.tomeMap.has(name)) ? ctx.tomeMap.get(name) : ctx.none_tomes[noneIdx]);
     }
 
-    // 3. Build statMaps.
-    const equipSMs = equips.map(it => ctx.expandItem(it));
+    // 3. Build statMaps (shared: weapon with powders applied).
     const weaponSM = ctx.expandItem(weapon);
     weaponSM.set('powders', decoded.powders?.[8] ?? []);
     ctx.apply_weapon_powders(weaponSM);
-    const tomeSMs = resolvedTomes.map(it => ctx.expandItem(it));
 
     // 4. Decode atree.
     const activeNodes = decodeActiveNodes(ctx, decoded.playerClass, decoded.atree_data);
     t.assert(activeNodes.length > 0, `${snapName}: ${activeNodes.length} active atree nodes`);
 
-    // 5. SP calculation (wynn order: boots→helmet, ring1→neck, tomes).
-    const wynn_order = [
+    // ═══════════════════════════════════════════════════════════════════════
+    // PATH A: Builder stat assembly (via Build class, same as BuildAssembleNode)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Wrap raw item data as Item objects (Build class reads item.statMap).
+    const equipItems = equips.map(it => new ctx.Item(it));
+    const weaponItem = new ctx.Item(weapon);
+    // Apply powders to the weapon Item's statMap (must match weaponSM).
+    weaponItem.statMap.set('powders', decoded.powders?.[8] ?? []);
+    ctx.apply_weapon_powders(weaponItem.statMap);
+    const tomeItems = resolvedTomes.map(it => new ctx.Item(it));
+
+    // Wynn equip order for SP calc: boots→helmet, ring1→neck, guildTome only.
+    // This matches BuildAssembleNode in shared_graph_nodes.js.
+    const wynn_equip = [
+        equipItems[3], equipItems[2], equipItems[1], equipItems[0],
+        equipItems[4], equipItems[5], equipItems[6], equipItems[7],
+        tomeItems[ctx.tome_fields.indexOf('guildTome1')],
+    ];
+
+    ctx.__level = decoded.level;
+    ctx.__equips = equipItems;
+    ctx.__tomes = tomeItems;
+    ctx.__weapon = weaponItem;
+    ctx.__wynn = wynn_equip;
+    const builderBuild = vm.runInContext(
+        'new Build(__level, __equips, __tomes, __weapon, __wynn)', ctx);
+    delete ctx.__level; delete ctx.__equips; delete ctx.__tomes;
+    delete ctx.__weapon; delete ctx.__wynn;
+
+    // Extract builder statMap (mirrors SolverBuildStatExtractNode).
+    const builder_sm = new Map(builderBuild.statMap);
+    for (let i = 0; i < 5; i++) {
+        builder_sm.set(ctx.skp_order[i], builderBuild.total_skillpoints[i]);
+    }
+    const weaponType = weaponSM.get('type');
+    if (weaponType) {
+        builder_sm.set('classDef', ctx.classDefenseMultipliers.get(weaponType) || 1.0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PATH B: Solver stat assembly (via worker shims, same as solver worker)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const equipSMs = equips.map(it => ctx.expandItem(it));
+    const tomeSMs = resolvedTomes.map(it => ctx.expandItem(it));
+
+    // SP calculation: wynn order with guild tome only (matching builder path).
+    const guildTomeIdx = ctx.tome_fields.indexOf('guildTome1');
+    const solver_wynn_order = [
         equipSMs[3], equipSMs[2], equipSMs[1], equipSMs[0],
         equipSMs[4], equipSMs[5], equipSMs[6], equipSMs[7],
-        ...tomeSMs,
+        tomeSMs[guildTomeIdx],
     ];
-    const spResult = ctx.calculate_skillpoints(wynn_order, weaponSM);
+    const spResult = ctx.calculate_skillpoints(solver_wynn_order, weaponSM);
     t.assert(spResult !== null, `${snapName}: SP calculation succeeded`);
     const [, total_sp, , activeSetCounts] = spResult;
 
-    // 6. Build final statMap.
+    // Build final statMap via worker shims.
     const locked_sms = [weaponSM, ...tomeSMs];
     const running = ctx._init_running_statmap(decoded.level, locked_sms);
     for (const sm of equipSMs) ctx._incr_add_item(running, sm);
-    const build_sm = ctx._finalize_leaf_statmap(
+    const solver_sm = ctx._finalize_leaf_statmap(
         running, weaponSM, activeSetCounts, ctx.sets, [...equipSMs, ...tomeSMs, weaponSM], null, null);
 
-    for (let i = 0; i < 5; i++) build_sm.set(ctx.skp_order[i], total_sp[i]);
+    for (let i = 0; i < 5; i++) solver_sm.set(ctx.skp_order[i], total_sp[i]);
+    if (weaponType) {
+        solver_sm.set('classDef', ctx.classDefenseMultipliers.get(weaponType) || 1.0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // COMPARE: Builder vs Solver statMaps (pre-atree)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    compareStatMaps(`${snapName} pre-atree`, builder_sm, solver_sm, t);
 
     // 7. Atree merged → raw stats → scaling → spells.
-    const atree_merged = buildAtreeMerged(ctx, decoded.playerClass, activeNodes, build_sm, decoded.aspects);
+    // Apply atree stats to BOTH statMaps independently.
+    const atree_merged = buildAtreeMerged(ctx, decoded.playerClass, activeNodes, solver_sm, decoded.aspects);
 
     const rawStats = collectRawStats(ctx, atree_merged);
-    for (const [stat, value] of rawStats) ctx.merge_stat(build_sm, stat, value);
+    for (const [stat, value] of rawStats) {
+        ctx.merge_stat(builder_sm, stat, value);
+        ctx.merge_stat(solver_sm, stat, value);
+    }
 
     const button_states = snap.button_states ? new Map(Object.entries(snap.button_states)) : new Map();
     const slider_states = snap.slider_states ? new Map(Object.entries(snap.slider_states)) : new Map();
-    const [, atree_scale_stats] = ctx.atree_compute_scaling(atree_merged, build_sm, button_states, slider_states);
-    for (const [stat, value] of atree_scale_stats) ctx.merge_stat(build_sm, stat, value);
+
+    const [, atree_scale_stats] = ctx.atree_compute_scaling(atree_merged, solver_sm, button_states, slider_states);
+    for (const [stat, value] of atree_scale_stats) {
+        ctx.merge_stat(builder_sm, stat, value);
+        ctx.merge_stat(solver_sm, stat, value);
+    }
+
+    // Post-atree statMap comparison.
+    compareStatMaps(`${snapName} post-atree`, builder_sm, solver_sm, t);
 
     const spellMap = collectSpells(ctx, atree_merged);
     t.assert(spellMap.size > 0, `${snapName}: ${spellMap.size} spells collected`);
@@ -306,19 +427,22 @@ function runComboTest(snapName) {
     t.assert(comboRowsRaw.length > 0, `${snapName}: ${comboRowsRaw.length} combo rows in URL`);
     const parsedRows = resolveComboRows(comboRowsRaw, spellMap, atree_merged);
 
-    // 10. Compute crit chance from dex.
-    const dex = build_sm.get('dex') || 0;
-    const crit_chance = ctx.skillPointsToPercentage(dex);
+    // 10. Compute crit chance from each statMap.
+    const builder_crit = ctx.skillPointsToPercentage(builder_sm.get('dex') || 0);
+    const solver_crit = ctx.skillPointsToPercentage(solver_sm.get('dex') || 0);
 
     // 11. Cross-validate each combo row.
+    //     Builder path uses builder_sm; solver path uses solver_sm via
+    //     compute_combo_damage_totals. This catches both stat assembly
+    //     divergences AND damage calculation divergences.
     const tolerance = 1e-6;
     let rowsTested = 0;
 
-    // Run compute_combo_damage_totals (solver aggregate path).
-    ctx.__sm = build_sm;
+    // Run compute_combo_damage_totals (solver aggregate path) on solver_sm.
+    ctx.__sm = solver_sm;
     ctx.__wsm = weaponSM;
     ctx.__rows = parsedRows;
-    ctx.__cc = crit_chance;
+    ctx.__cc = solver_crit;
     ctx.__reg = registry;
     ctx.__am = atree_merged;
     const solverTotals = vm.runInContext(
@@ -340,8 +464,8 @@ function runComboTest(snapName) {
             continue;
         }
 
-        // Apply boosts (solver path).
-        ctx.__sm = build_sm;
+        // Apply boosts to BUILDER statMap (independent path).
+        ctx.__sm = builder_sm;
         ctx.__bt = boost_tokens;
         ctx.__reg = registry;
         const boosted = vm.runInContext(
@@ -371,13 +495,13 @@ function runComboTest(snapName) {
             effDpsHits = dps_hits_override ?? dpsInfo.max_hits;
         }
 
-        // ── Builder path: per-row damage ──
+        // ── Builder path: per-row damage (using builder_sm stats) ──
         let builderPerCast;
         if (effDpsName) {
-            const perHit = evalSpellBuilderAvg(modSpell, boostedStats, weaponSM, crit_chance, effDpsName);
+            const perHit = evalSpellBuilderAvg(modSpell, boostedStats, weaponSM, builder_crit, effDpsName);
             builderPerCast = perHit * effDpsHits;
         } else {
-            builderPerCast = evalSpellBuilderAvg(modSpell, boostedStats, weaponSM, crit_chance, null);
+            builderPerCast = evalSpellBuilderAvg(modSpell, boostedStats, weaponSM, builder_crit, null);
         }
 
         // ── Solver path: per-row damage (from compute_combo_damage_totals) ──

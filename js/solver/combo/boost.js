@@ -224,7 +224,10 @@ function build_combo_boost_registry(atree_merged, build = null) {
                     const out   = outputs[i];
                     const scale = scaling[i] ?? scaling[0] ?? 1;
                     if (out.type === 'stat') {
-                        stat_bonuses.push({ key: out.name, value: scale, mode: 'add' });
+                        const sb = { key: out.name, value: scale, mode: 'add' };
+                        if (effect.round === false) sb.round = false;
+                        if (typeof effect.max === 'number') sb.max = effect.max;
+                        stat_bonuses.push(sb);
                     } else if (out.type === 'prop') {
                         const target_abil = atree_merged.get(out.abil);
                         const pb = { ref: String(out.abil) + '.' + out.name, value_per_unit: scale,

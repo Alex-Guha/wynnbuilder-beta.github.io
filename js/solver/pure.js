@@ -355,7 +355,12 @@ function apply_combo_row_boosts(base_stats, boost_tokens, registry, scratch) {
         const matches = find_all_matching_boosts(name, value, !!is_pct, registry);
         for (const { entry, effective_value } of matches) {
             for (const b of entry.stat_bonuses) {
-                const contrib = b.value * effective_value;
+                let contrib = b.value * effective_value;
+                if (b.round !== false) contrib = Math.floor(round_near(contrib));
+                if (b.max != null) {
+                    if (b.max > 0 && contrib > b.max) contrib = b.max;
+                    else if (b.max < 0 && contrib < b.max) contrib = b.max;
+                }
                 if (b.key.startsWith('damMult.')) {
                     const key = b.key.substring(8);
                     // Potion and Vulnerability use max semantics (matching merge_stat).
