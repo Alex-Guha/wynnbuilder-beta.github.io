@@ -60,6 +60,7 @@ const PROGRESS_INTERVAL = 5000;
 const PROGRESS_INTERVAL_LONG = 50000;
 let _checked = 0;
 let _feasible = 0;
+let _met_req = 0;
 let _top5 = [];
 let _top5_version = 0;
 let _last_sent_top5_version = 0;
@@ -621,6 +622,7 @@ function _run_level_enum() {
                 worker_id: _cfg.worker_id,
                 checked: _checked,
                 feasible: _feasible,
+                met_req: _met_req,
                 checked_since_top5: _checked - _checked_at_last_top5_change,
                 L_progress: [_current_L, L_max],
             };
@@ -922,6 +924,7 @@ function _run_level_enum() {
         // Score
         const score = _eval_score(combo_base, thresh_stats);
         _dbg_scored++;
+        _met_req++;
         if (_dbg) _dbg_leaf_time += performance.now() - t0;
         const item_names = equip_8_sms.map(sm => _get_item_name(sm));
         const entry = { score, item_names, base_sp, total_sp, assigned_sp: final_assigned };
@@ -1243,7 +1246,7 @@ self.onmessage = function (e) {
             _build_sp_constraints();
         } catch (err) {
             console.error('[w] prechecks crashed:', err.message, err.stack);
-            postMessage({ type: 'done', worker_id: msg.worker_id, checked: 0, feasible: 0, top5: [] });
+            postMessage({ type: 'done', worker_id: msg.worker_id, checked: 0, feasible: 0, met_req: 0, top5: [] });
             return;
         }
         if (SOLVER_DEBUG_WORKER && msg.worker_id === 0) {
@@ -1263,6 +1266,7 @@ self.onmessage = function (e) {
         if (msg.partition) {
             _checked = 0;
             _feasible = 0;
+            _met_req = 0;
             _top5 = [];
             _top5_version = 0;
             _last_sent_top5_version = 0;
@@ -1278,6 +1282,7 @@ self.onmessage = function (e) {
                 worker_id: msg.worker_id,
                 checked: _checked,
                 feasible: _feasible,
+                met_req: _met_req,
                 top5: _top5,
             });
         }
@@ -1287,6 +1292,7 @@ self.onmessage = function (e) {
         _cfg.worker_id = msg.worker_id;
         _checked = 0;
         _feasible = 0;
+        _met_req = 0;
         _top5 = [];
         _top5_version = 0;
         _last_sent_top5_version = 0;
@@ -1304,6 +1310,7 @@ self.onmessage = function (e) {
             worker_id: msg.worker_id,
             checked: _checked,
             feasible: _feasible,
+            met_req: _met_req,
             top5: _top5,
         });
     } else if (msg.type === 'cancel') {

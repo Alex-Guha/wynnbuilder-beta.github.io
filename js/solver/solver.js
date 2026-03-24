@@ -674,6 +674,7 @@ async function init() {
     }
 
     solver_graph_init();
+    _init_solver_progress_toggle();
 
     // Auto-disable build directions for SP types with negative net provision
     // across locked items.  Runs after graph init so item nodes have values.

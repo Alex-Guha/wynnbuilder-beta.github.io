@@ -68,7 +68,17 @@ class SolverSKPNode extends ComputeNode {
         }
 
         if (summaryBox) {
-            const total  = has_override ? ov.assigned_sp : build.assigned_skillpoints;
+            let total  = has_override ? ov.assigned_sp : build.assigned_skillpoints;
+            // Rainbow guild tome injects a synthetic [1,1,1,1,1] item whose +5 SP
+            // count as *bonus* (not assigned).  For display consistency with Standard
+            // tome (which inflates assigned SP by 4, showing "Remaining: -4"), add
+            // the synthetic tome's +5 so Rainbow shows "Remaining: -5".
+            const gt_idx = tome_fields.indexOf('guildTome1');
+            const gt_val = (gt_idx >= 0) ? solver_item_final_nodes[9 + gt_idx]?.value : null;
+            if (!gt_val || gt_val.statMap.has('NONE')) {
+                const gtome_mode = parseInt(document.getElementById('restr-guild-tome')?.value) || 0;
+                if (gtome_mode === 2) total += 5;
+            }
             const budget = levelToSkillPoints(build.level);
             const rem    = budget - total;
             const p = document.createElement('p');

@@ -226,6 +226,7 @@ function displayExpandedItem(item, parent_id){
     
     let fix_id = item.has("fixID") && item.get("fixID");
     let last_command;
+    let last_id_type;  // "fixed" or "rolled"
     let elemental_format = false;
     for (let i = 0; i < display_commands.length; i++) {
         const command = display_commands[i];
@@ -399,11 +400,15 @@ function displayExpandedItem(item, parent_id){
                     }
 
                     let p_elem;
+                    let id_style;
+                    if (id === "atkTier") {
+                        id_style = item.get(id) > 0 ? "positive" : item.get(id) < 0 ? "negative" : undefined;
+                    }
                     // TODO: wtf is this if statement
                     if ( !(item.get("tier") === "Crafted" && item.get("category") === "armor" && id === "hp") && (!skp_order.includes(id)) || (skp_order.includes(id) && item.get("tier") !== "Crafted" && parent_div.nodeName === "table") ) { //skp warp
-                        p_elem = displayFixedID(parent_div, id, item.get(id), elemental_format);
+                        p_elem = displayFixedID(parent_div, id, item.get(id), elemental_format, id_style);
                     } else if (item.get("tier") === "Crafted" && item.get("category") === "armor" && id === "hp") {
-                        p_elem = displayFixedID(parent_div, id, item.get(id+"Low")+"-"+item.get(id), elemental_format);
+                        p_elem = displayFixedID(parent_div, id, item.get(id+"Low")+"-"+item.get(id), elemental_format, id_style);
                     }
                     if (id === "lore") {
                         p_elem.style = "font-style: italic";
@@ -432,10 +437,14 @@ function displayExpandedItem(item, parent_id){
                     }
                 }
                 last_command = id;
+                last_id_type = "fixed";
             }
             else if ( rolledIDs.includes(id) &&
                         ((item.get("maxRolls") && item.get("maxRolls").get(id))
                         || (item.get("minRolls") && item.get("minRolls").get(id)))) {
+                if (last_id_type === "fixed") {
+                    parent_div.appendChild(make_elem('div', ["row", "my-1"]));
+                }
                 let style = "positive";
                 if (item.get("minRolls").get(id) < 0) {
                     style = "negative";
@@ -454,8 +463,9 @@ function displayExpandedItem(item, parent_id){
                     parent_div.appendChild(row);
                 }
                 last_command = id;
+                last_id_type = "rolled";
             }else{
-              // :/  
+              // :/
             }
         }
     }
@@ -1090,6 +1100,7 @@ function displayFixedID(active, id, value, elemental_format, style) {
         let desc_elem = document.createElement('div');
         desc_elem.classList.add('col');
         desc_elem.classList.add('text-start');
+        desc_elem.classList.add('text-nowrap');
 
         if (elemental_format) {
             apply_elemental_format(desc_elem, id);

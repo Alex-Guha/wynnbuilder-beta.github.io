@@ -9,17 +9,19 @@ const _solver_state = {
     seed_build: null,      // seeded from current UI build (survives worker merges)
     checked: 0,
     feasible: 0,
+    met_req: 0,
     start: 0,
     last_ui: 0,
     total: 0,
     last_eta: 0,
-    workers: [],           // [{worker, done, checked, feasible, top5}]
+    workers: [],           // [{worker, done, checked, feasible, met_req, top5}]
     progress_timer: 0,     // setInterval handle
     verification_phase: false,
     dmg_weights: null,
     last_topN_change: 0,          // timestamp of last change to merged top-N
     _prev_topN_fingerprint: '',   // for change detection
     top15_expanded: false,        // UI expand state
+    progress_expanded: false,     // progress details expand state
 };
 
 // Bitmask tracking which equipment slots were last filled by the solver.
@@ -558,16 +560,18 @@ function _merge_worker_top5(workers, include_interim) {
 }
 
 /**
- * Format the solver summary status text shown after completion or stop.
+ * Format a number in compact form: 1.2 K, 3.4 Mil, 5.6 Bil, etc.
  */
-function _format_solver_summary(completed, elapsed_s) {
-    if (completed) {
-        return `Solved \u2014 Checked: ${_solver_state.checked.toLocaleString()}, Feasible: ${_solver_state.feasible.toLocaleString()}, Time: ${_format_duration(elapsed_s)}`;
-    }
-    const rate_ms = _solver_state.checked > 0 ? (elapsed_s * 1000 / _solver_state.checked) : 0;
-    const rem_s = rate_ms > 0 ? Math.ceil(rate_ms * (_solver_state.total - _solver_state.checked) / 1000) : null;
-    const rem_str = rem_s !== null ? `, Est. Remaining: ${_format_duration(rem_s)}` : '';
-    return `Stopped \u2014 Checked: ${_solver_state.checked.toLocaleString()} / ${_solver_state.total.toLocaleString()}, Feasible: ${_solver_state.feasible.toLocaleString()}, Time: ${_format_duration(elapsed_s)}${rem_str}`;
+function _format_compact(n) {
+    if (n < 1000) return n.toLocaleString();
+    const suffixes = ['', 'K', 'Mil', 'Bil', 'Tril', 'Quad', 'Quin'];
+    let tier = 0;
+    let v = n;
+    while (v >= 1000 && tier < suffixes.length - 1) { v /= 1000; tier++; }
+    // Show one decimal place, but drop trailing .0
+    const s = v.toFixed(1);
+    const display = s.endsWith('.0') ? s.slice(0, -2) : s;
+    return `${display} ${suffixes[tier]}`;
 }
 
 // ── Solver target metadata ─────────────────────────────────────────────────
@@ -615,27 +619,79 @@ function _format_duration(total_s) {
     return `${s}s`;
 }
 
-function _update_solver_progress_ui() {
-    const el_checked = document.getElementById('solver-checked-count');
+/**
+ * Show the progress panel in stopped/completed state with a prefix label.
+ */
+function _show_solver_stopped_progress(label, elapsed_s) {
+    const el = document.getElementById('solver-progress-text');
+    el.style.display = '';
+    const el_left = document.getElementById('solver-progress-left');
+    const el_right = document.getElementById('solver-progress-right');
+    if (el_left) el_left.textContent = `${label} - Checked: ${_format_compact(_solver_state.checked)} / ${_format_compact(_solver_state.total)}`;
+    if (el_right) el_right.textContent = `Time: ${_format_duration(elapsed_s)}`;
     const el_feasible = document.getElementById('solver-feasible-count');
-    const el_elapsed = document.getElementById('solver-elapsed-text');
-    const el_total = document.getElementById('solver-total-count');
+    if (el_feasible) el_feasible.textContent = _format_compact(_solver_state.feasible);
+    const el_met_req = document.getElementById('solver-met-req-count');
+    if (el_met_req) el_met_req.textContent = _format_compact(_solver_state.met_req);
+    // Show remaining time estimate
     const el_remaining = document.getElementById('solver-remaining-text');
-    if (el_checked) el_checked.textContent = _solver_state.checked.toLocaleString();
-    if (el_feasible) el_feasible.textContent = _solver_state.feasible.toLocaleString();
-    if (el_total) el_total.textContent = _solver_state.total.toLocaleString();
+    const el_remaining_row = document.getElementById('solver-remaining-row');
+    if (label === 'Stopped' && _solver_state.checked > 0 && _solver_state.total > _solver_state.checked) {
+        const rate_ms = elapsed_s * 1000 / _solver_state.checked;
+        const rem_s = Math.ceil(rate_ms * (_solver_state.total - _solver_state.checked) / 1000);
+        if (el_remaining) el_remaining.textContent = 'Est. Remaining: ' + _format_duration(rem_s);
+        if (el_remaining_row) el_remaining_row.style.display = '';
+    } else {
+        if (el_remaining) el_remaining.textContent = '';
+        if (el_remaining_row) el_remaining_row.style.display = 'none';
+    }
+    // Restore expand state
+    const details = document.getElementById('solver-progress-details');
+    if (details) details.style.display = _solver_state.progress_expanded ? '' : 'none';
+}
+
+/** Set up the click-to-expand handler (called once at page load). */
+function _init_solver_progress_toggle() {
+    const header = document.getElementById('solver-progress-header');
+    if (!header) return;
+    const BG_HOVER = 'rgba(255, 255, 255, 0.12)';
+    header.addEventListener('click', () => {
+        _solver_state.progress_expanded = !_solver_state.progress_expanded;
+        const details = document.getElementById('solver-progress-details');
+        if (details) details.style.display = _solver_state.progress_expanded ? '' : 'none';
+    });
+    header.addEventListener('mouseenter', () => { header.style.backgroundColor = BG_HOVER; });
+    header.addEventListener('mouseleave', () => { header.style.backgroundColor = ''; });
+}
+
+function _update_solver_progress_ui() {
+    const el_left = document.getElementById('solver-progress-left');
+    const el_right = document.getElementById('solver-progress-right');
+    const el_feasible = document.getElementById('solver-feasible-count');
+    const el_met_req = document.getElementById('solver-met-req-count');
+    const el_remaining = document.getElementById('solver-remaining-text');
+    const el_remaining_row = document.getElementById('solver-remaining-row');
+
     const now = Date.now();
     const elapsed_ms = now - _solver_state.start;
-    if (el_elapsed) el_elapsed.textContent = _format_duration(elapsed_ms / 1000);
+    const elapsed_str = _format_duration(elapsed_ms / 1000);
+    const checked_str = `Checked: ${_format_compact(_solver_state.checked)} / ${_format_compact(_solver_state.total)}`;
+
+    if (el_left) el_left.textContent = checked_str;
+    if (el_right) el_right.textContent = elapsed_str;
+    if (el_feasible) el_feasible.textContent = _format_compact(_solver_state.feasible);
+    if (el_met_req) el_met_req.textContent = _format_compact(_solver_state.met_req);
 
     if (now - _solver_state.last_eta >= 1000) {
         _solver_state.last_eta = now;
         if (_solver_state.checked > 0 && _solver_state.total > _solver_state.checked) {
             const rate = elapsed_ms / _solver_state.checked;
             const remaining_s = Math.ceil(rate * (_solver_state.total - _solver_state.checked) / 1000);
-            if (el_remaining) el_remaining.textContent = _format_duration(remaining_s) + ' left';
+            if (el_remaining) el_remaining.textContent = 'Est. Time: ' + _format_duration(remaining_s) + ' left';
+            if (el_remaining_row) el_remaining_row.style.display = '';
         } else {
             if (el_remaining) el_remaining.textContent = '';
+            if (el_remaining_row) el_remaining_row.style.display = 'none';
         }
     }
     // Verification phase detection — based on main-thread top-N change time
@@ -661,10 +717,10 @@ function _update_solver_progress_ui() {
             const rate = elapsed_s > 0 ? _solver_state.checked / elapsed_s : 0;
             if (should_verify) {
                 el_status.textContent = 'Top results possibly stable \u2014 exhaustive check in progress';
-                el_status.className = 'ms-2 text-info';
+                el_status.className = 'text-info';
             } else if (elapsed_s > 20 && rate > 0 && rate < 1000) {
                 el_status.innerHTML = '\u26A0 Very slow iteration \u2014 results may take a long time on this device';
-                el_status.className = 'ms-2 text-danger';
+                el_status.className = 'text-danger';
             } else {
                 el_status.textContent = '';
             }
@@ -1075,9 +1131,11 @@ function _stop_solver() {
     // Snapshot final counts (cumulative + in-flight) before terminating
     _solver_state.checked = 0;
     _solver_state.feasible = 0;
+    _solver_state.met_req = 0;
     for (const w of _solver_state.workers) {
         _solver_state.checked += w.checked + (w._cur_checked ?? 0);
         _solver_state.feasible += w.feasible + (w._cur_feasible ?? 0);
+        _solver_state.met_req += w.met_req + (w._cur_met_req ?? 0);
     }
     // Terminate all workers
     for (const w of _solver_state.workers) {
@@ -1219,9 +1277,11 @@ function _on_all_workers_done(workers_snapshot) {
     // Aggregate final stats before stopping (which clears _solver_state.workers)
     _solver_state.checked = 0;
     _solver_state.feasible = 0;
+    _solver_state.met_req = 0;
     for (const w of workers_snapshot) {
         _solver_state.checked += w.checked;
         _solver_state.feasible += w.feasible;
+        _solver_state.met_req += w.met_req;
     }
 
     _merge_worker_top5(workers_snapshot, false);
@@ -1237,16 +1297,11 @@ function _on_all_workers_done(workers_snapshot) {
     const _run_btn = document.getElementById('solver-run-btn');
     _run_btn.textContent = 'Solve';
     _run_btn.className = 'btn btn-sm btn-outline-success flex-grow-1';
-    document.getElementById('solver-progress-text').style.display = 'none';
     const _status_el = document.getElementById('solver-status-msg');
     if (_status_el) _status_el.textContent = '';
 
-    const _sum_el = document.getElementById('solver-summary-text');
-    if (_sum_el) {
-        _sum_el.textContent = _format_solver_summary(search_completed, elapsed_s);
-    }
-
-    _update_solver_progress_ui();
+    // Show progress panel in stopped state
+    _show_solver_stopped_progress(search_completed ? 'Solved' : 'Stopped', elapsed_s);
     _display_solver_results(_solver_state.top5);
     if (_solver_state.top5.length > 0) {
         _fill_build_into_ui(_solver_state.top5[0]);
@@ -1308,6 +1363,7 @@ function _run_solver_search_workers(pools, locked, snap) {
         wstate.done = false;
         wstate._cur_checked = 0;
         wstate._cur_feasible = 0;
+        wstate._cur_met_req = 0;
         wstate._cur_top5 = [];
         wstate._cur_checked_since_top5 = 0;
         wstate._cur_L_progress = [0, 1];
@@ -1325,8 +1381,10 @@ function _run_solver_search_workers(pools, locked, snap) {
         // Accumulate into cumulative totals
         wstate.checked += msg.checked;
         wstate.feasible += msg.feasible;
+        wstate.met_req += msg.met_req ?? 0;
         wstate._cur_checked = 0;
         wstate._cur_feasible = 0;
+        wstate._cur_met_req = 0;
         wstate._cur_top5 = [];
         wstate._cur_checked_since_top5 = 0;
         wstate._cur_L_progress = [0, 1];
@@ -1354,10 +1412,10 @@ function _run_solver_search_workers(pools, locked, snap) {
     // Spawn workers: send heavy 'init' with first partition, then 'run' for subsequent
     const actual_workers = Math.min(num_workers, partitions.length);
     for (let i = 0; i < actual_workers; i++) {
-        const w = new Worker('../js/solver/engine/worker.js?v=3');
+        const w = new Worker('../js/solver/engine/worker.js?v=4');
         const wstate = {
-            worker: w, done: true, checked: 0, feasible: 0, top5: [],
-            _cur_checked: 0, _cur_feasible: 0, _cur_top5: [],
+            worker: w, done: true, checked: 0, feasible: 0, met_req: 0, top5: [],
+            _cur_checked: 0, _cur_feasible: 0, _cur_met_req: 0, _cur_top5: [],
             _cur_checked_since_top5: 0, _cur_L_progress: [0, 1],
         };
         _solver_state.workers.push(wstate);
@@ -1367,6 +1425,7 @@ function _run_solver_search_workers(pools, locked, snap) {
             if (msg.type === 'progress') {
                 wstate._cur_checked = msg.checked;
                 wstate._cur_feasible = msg.feasible;
+                wstate._cur_met_req = msg.met_req ?? 0;
                 if (msg.top5_names) wstate._cur_top5 = msg.top5_names;
                 if (msg.checked_since_top5 !== undefined) wstate._cur_checked_since_top5 = msg.checked_since_top5;
                 if (msg.L_progress) wstate._cur_L_progress = msg.L_progress;
@@ -1393,6 +1452,7 @@ function _run_solver_search_workers(pools, locked, snap) {
         wstate.done = false;
         wstate._cur_checked = 0;
         wstate._cur_feasible = 0;
+        wstate._cur_met_req = 0;
         wstate._cur_top5 = [];
         w.postMessage(init_msg);
         active_count++;
@@ -1404,9 +1464,11 @@ function _run_solver_search_workers(pools, locked, snap) {
         // Aggregate stats: cumulative completed + current in-flight partition
         _solver_state.checked = 0;
         _solver_state.feasible = 0;
+        _solver_state.met_req = 0;
         for (const w of _solver_state.workers) {
             _solver_state.checked += w.checked + (w._cur_checked ?? 0);
             _solver_state.feasible += w.feasible + (w._cur_feasible ?? 0);
+            _solver_state.met_req += w.met_req + (w._cur_met_req ?? 0);
         }
         _update_solver_progress_ui();
     }, 500);
@@ -1418,19 +1480,15 @@ function toggle_solver() {
     if (_solver_state.running) {
         // Save worker references before _stop_solver clears them
         const saved_workers = [..._solver_state.workers];
+        const elapsed_s = Math.floor((Date.now() - _solver_state.start) / 1000);
         _stop_solver();
         const btn = document.getElementById('solver-run-btn');
         btn.textContent = 'Solve';
         btn.className = 'btn btn-sm btn-outline-success flex-grow-1';
-        document.getElementById('solver-progress-text').style.display = 'none';
         const _status_el = document.getElementById('solver-status-msg');
         if (_status_el) _status_el.textContent = '';
-        // Show stopped summary
-        const elapsed_s = Math.floor((Date.now() - _solver_state.start) / 1000);
-        const _sum_el = document.getElementById('solver-summary-text');
-        if (_sum_el) {
-            _sum_el.textContent = _format_solver_summary(false, elapsed_s);
-        }
+        // Show stopped summary in progress panel
+        _show_solver_stopped_progress('Stopped', elapsed_s);
         // Reconstruct and display any top-5 results we have
         // Include both cumulative (completed partitions) and interim (in-flight partition)
         _merge_worker_top5(saved_workers, true);
@@ -1544,6 +1602,7 @@ function start_solver_search() {
     if (_solver_state.seed_build) _insert_top5(_solver_state.seed_build);
     _solver_state.checked = 0;
     _solver_state.feasible = 0;
+    _solver_state.met_req = 0;
     _solver_state.start = Date.now();
     _solver_state.last_ui = Date.now();
     _solver_state.last_eta = Date.now();
@@ -1552,15 +1611,20 @@ function start_solver_search() {
     _solver_state.last_topN_change = Date.now();
     _solver_state._prev_topN_fingerprint = '';
     _solver_state.top15_expanded = false;
-    const _sum_el = document.getElementById('solver-summary-text');
-    if (_sum_el) _sum_el.textContent = '';
+    _solver_state.progress_expanded = false;
     const _status_el = document.getElementById('solver-status-msg');
     if (_status_el) _status_el.textContent = '';
 
     const _run_btn = document.getElementById('solver-run-btn');
     _run_btn.textContent = 'Stop';
     _run_btn.className = 'btn btn-sm btn-outline-danger flex-grow-1';
-    document.getElementById('solver-progress-text').style.display = '';
+    const _prog_el = document.getElementById('solver-progress-text');
+    _prog_el.style.display = '';
+    // Reset details to collapsed
+    const _details_el = document.getElementById('solver-progress-details');
+    if (_details_el) _details_el.style.display = 'none';
+    const _remaining_row = document.getElementById('solver-remaining-row');
+    if (_remaining_row) _remaining_row.style.display = 'none';
 
     _run_solver_search_workers(pools, locked, snap);
 }
