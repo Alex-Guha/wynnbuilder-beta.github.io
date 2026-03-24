@@ -205,6 +205,13 @@ const RESTRICTION_STATS = [
     { key: 'damRaw', label: 'Damage Raw' },
     { key: 'damPct', label: 'Damage %' },
     { key: 'critDamPct', label: 'Crit Damage %' },
+    // ── Neutral Damage ─────────────────────────────────────────────────
+    { key: 'nDamPct', label: 'Neutral Damage %' },
+    { key: 'nDamRaw', label: 'Neutral Damage Raw' },
+    { key: 'nSdPct', label: 'Neutral Spell Damage %' },
+    { key: 'nSdRaw', label: 'Neutral Spell Damage Raw' },
+    { key: 'nMdPct', label: 'Neutral Melee Damage %' },
+    { key: 'nMdRaw', label: 'Neutral Melee Damage Raw' },
     // ── Elemental Damage % ──────────────────────────────────────────────
     { key: 'eDamPct', label: 'Earth Damage %' },
     { key: 'tDamPct', label: 'Thunder Damage %' },
@@ -258,6 +265,7 @@ const RESTRICTION_STATS = [
     // ── Movement ────────────────────────────────────────────────────────
     { key: 'spd', label: 'Walk Speed Bonus' },
     { key: 'atkTier', label: 'Attack Speed Bonus' },
+    { key: 'mainAttackRange', label: 'Melee Range %' },
     // ── Other Combat ────────────────────────────────────────────────────
     { key: 'poison', label: 'Poison' },
     { key: 'thorns', label: 'Thorns' },
@@ -275,6 +283,8 @@ const RESTRICTION_STATS = [
     { key: 'lb', label: 'Loot Bonus' },
     { key: 'lq', label: 'Loot Quality' },
     { key: 'xpb', label: 'XP Bonus' },
+    { key: 'gXp', label: 'Gathering XP Bonus' },
+    { key: 'gSpd', label: 'Gathering Speed Bonus' },
     // ── Final Spell Costs (computed — depends on int, spRaw, spPct, atree) ──
     { key: 'finalSpellCost1', label: '1st Spell Cost (Final)' },
     { key: 'finalSpellCost2', label: '2nd Spell Cost (Final)' },

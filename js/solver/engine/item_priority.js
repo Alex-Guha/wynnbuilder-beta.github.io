@@ -112,6 +112,10 @@ const _PERTURBABLE_STATS = [
     'spPct1', 'spPct2', 'spPct3', 'spPct4', 'spRaw1', 'spRaw2', 'spRaw3', 'spRaw4',
     // Utility
     'spd', 'poison', 'lb', 'xpb', 'healPct', 'ls',
+    // Neutral damage
+    'nDamPct', 'nDamRaw', 'nSdPct', 'nSdRaw', 'nMdPct', 'nMdRaw',
+    // Gathering / range
+    'gXp', 'gSpd', 'mainAttackRange',
 ];
 
 // Default delta values when fewer than 3 items in pools have a stat.
@@ -132,6 +136,8 @@ const _DEFAULT_DELTAS = {
     spPct1: 20, spPct2: 20, spPct3: 20, spPct4: 20,
     spRaw1: 5, spRaw2: 5, spRaw3: 5, spRaw4: 5,
     spd: 20, poison: 3000, lb: 30, xpb: 20, healPct: 20, ls: 100,
+    nDamPct: 20, nDamRaw: 100, nSdPct: 20, nSdRaw: 100, nMdPct: 20, nMdRaw: 100,
+    gXp: 20, gSpd: 20, mainAttackRange: 20,
 };
 
 // ── Step 3: Main-thread score evaluator ─────────────────────────────────────
@@ -550,7 +556,7 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
 
     // ── Restriction thresholds (ge constraints on direct stats) ─────────
     for (const { stat, op, value } of (restrictions.stat_thresholds ?? [])) {
-        if (op !== 'ge' || _INDIRECT_CONSTRAINT_STATS.has(stat) || value <= 0) continue;
+        if (op !== 'ge' || _INDIRECT_CONSTRAINT_STATS.has(stat)) continue;
         const current = combo_base.get(stat) ?? 0;
         const deficit = value - current;
         if (deficit > 0) {
@@ -559,7 +565,11 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
             // per-item values (damPct ~20), so constraint items compete in scoring.
             const stat_delta = deltas.get(stat) || _DEFAULT_DELTAS[stat] || 1;
             const norm = ref_delta / stat_delta;
-            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * (deficit / value) * norm;
+            // When threshold is positive, scale by deficit/threshold (fractional shortfall).
+            // When threshold <= 0 (e.g. mainAttackRange >= 0 with negative current),
+            // use deficit/stat_delta instead (how many typical items of deficit).
+            const scale = value > 0 ? (deficit / value) : (deficit / stat_delta);
+            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * scale * norm;
             weights.set(stat, (weights.get(stat) ?? 0) + bonus);
             if (SOLVER_DEBUG_SENSITIVITY) {
                 console.log(`[solver][sensitivity] constraint bonus: ${stat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, norm: ×${norm.toFixed(1)})`);
@@ -572,7 +582,7 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
     // we can't just read them from the statMap. Instead, perturb each
     // contributing direct stat and measure the indirect stat's response.
     for (const { stat, op, value } of (restrictions.stat_thresholds ?? [])) {
-        if (!_INDIRECT_CONSTRAINT_STATS.has(stat) || value <= 0) continue;
+        if (!_INDIRECT_CONSTRAINT_STATS.has(stat)) continue;
         if (op !== 'ge') continue;
         if (!_INDIRECT_CONTRIBUTORS[stat]) continue;  // e.g. finalSpellCost — handled separately
 
@@ -593,7 +603,8 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
 
             const stat_delta = deltas.get(cstat) || _DEFAULT_DELTAS[cstat] || 1;
             const norm = ref_delta / stat_delta;
-            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * (deficit / value) * norm * _INDIRECT_SENS_SCALE * indirect_sens;
+            const scale = value > 0 ? (deficit / value) : (deficit / stat_delta);
+            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * scale * norm * _INDIRECT_SENS_SCALE * indirect_sens;
             weights.set(cstat, (weights.get(cstat) ?? 0) + bonus);
             if (SOLVER_DEBUG_SENSITIVITY) {
                 console.log(`[solver][sensitivity] indirect constraint bonus (${stat}): ${cstat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sens: ${indirect_sens.toFixed(4)}, norm: ×${norm.toFixed(1)})`);
