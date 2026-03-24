@@ -1,9 +1,7 @@
 *.swp
 *.bat
 *.json
-!data/2.2.*/*.json
-!data/baseline/*.json
-!data/baseline/compressed/*.json
+!data/*/*.json
 sets/
 
 .idea/
