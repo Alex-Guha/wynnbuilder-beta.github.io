@@ -47,8 +47,8 @@ function renderSpellPopupHTML(full, crit_chance, spell_cost) {
         }
 
         const nc_avg = (part.normal_total[0] + part.normal_total[1]) / 2;
-        const c_avg  = (part.crit_total[0]   + part.crit_total[1])   / 2;
-        const p_avg  = (1 - crit_chance) * nc_avg + crit_chance * c_avg;
+        const c_avg = (part.crit_total[0] + part.crit_total[1]) / 2;
+        const p_avg = (1 - crit_chance) * nc_avg + crit_chance * c_avg;
         html += `<div>Average: ${fmtN(p_avg)}</div>`;
 
         // Non-crit
@@ -112,17 +112,17 @@ function get_element_powder_tier(powders, element_idx) {
  * Tier: 1-7.  The returned object is compatible with computeSpellDisplayAvg().
  */
 function make_powder_special_spell(ps_idx, tier) {
-    const ps          = powderSpecialStats[ps_idx];
+    const ps = powderSpecialStats[ps_idx];
     const element_num = ps_idx + 1;   // damage_keys index: 1=earth, 2=thunder, 4=fire
-    const damage_pct  = ps.weaponSpecialEffects.get('Damage')[tier - 1];
+    const damage_pct = ps.weaponSpecialEffects.get('Damage')[tier - 1];
     const conversions = [0, 0, 0, 0, 0, 0];
     conversions[element_num] = damage_pct;
     return {
-        name:        ps.weaponSpecialName,
-        base_spell:  0,
-        cost:        undefined,   // powder specials don't have a regular mana cost
-        scaling:     'melee',     // use_spell_damage = false (matches display.js call)
-        use_atkspd:  false,       // ignore_speed = true
+        name: ps.weaponSpecialName,
+        base_spell: 0,
+        cost: undefined,   // powder specials don't have a regular mana cost
+        scaling: 'melee',     // use_spell_damage = false (matches display.js call)
+        use_atkspd: false,       // ignore_speed = true
         parts: [{ name: 'Powder Special', display: true, multipliers: conversions }],
         _is_powder_special: true,
     };
@@ -143,9 +143,9 @@ function make_powder_special_spell(ps_idx, tier) {
  * Sliders with the same slider_name are merged: slider_max values are summed.
  */
 function build_combo_boost_registry(atree_merged, build = null) {
-    const registry    = [];
+    const registry = [];
     const toggle_seen = new Map();   // toggle name → index in registry
-    const slider_idx  = new Map();   // slider_name → index in registry
+    const slider_idx = new Map();   // slider_name → index in registry
 
     if (!atree_merged) return registry;
 
@@ -221,8 +221,10 @@ function build_combo_boost_registry(atree_merged, build = null) {
                 const outputs = Array.isArray(effect.output) ? effect.output : (effect.output ? [effect.output] : []);
                 const scaling = Array.isArray(effect.scaling) ? effect.scaling : [effect.scaling ?? 1];
                 for (let i = 0; i < outputs.length; i++) {
-                    const out   = outputs[i];
-                    const scale = scaling[i] ?? scaling[0] ?? 1;
+                    const out = outputs[i];
+                    let scale = scaling[i] ?? scaling[0] ?? 1;
+                    // Resolve "abilId.propName" string references (e.g. "77.momentum_scaling").
+                    if (typeof scale === 'string') scale = atree_translate(atree_merged, scale);
                     if (out.type === 'stat') {
                         const sb = { key: out.name, value: scale, mode: 'add' };
                         if (effect.round === false) sb.round = false;
@@ -230,8 +232,10 @@ function build_combo_boost_registry(atree_merged, build = null) {
                         stat_bonuses.push(sb);
                     } else if (out.type === 'prop') {
                         const target_abil = atree_merged.get(out.abil);
-                        const pb = { ref: String(out.abil) + '.' + out.name, value_per_unit: scale,
-                                     base: target_abil?.properties?.[out.name] ?? 0 };
+                        const pb = {
+                            ref: String(out.abil) + '.' + out.name, value_per_unit: scale,
+                            base: target_abil?.properties?.[out.name] ?? 0
+                        };
                         if (typeof effect.max === 'number') pb.max = effect.max;
                         if (effect.round === true) pb.round = true;
                         prop_bonuses.push(pb);
@@ -253,7 +257,7 @@ function build_combo_boost_registry(atree_merged, build = null) {
                         aliases: [],
                         type: 'slider',
                         min: effect.slider_min ?? 0,
-                        max:  slider_total_max.get(slider_name) ?? (effect.slider_max ?? 10),
+                        max: slider_total_max.get(slider_name) ?? (effect.slider_max ?? 10),
                         step: effect.slider_step ?? 1,
                         stat_bonuses,
                         prop_bonuses,
@@ -277,7 +281,7 @@ function build_combo_boost_registry(atree_merged, build = null) {
         for (const { ps_idx, elem } of weapon_buff_ps) {
             const tier = get_element_powder_tier(weapon_powders, elem);
             if (tier === 0) continue;
-            const ps    = powderSpecialStats[ps_idx];
+            const ps = powderSpecialStats[ps_idx];
             const boost = ps.weaponSpecialEffects.get('Damage Boost')[tier - 1];
             registry.push({
                 name: ps.weaponSpecialName,
@@ -299,18 +303,18 @@ function build_combo_boost_registry(atree_merged, build = null) {
             }
         }
         const armor_ps_defs = [
-            { elem: 0, max: 75,  step: 1,  label: 'Rage (%HP missing)'        },   // Rage
-            { elem: 1, max: 15,  step: 1,  label: 'Kill Streak (mobs killed)'  },   // Kill Streak
-            { elem: 2, max: 100, step: 1,  label: 'Concentration (mana spent)' },   // Concentration
-            { elem: 3, max: 30,  step: 1,  label: 'Endurance (hits taken)'     },   // Endurance
-            { elem: 4, max: 10,  step: 1,  label: 'Dodge (near mobs)'          },   // Dodge
+            { elem: 0, max: 75, step: 1, label: 'Rage (%HP missing)' },   // Rage
+            { elem: 1, max: 15, step: 1, label: 'Kill Streak (mobs killed)' },   // Kill Streak
+            { elem: 2, max: 100, step: 1, label: 'Concentration (mana spent)' },   // Concentration
+            { elem: 3, max: 30, step: 1, label: 'Endurance (hits taken)' },   // Endurance
+            { elem: 4, max: 10, step: 1, label: 'Dodge (near mobs)' },   // Dodge
         ];
         for (const { elem, max, step, label } of armor_ps_defs) {
             const count = armor_elem_counts[elem];
             if (count === 0) continue;
-            const tier      = Math.min(count, 5);
-            const ps        = powderSpecialStats[elem];
-            const per_unit  = ps.armorSpecialEffects.get('Damage')[tier - 1];
+            const tier = Math.min(count, 5);
+            const ps = powderSpecialStats[elem];
+            const per_unit = ps.armorSpecialEffects.get('Damage')[tier - 1];
             registry.push({
                 name: label,
                 aliases: [ps.armorSpecialName],
