@@ -152,8 +152,10 @@ function build_combo_boost_registry(atree_merged, build = null) {
     // Pass 1: accumulate total slider_max per slider_name.
     // Only explicitly-set slider_max values are summed (undefined means "doesn't add to max").
     // behavior:'overwrite' effects replace the total rather than adding to it.
+    // slider_max_mult factors are accumulated multiplicatively and applied after all additive contributions.
     const slider_total_max = new Map();
     const slider_overwrite_max = new Map();
+    const slider_total_mult = new Map();
     for (const [, abil] of atree_merged) {
         for (const effect of abil.effects) {
             if (effect.type === 'stat_scaling' && effect.slider === true && effect.slider_name) {
@@ -162,10 +164,15 @@ function build_combo_boost_registry(atree_merged, build = null) {
                     if (effect.slider_max != null) {
                         slider_overwrite_max.set(name, Math.max(slider_overwrite_max.get(name) ?? 0, effect.slider_max));
                     }
-                } else if (effect.slider_max != null) {
-                    // Only sum explicitly-set values; omitting slider_max means this effect
-                    // does not extend the range (e.g. Breathless, Transonic Warp).
-                    slider_total_max.set(name, (slider_total_max.get(name) ?? 0) + effect.slider_max);
+                } else {
+                    if (effect.slider_max != null) {
+                        // Only sum explicitly-set values; omitting slider_max means this effect
+                        // does not extend the range (e.g. Breathless, Transonic Warp).
+                        slider_total_max.set(name, (slider_total_max.get(name) ?? 0) + effect.slider_max);
+                    }
+                    if (effect.slider_max_mult != null) {
+                        slider_total_mult.set(name, (slider_total_mult.get(name) ?? 1) * effect.slider_max_mult);
+                    }
                 }
             }
         }
@@ -173,6 +180,13 @@ function build_combo_boost_registry(atree_merged, build = null) {
     // Overwrite takes precedence over the accumulated sum.
     for (const [name, max] of slider_overwrite_max) {
         slider_total_max.set(name, max);
+    }
+    // Apply multiplicative factors after additive accumulation.
+    for (const [name, mult] of slider_total_mult) {
+        if (mult !== 1) {
+            const base = slider_total_max.get(name) ?? 0;
+            slider_total_max.set(name, Math.round(base * mult));
+        }
     }
 
     // Pass 2: build registry entries.

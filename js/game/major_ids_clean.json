@@ -934,7 +934,93 @@
     "FIXATE": {
         "displayName": "Fixate",
         "description": "Your Distortion cap and Devitalize effects are doubled, but effects gained by distortion beyond the requirements are reduced by 40%.",
-        "abilities": []
+        "abilities": [
+            {
+                "class": "Mage",
+                "base_abil": "Distortion",
+                "dependencies": ["Distortion"],
+                "properties": {},
+                "effects": [
+                    {
+                        "type": "stat_scaling",
+                        "slider": true,
+                        "slider_name": "Distortion",
+                        "slider_max_mult": 2
+                    }
+                ]
+            },
+            {
+                "class": "Mage",
+                "base_abil": "Distortion",
+                "dependencies": ["Devitalize"],
+                "properties": {},
+                "effects": [
+                    {
+                        "type": "raw_stat",
+                        "toggle": "Activate Devitalize",
+                        "bonuses": [
+                            { "type": "stat", "name": "defMult.Devitalize", "value": 15 }
+                        ]
+                    }
+                ]
+            },
+            {
+                "class": "Mage",
+                "base_abil": "Distortion",
+                "dependencies": ["Frozen Tornado"],
+                "properties": {},
+                "effects": [
+                    {
+                        "type": "stat_scaling",
+                        "slider": true,
+                        "slider_name": "Distortion",
+                        "requirement": 25,
+                        "output": { "type": "stat", "name": "damMult.Distortion:4.Damage per Tick" },
+                        "scaling": [-0.64]
+                    }
+                ]
+            },
+            {
+                "class": "Mage",
+                "base_abil": "Distortion",
+                "dependencies": ["Vacuokinesis"],
+                "properties": {},
+                "effects": [
+                    {
+                        "type": "stat_scaling",
+                        "slider": true,
+                        "slider_name": "Distortion",
+                        "requirement": 40,
+                        "output": { "type": "stat", "name": "damMult.Distortion:0.Vacuokinesis" },
+                        "scaling": [-0.4]
+                    }
+                ]
+            },
+            {
+                "class": "Mage",
+                "base_abil": "Distortion",
+                "dependencies": ["Stabilized Anomaly"],
+                "properties": {},
+                "effects": [
+                    {
+                        "type": "stat_scaling",
+                        "slider": true,
+                        "slider_name": "Distortion",
+                        "requirement": 25,
+                        "output": { "type": "stat", "name": "damMult.Distortion:4.Damage per Tick" },
+                        "scaling": [-0.224]
+                    },
+                    {
+                        "type": "stat_scaling",
+                        "slider": true,
+                        "slider_name": "Distortion",
+                        "requirement": 40,
+                        "output": { "type": "stat", "name": "damMult.Distortion:0.Vacuokinesis" },
+                        "scaling": [-0.14]
+                    }
+                ]
+            }
+        ]
     },
     "INSOLUBLE": {
         "displayName": "Insoluble",

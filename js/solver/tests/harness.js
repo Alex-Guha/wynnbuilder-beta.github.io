@@ -642,6 +642,9 @@ function extractAtreeInteractiveDefaults(atree_merged) {
                     info.overwritten = true;
                 } else if (!info.overwritten) {
                     info.max += slider_max;
+                    if ('slider_max_mult' in effect) {
+                        info.max_mult = (info.max_mult ?? 1) * effect.slider_max_mult;
+                    }
                     info.default_val += slider_default;
                 }
             } else if (behavior === 'merge') {
@@ -658,6 +661,13 @@ function extractAtreeInteractiveDefaults(atree_merged) {
         if (unprocessed.length === to_process.length) break;
         to_process = unprocessed;
         unprocessed = [];
+    }
+
+    // Apply accumulated slider_max_mult factors (multiplicative phase).
+    for (const [_, info] of slider_meta) {
+        if (info.max_mult != null && info.max_mult !== 1) {
+            info.max = Math.round(info.max * info.max_mult);
+        }
     }
 
     // Set each slider to its default value.
