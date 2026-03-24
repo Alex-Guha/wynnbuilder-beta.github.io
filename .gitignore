@@ -2,7 +2,8 @@
 *.bat
 *.json
 !data/2.2.*/*.json
-!js/game/*.json
+!data/baseline/*.json
+!data/baseline/compressed/*.json
 sets/
 
 .idea/

@@ -120,7 +120,7 @@ if __name__ == "__main__":
     with open("../js/builder/atree_ids.json", "r") as atree_ids_file:
         atree_ids = json.load(atree_ids_file)
 
-    with open("../js/game/atree_constants.json", "r") as tree_data_file:
+    with open("../data/baseline/atree_constants.json", "r") as tree_data_file:
         old_tree_data = json.load(tree_data_file)
 
     classes = [
@@ -171,6 +171,6 @@ if __name__ == "__main__":
                         description = stylize_description(ability["description"])
                         old_ability["desc"] = description
 
-    with open("../js/game/atree_constants.json", "w") as output_file:
+    with open("../data/baseline/atree_constants.json", "w") as output_file:
         json.dump(new_tree_data, output_file, indent=4)
 

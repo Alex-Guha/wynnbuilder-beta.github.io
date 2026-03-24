@@ -34,7 +34,7 @@ def getDisplayName(item):
         return item["displayName"]
     return item["name"]
 
-with open("clean.json", "r") as infile:
+with open("../data/baseline/clean.json", "r") as infile:
     all_json = json.load(infile)
     old_items = all_json["items"]
     old_item_map = dict()

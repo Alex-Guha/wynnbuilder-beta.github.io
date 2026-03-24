@@ -209,7 +209,7 @@ function _clean_item(item, ctx) {
  */
 function loadGameData(ctx) {
     // ── Items + Sets ──
-    const compress = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'compress.json'), 'utf8'));
+    const compress = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'data', 'baseline', 'compressed', 'compress.json'), 'utf8'));
     let items = compress.items;
     const raw_sets = compress.sets;
 
@@ -371,7 +371,7 @@ function loadGameData(ctx) {
         major_ids = JSON.parse(fs.readFileSync(majidPath, 'utf8'));
     } else {
         // Fallback to the older location.
-        const altPath = path.join(JS_ROOT, 'game', 'major_ids_clean.json');
+        const altPath = path.join(REPO_ROOT, 'data', 'baseline', 'major_ids_clean.json');
         if (fs.existsSync(altPath)) {
             major_ids = JSON.parse(fs.readFileSync(altPath, 'utf8'));
         }
@@ -1011,7 +1011,7 @@ function extractEquipmentStats(decoded, ctx) {
 function saveSnapshot(name, data) {
     data.created = new Date().toISOString();
     // locked_items is set by the caller before saving.
-    data.compress_hash = computeFileHash(path.join(REPO_ROOT, 'compress.json'));
+    data.compress_hash = computeFileHash(path.join(REPO_ROOT, 'data', 'baseline', 'compressed', 'compress.json'));
     data.atree_hash = computeFileHash(path.join(REPO_ROOT, 'data', LATEST_VERSION, 'atree.json'));
     const p = path.join(SNAP_DIR, name + '.snap.json');
     fs.writeFileSync(p, JSON.stringify(data, null, 2) + '\n');
@@ -1049,9 +1049,9 @@ function checkSnapshotFreshness(snap, runner, currentLockedStats, hasFreeSlots) 
 
     // Compress hash — only when there are free slots (pool enumeration).
     if (hasFreeSlots && snap.compress_hash) {
-        const curCompress = computeFileHash(path.join(REPO_ROOT, 'compress.json'));
+        const curCompress = computeFileHash(path.join(REPO_ROOT, 'data', 'baseline', 'compressed', 'compress.json'));
         if (snap.compress_hash !== curCompress) {
-            runner.warn(`Game data (compress.json) changed since snapshot "${snap.name}" was created.`);
+            runner.warn(`Game data (data/baseline/compressed/compress.json) changed since snapshot "${snap.name}" was created.`);
         }
     }
 }

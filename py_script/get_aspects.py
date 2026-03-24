@@ -131,7 +131,7 @@ if __name__ == "__main__":
         ]
     }
 
-    with open("../js/game/aspects.json", "r") as aspects_data_file:
+    with open("../data/baseline/aspects.json", "r") as aspects_data_file:
         old_aspect_data = json.load(aspects_data_file)
     
     try:
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     with open("api_aspects.json", "w") as api_file:
         json.dump(api_data, api_file, indent=2)
 
-    with open("aspects.json", "w") as output_file:
+    with open("../data/baseline/aspects.json", "w") as output_file:
         json.dump(all_output, output_file, indent=2)
 
     with open("aspect_map.json", "w") as aspect_ids_file:

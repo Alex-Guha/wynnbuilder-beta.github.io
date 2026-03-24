@@ -15,7 +15,7 @@ class AspectLoader extends Loader {
     }
 
     get old_data_paths() {
-        return 'aspects';
+        return 'data/baseline/aspects';
     }
 
     process_remote(data, tsx, reject) {

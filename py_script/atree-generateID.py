@@ -260,7 +260,7 @@ def validate_atree_data(atree_data):
 
 def main():
     abilDict = {}
-    with open("atree_constants.json") as f:
+    with open("../data/baseline/atree_constants.json") as f:
         data = json.load(f)
         for classType, info in data.items():
             _id = 0
@@ -275,7 +275,7 @@ def main():
         translate_all(abilDict, data)
         validate_atree_data(data)
 
-        with open("major_ids_clean.json") as maj_id_file:
+        with open("../data/baseline/major_ids_clean.json") as maj_id_file:
             maj_id_dat = json.load(maj_id_file)
             for k, v in maj_id_dat.items():
                 for abil in v['abilities']:
@@ -284,7 +284,7 @@ def main():
             with open("major_ids_min.json", "w", encoding='utf-8') as maj_id_out:
                 json.dump(maj_id_dat, maj_id_out, ensure_ascii=False, separators=(',', ':'))
 
-        with open("aspects.json") as aspects_file:
+        with open("../data/baseline/aspects.json") as aspects_file:
             aspect_dat = json.load(aspects_file)
             for clazz, aspects in aspect_dat.items():
                 for aspect in aspects:
