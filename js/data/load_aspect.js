@@ -1,4 +1,4 @@
-let ASPECT_DB_VERSION = 23;
+let ASPECT_DB_VERSION = 24;
 let aspects = {};
 
 // Map<className, Map<string, AspectSpec>>
@@ -7,7 +7,7 @@ let aspect_map = new Map();
 
 // Map<className, Map<number, AspectSpec>>
 // Maps aspect IDs to aspect specs.
-let aspect_id_map  = new Map();
+let aspect_id_map = new Map();
 
 class AspectLoader extends Loader {
     get remote_paths() {
@@ -69,12 +69,12 @@ class AspectLoader extends Loader {
 }
 
 const none_aspect = {
-      "displayName": "No Aspect",
-      "id": 256,
-      "tier": "Normal",
-      "tiers": [],
-      "NONE": true,
-} 
+    "displayName": "No Aspect",
+    "id": 256,
+    "tier": "Normal",
+    "tiers": [],
+    "NONE": true,
+}
 
 const aspect_loader = new AspectLoader('aspect_db', classes, ASPECT_DB_VERSION)
 

@@ -43,6 +43,7 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
         - Trapper? Mana Trap
         - Acrobat weightless
         - Summoner Aura
+        - Rift Paradox
     - Handle the variable attack speed
 - Add healing stuff to atree
     - Rejuvenating Skin
@@ -55,3 +56,11 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 - Premade archetype combo selectors
 - Automatic combo sequencing - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a lot of work
 - Tree-assembler: "I want ability X, Y, and Z, give me a tree that gets all 3 if possible"
+
+- Consider:
+> CPS thingy into damage solver as sometimes people (idk all, but at least i will) slow down/accelerate their cycle depends on their situation, like sustain or burst
+
+> at some point (prolly by the time you make combos more advanced/add weighting to build rankings) you should probably also add a combo feature where the build calculates dpm in amount of times the combo can be performed in a minute including dt (because some builds may not quite sustain but still have really high dps, and the dt might not be that bad)
+> Here's where its coming from: I used to choose items off wynnatlas by basically putting in the formula for damage in a minute with the item added. My formula basically took this form: 60/time it takes to cast the combo * damage the combo does 
+the time it takes to cast the combo once was basically calculated using 1+mana deficit from 1 second of casting the combo / composite mana gain per second and sometimes that formula gave you builds that couldn't actually cast the combo (usually takes one second) 60 times, usually 55-60 though but currently there's no accounting for how downtime actually affects dps in the solver, so those builds will either not get punished if they are above the deficit minimum or be filtered out even if they have higher dpm
+> basically: sustain isn't always the most important property of a build, some builds that almost sustain are better than those that do because they have a lot more damage

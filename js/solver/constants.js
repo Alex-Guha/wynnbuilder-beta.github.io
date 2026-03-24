@@ -99,7 +99,7 @@ const ROLL_STAT_GROUP = (() => {
     const m = {};
     // Damage stats
     for (const k of [
-        'sdPct', 'mdPct', 'sdRaw', 'mdRaw', 'damPct', 'damRaw', 'critDamPct', 'poison', 'atkTier',
+        'sdPct', 'mdPct', 'sdRaw', 'mdRaw', 'damPct', 'damRaw', 'critDamPct', 'poison',
         'nDamPct', 'nDamRaw', 'rDamPct', 'rDamRaw',
     ]) m[k] = 'damage';
     for (const e of ['e', 't', 'w', 'f', 'a']) {

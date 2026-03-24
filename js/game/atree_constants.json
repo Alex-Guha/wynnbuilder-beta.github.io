@@ -957,7 +957,7 @@
         },
         {
             "display_name": "Frenzy",
-            "desc": "Hitting an enemy will give you a brief buff of +3% Walk Speed. (Max +70%) -5% of the bonus decays every second.",
+            "desc": "Hitting an enemy will give you a brief buff of +1% Walk Speed, up to 15% per second. (Max +60%) -5% of the bonus decays every second.",
             "archetype": "Boltslinger",
             "archetype_req": 0,
             "parents": [
@@ -1940,7 +1940,7 @@
         },
         {
             "display_name": "Fierce Stomp",
-            "desc": "When using Escape, hold shift to quickly drop down to deal damage and blind enemies. </br> </br><span class='mc-white'>Total Damage</span>: 250% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 250%) </br>Area of Effect: 6 Blocks (Circle-Shaped) </br>Effect: Blindness to Enemies </br>Duration: 1s",
+            "desc": "When using Escape, hold shift to quickly drop down to deal damage and blind enemies. </br> </br><span class='mc-white'>Total Damage</span>: 250% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 250%) </br>Area of Effect: 6 Blocks (Circle-Shaped) </br>Effect: Blindness to Enemies </br>Duration: 0.5s",
             "archetype": "Boltslinger",
             "archetype_req": 0,
             "base_abil": "Escape",
@@ -3690,7 +3690,7 @@
         },
         {
             "display_name": "Angelic Ascension",
-            "desc": "Call upon the power of the Light to empower your attacks for 15s.</br></br>Main Attack will instead shoot Light Arrows that deal 400% more damage over 2s.</br></br>Arrow Storm will home onto enemies.</br></br>Arrow Bomb will smite enemies it hits directly with a bolt from the heavens.</br></br>Guardian Angels will have unlimited ammunition.</br></br>Damage: [300%n/150%t/100%a] for Smite",
+            "desc": "Call upon the power of the Light to empower your attacks for 15s.</br></br>Main Attack will instead shoot Light Arrows that deal 50% more damage over 2s.</br></br>Arrow Storm will home onto enemies.</br></br>Arrow Bomb will smite enemies it hits directly with a bolt from the heavens.</br></br>Guardian Angels will have unlimited ammunition, and trigger Buckshot after firing 14 volleys.</br></br>Damage: [300%n/150%t/100%a] for Smite",
             "archetype": "Boltslinger",
             "archetype_req": 16,
             "parents": [
@@ -3736,7 +3736,7 @@
                         {
                             "name": "Light Arrows Damage",
                             "multipliers": [
-                                100,
+                                25,
                                 0,
                                 0,
                                 0,
@@ -4997,7 +4997,9 @@
                 {
                     "type": "buff_state",
                     "state_name": "Corrupted",
-                    "activate_on": { "spell": 4 },
+                    "activate_on": {
+                        "spell": 4
+                    },
                     "deactivate": "cancel",
                     "tracking": "hp_loss_pct",
                     "suppress_healing": true,
@@ -5188,8 +5190,13 @@
                     "slider_min": 15,
                     "slider_max": 25,
                     "slider_step": 1,
-                    "output": { "type": "stat", "name": "damMult.BloodPact" },
-                    "scaling": [1]
+                    "output": {
+                        "type": "stat",
+                        "name": "damMult.BloodPact"
+                    },
+                    "scaling": [
+                        1
+                    ]
                 }
             ]
         },
@@ -6434,7 +6441,7 @@
         },
         {
             "display_name": "Discombobulate",
-            "desc": "Damaging enemies will inflict them with +2 Discombobulated. (Max 150) </br> You will deal +1 neutral and elemental damage to enemies for every Discombobulated they have. -4 of the bonus decays every second.",
+            "desc": "Damaging enemies will inflict them with +2 Discombobulated. (Max 150) </br> You will deal +3 neutral and elemental damage to enemies for every Discombobulated they have. -4 of the bonus decays every second.",
             "archetype": "Battle Monk",
             "archetype_req": 10,
             "parents": [
@@ -6484,7 +6491,7 @@
                         }
                     ],
                     "scaling": [
-                        5
+                        3
                     ],
                     "max": 150
                 }
@@ -6898,7 +6905,7 @@
         },
         {
             "display_name": "Pressure",
-            "desc": "When Generalist acts on a spell, it is enhanced. </br> Bash gains 4x as many hits and is 0.2s faster. </br> Uppercut deals additional damage. </br><span class='mc-white'>Total Damage</span>: +395% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +170%)   </br>&emsp;(<span class='nDam'>Rainbow Damage</span>: +45%) </br> War Scream grants a damage boost, but effect duration is reduced. </br>Effect: +10% Damage Bonus to Players </br>Duration: 12s",
+            "desc": "When Generalist acts on a spell, it is enhanced. </br> Bash gains 3x as many hits and is 0.1s faster. </br> Uppercut deals additional damage. </br><span class='mc-white'>Total Damage</span>: +395% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +170%)   </br>&emsp;(<span class='nDam'>Rainbow Damage</span>: +45%) </br> War Scream grants a damage boost, but effect duration is reduced. </br>Effect: +10% Damage Bonus to Players </br>Duration: 12s",
             "base_abil": "War Scream",
             "archetype": "Battle Monk",
             "archetype_req": 10,
@@ -6919,7 +6926,7 @@
             "properties": {
                 "pressure_rainbow_uppercut": 55,
                 "pressure_neutral_uppercut": 170,
-                "pressure_bash_hits": 4,
+                "pressure_bash_hits": 3,
                 "pressure_scream_boost": 10
             },
             "effects": [
@@ -7173,7 +7180,7 @@
         },
         {
             "display_name": "Spectacle",
-            "desc": "Increase Fireworks' damage by [30%n/30%t] and Comet's damage by [30%n/30%e]",
+            "desc": "Increase Fireworks' damage by [30%n/30%t] and Comet's damage by [60%n/60%e]",
             "base_abil": "Uppercut",
             "parents": [
                 "Ecstasy"
@@ -7208,8 +7215,8 @@
                     "target_part": "Comet",
                     "behavior": "modify",
                     "multipliers": [
-                        30,
-                        30,
+                        60,
+                        60,
                         0,
                         0,
                         0,
@@ -7402,7 +7409,7 @@
         },
         {
             "display_name": "Buried Light",
-            "desc": "Casting Shift + Bash will consume 25 Holy Power to summon a beam of light which slowly moves forward,</br>damaging enemies every 0.5s.</br></br>Damage: [160%n/40%t/40%f]",
+            "desc": "Casting Shift + Bash will consume 25 Holy Power to summon a beam of light which slowly moves forward,</br>damaging enemies every 0.5s.</br></br>Damage: [200%n/50%t/50%f]",
             "archetype": "Paladin",
             "parents": [
                 "Shine"
@@ -7429,11 +7436,11 @@
                         {
                             "name": "Damage per Tick",
                             "multipliers": [
-                                160,
+                                200,
                                 0,
-                                40,
+                                50,
                                 0,
-                                40,
+                                50,
                                 0
                             ]
                         },
@@ -8697,6 +8704,20 @@
                         0,
                         0
                     ]
+                },
+                {
+                    "type": "add_spell_prop",
+                    "target_part": "Damage per Tick",
+                    "behavior": "modify",
+                    "base_spell": 4,
+                    "multipliers": [
+                        20,
+                        0,
+                        0,
+                        5,
+                        0,
+                        0
+                    ]
                 }
             ]
         },
@@ -9102,7 +9123,7 @@
                     "behavior": "modify",
                     "base_spell": 4,
                     "multipliers": [
-                        15,
+                        25,
                         0,
                         0,
                         5,
@@ -9812,7 +9833,7 @@
                     "behavior": "modify",
                     "base_spell": 4,
                     "multipliers": [
-                        10,
+                        15,
                         0,
                         0,
                         5,
@@ -10339,7 +10360,7 @@
         },
         {
             "display_name": "Riftbound",
-            "desc": "Casting Heal while holding shift binds you to your rift, making you Riftbound.</br></br>While Riftbound, your rift follows you, reaches further, your Distortion stops decaying for 4s and gets increased by +150%, overflowing beyond the capacity but you can't gain Distortion and your Distortion decay is increased to -30 every second.</br></br>Riftbound ends when you run out of Distortion.</br></br>Cooldown: 25s</br>Range: +100% Blocks",
+            "desc": "Casting Heal while holding shift binds you to your rift, making you Riftbound.</br></br>While Riftbound, your rift follows you, reaches further, your Distortion stops decaying for 4s and gets increased by +100%, overflowing beyond the capacity but you can't gain Distortion and your Distortion decay is increased to -30 every second.</br></br>Riftbound ends when you run out of Distortion.</br></br>Cooldown: 25s</br>Range: +100% Blocks",
             "archetype": "Riftwalker",
             "archetype_req": 11,
             "base_abil": "Distortion",
@@ -10702,7 +10723,7 @@
                     "behavior": "modify",
                     "base_spell": 4,
                     "multipliers": [
-                        15,
+                        20,
                         0,
                         0,
                         5,
@@ -10714,7 +10735,7 @@
         },
         {
             "display_name": "Stabilized Anomaly",
-            "desc": "Effects gained from Distortion beyond the requirement are increased by +25%.</br></br>Meteor Shower requires -5 Distortion to gain additional meteors.",
+            "desc": "Effects gained from Distortion beyond the requirement are increased by +35%.</br></br>Meteor Shower requires -5 Distortion to gain additional meteors.",
             "archetype": "Riftwalker",
             "base_abil": "Distortion",
             "parents": [
@@ -10756,7 +10777,7 @@
                         "name": "damMult.Distortion:4.Damage per Tick"
                     },
                     "scaling": [
-                        0.4
+                        0.56
                     ]
                 },
                 {
@@ -10769,7 +10790,7 @@
                         "name": "damMult.Distortion:0.Vacuokinesis"
                     },
                     "scaling": [
-                        0.25
+                        0.35
                     ]
                 }
             ]
@@ -10780,7 +10801,7 @@
             "archetype": "Riftwalker",
             "parents": [
                 "Stabilized Anomaly",
-                "Rewind"
+                "Paradox"
             ],
             "dependencies": [],
             "blockers": [],
@@ -10803,8 +10824,8 @@
             ]
         },
         {
-            "display_name": "Rewind",
-            "desc": "At 70+ Distortion, casting Heal applies Rewind to healed targets.</br></br>Rewind delays 25% of the damage you take, dealing it over 10s.</br></br>For every +1 Distortion above 70, Rewind's duration is increased by +0.05",
+            "display_name": "Paradox",
+            "desc": "At 70+ Distortion, casting Heal applies Paradox to yourself.</br></br>Paradox delays 25% of the damage you take, dealing it over 10s, and refunds 20% of the mana you spend over 10s.</br></br>For every +1 Distortion above 70, Paradox's duration is increased by +0.05",
             "archetype": "Riftwalker",
             "parents": [
                 "Stabilized Anomaly",
@@ -10823,11 +10844,11 @@
         },
         {
             "display_name": "Gravitational Collapse",
-            "desc": "Overload your Dimensional Rift.</br></br>It grows, pulls all nearby enemies towards it, and deals +200% damage.</br></br>While the Rift is overloaded and for 6s after, Teleport turns into a deadly piercing ray, provides flight, prevents mana drain, and grants the benefits of your Rift.</br></br>The overloaded Rift implodes when its duration expires, dealing massive damage and stunning enemies inside of it for 3s.</br></br>Damage: [3000%n/500%e/500%a]</br>Area of Effect: +100% Blocks</br>Duration 4s",
+            "desc": "Overload your Dimensional Rift.</br></br>It grows, pulls all nearby enemies towards it, and deals +300% damage.</br></br>While the Rift is overloaded and for 6s after, Teleport turns into a deadly piercing ray, provides flight, prevents mana drain, and grants the benefits of your Rift.</br></br>The overloaded Rift implodes when its duration expires, dealing massive damage and stunning enemies inside of it for 3s.</br></br>Damage: [4500%n/750%e/750%a]</br>Area of Effect: +100% Blocks</br>Duration 4s",
             "archetype": "Riftwalker",
             "archetype_req": 16,
             "parents": [
-                "Rewind",
+                "Paradox",
                 "Unravelment"
             ],
             "dependencies": [],
@@ -10847,12 +10868,12 @@
                         {
                             "type": "stat",
                             "name": "damMult.GravitationalCollapse:8.Damage per Tick",
-                            "value": 200
+                            "value": 300
                         },
                         {
                             "type": "stat",
                             "name": "damMult.GravitationalCollapse:8.Riftspawn Damage",
-                            "value": 200
+                            "value": 300
                         }
                     ]
                 },
@@ -10866,12 +10887,12 @@
                             "name": "Rift Implosion",
                             "type": "damage",
                             "multipliers": [
-                                3000,
-                                500,
+                                4500,
+                                750,
                                 0,
                                 0,
                                 0,
-                                500
+                                750
                             ]
                         }
                     ]
@@ -12622,7 +12643,7 @@
         },
         {
             "display_name": "Echo",
-            "desc": "After losing a Mirror Clone, your next Spin Attack or Smoke Bomb will be copied by all active Clones.",
+            "desc": "After losing a Mirror Clone, your next Spin Attack or Smoke Bomb will be copied by all active Clones with a 25% damage reduction.",
             "archetype": "Trickster",
             "archetype_req": 5,
             "base_abil": "Mirror Image",
@@ -12668,7 +12689,7 @@
                         }
                     ],
                     "scaling": [
-                        100
+                        75
                     ]
                 }
             ]
@@ -18066,7 +18087,7 @@
         },
         {
             "display_name": "Patchwork Abomination",
-            "desc": "Summons the Patchwork Abomination, a highly unstable summon.</br></br>Hit the Abomination with Overseer to switch between close-ranged and long-range attack mode.</br></br>The Abomination will attack enemies every 1.25s in close-ranged mode, and every 1.75s in long-ranged mode.</br></br>Damage: [1600%n/500%e/300%t]</br>Duration: 15s</br>Vision: 32 Blocks",
+            "desc": "Summons the Patchwork Abomination, a highly unstable summon.</br></br>Hit the Abomination with Overseer to switch between close-ranged and long-range attack mode.</br></br>The Abomination will attack enemies every 1.25s in close-ranged mode, and every 1.75s in long-ranged mode.</br></br>Damage: [1600%n/500%e/300%t]</br>Duration: 20s</br>Vision: 32 Blocks",
             "archetype": "Summoner",
             "archetype_req": 18,
             "parents": [

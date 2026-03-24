@@ -215,7 +215,32 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Frenzy's maximum walk speed is increased by +15%.",
+          "description": "Frenzy's maximum walk speed is increased by +10%. Frenzy's walk speed build-up is increased by +3% per second.",
+          "abilities": [
+            {
+              "base_abil": "Frenzy",
+              "effects": [
+                {
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Hits dealt",
+                  "slider_max": 10,
+                  "output": {
+                    "type": "stat",
+                    "name": "spd"
+                  },
+                  "max": 10,
+                  "scaling": [
+                    1
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "threshold": 15,
+          "description": "Frenzy's maximum walk speed is increased by +15%. Frenzy's walk speed build-up is increased by +4% per second.",
           "abilities": [
             {
               "base_abil": "Frenzy",
@@ -239,33 +264,8 @@
           ]
         },
         {
-          "threshold": 15,
-          "description": "Frenzy's maximum walk speed is increased by +30%.",
-          "abilities": [
-            {
-              "base_abil": "Frenzy",
-              "effects": [
-                {
-                  "type": "stat_scaling",
-                  "slider": true,
-                  "slider_name": "Hits dealt",
-                  "slider_max": 30,
-                  "output": {
-                    "type": "stat",
-                    "name": "spd"
-                  },
-                  "max": 30,
-                  "scaling": [
-                    1
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
           "threshold": 75,
-          "description": "Frenzy's maximum walk speed is increased by +40%.",
+          "description": "Frenzy's maximum walk speed is increased by +20%. Frenzy's walk speed build-up is increased by +5% per second.",
           "abilities": [
             {
               "base_abil": "Frenzy",
@@ -274,12 +274,12 @@
                   "type": "stat_scaling",
                   "slider": true,
                   "slider_name": "Hits dealt",
-                  "slider_max": 40,
+                  "slider_max": 20,
                   "output": {
                     "type": "stat",
                     "name": "spd"
                   },
-                  "max": 40,
+                  "max": 20,
                   "scaling": [
                     1
                   ]
@@ -1051,7 +1051,7 @@
                   "base_spell": 14,
                   "target_part": "Total Damage",
                   "hits": {
-                      "Fimbulwinter": 1
+                    "Fimbulwinter": 1
                   }
                 }
               ]
@@ -1073,7 +1073,7 @@
                   "base_spell": 14,
                   "target_part": "Total Damage",
                   "hits": {
-                      "Fimbulwinter": 1
+                    "Fimbulwinter": 1
                   }
                 }
               ]
@@ -1413,17 +1413,17 @@
               "base_abil": 999,
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Flint Arrows",
-                    "output": {
-                        "type": "stat",
-                        "name": "nConvBase:0.Flint Arrows"
-                    },
-                    "scaling": [
-                        -1
-                    ],
-                    "slider_max": 1
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Flint Arrows",
+                  "output": {
+                    "type": "stat",
+                    "name": "nConvBase:0.Flint Arrows"
+                  },
+                  "scaling": [
+                    -1
+                  ],
+                  "slider_max": 1
                 }
               ]
             }
@@ -1437,17 +1437,17 @@
               "base_abil": 999,
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Flint Arrows",
-                    "output": {
-                        "type": "stat",
-                        "name": "nConvBase:0.Flint Arrows"
-                    },
-                    "scaling": [
-                        -2
-                    ],
-                    "slider_max": 2
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Flint Arrows",
+                  "output": {
+                    "type": "stat",
+                    "name": "nConvBase:0.Flint Arrows"
+                  },
+                  "scaling": [
+                    -2
+                  ],
+                  "slider_max": 2
                 }
               ]
             }
@@ -1461,17 +1461,17 @@
               "base_abil": 999,
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Flint Arrows",
-                    "output": {
-                        "type": "stat",
-                        "name": "nConvBase:0.Flint Arrows"
-                    },
-                    "scaling": [
-                        -3
-                    ],
-                    "slider_max": 3
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Flint Arrows",
+                  "output": {
+                    "type": "stat",
+                    "name": "nConvBase:0.Flint Arrows"
+                  },
+                  "scaling": [
+                    -3
+                  ],
+                  "slider_max": 3
                 }
               ]
             }
@@ -1530,10 +1530,10 @@
               ],
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Twilight Stacks",
-                    "slider_max": 20
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Twilight Stacks",
+                  "slider_max": 20
                 }
               ]
             }
@@ -1550,10 +1550,10 @@
               ],
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Twilight Stacks",
-                    "slider_max": 20
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Twilight Stacks",
+                  "slider_max": 20
                 }
               ]
             }
@@ -2250,14 +2250,14 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Pressure is stronger. </br> Bash gains +1x as many hits. </br> Uppercut deals +50% neutral and +8% Damage in all Elements. </br><span class='mc-white'>Total Damage</span>: +90%   </br>&emsp;(<span class='nDam'>Damage</span>: +50%)   </br>&emsp;(<span class='nDam'>Rainbow Damage</span>: +8%)",
+          "description": "Pressure is stronger. </br> Bash gains +0.5x as many hits. </br> Uppercut deals +50% neutral and +8% Damage in all Elements. </br><span class='mc-white'>Total Damage</span>: +90%   </br>&emsp;(<span class='nDam'>Damage</span>: +50%)   </br>&emsp;(<span class='nDam'>Rainbow Damage</span>: +8%)",
           "abilities": [
             {
               "base_abil": "War Scream",
               "properties": {
                 "pressure_rainbow_uppercut": 8,
                 "pressure_neutral_uppercut": 50,
-                "pressure_bash_hits": 1.0
+                "pressure_bash_hits": 0.5
               },
               "effects": []
             }
@@ -2265,14 +2265,14 @@
         },
         {
           "threshold": 5,
-          "description": "Pressure is stronger. </br> Bash gains +1x as many hits. </br> Uppercut deals +50% neutral and +8% Damage in all Elements. </br><span class='mc-white'>Total Damage</span>: +90%   </br>&emsp;(<span class='nDam'>Damage</span>: +50%)   </br>&emsp;(<span class='nDam'>Rainbow Damage</span>: +8%) </br> War Scream grants a higher damage boost. Effect: +3% Damage Bonus to Players",
+          "description": "Pressure is stronger. </br> Bash gains +0.5x as many hits. </br> Uppercut deals +50% neutral and +8% Damage in all Elements. </br><span class='mc-white'>Total Damage</span>: +90%   </br>&emsp;(<span class='nDam'>Damage</span>: +50%)   </br>&emsp;(<span class='nDam'>Rainbow Damage</span>: +8%) </br> War Scream grants a higher damage boost. Effect: +3% Damage Bonus to Players",
           "abilities": [
             {
               "base_abil": "War Scream",
               "properties": {
                 "pressure_rainbow_uppercut": 8,
                 "pressure_neutral_uppercut": 50,
-                "pressure_bash_hits": 1.0,
+                "pressure_bash_hits": 0.5,
                 "pressure_scream_boost": 3
               },
               "effects": []
@@ -2281,14 +2281,14 @@
         },
         {
           "threshold": 15,
-          "description": "Pressure is stronger. </br> Bash gains +1x as many hits and more damage. </br><span class='mc-white'>Total Damage</span>: +5%   </br>&emsp;(<span class='tDam'>Thunder</span>: +5%) </br> Uppercut deals +70% neutral and +10% Damage in all Elements. </br><span class='mc-white'>Total Damage</span>: +120%   </br>&emsp;(<span class='nDam'>Damage</span>: +70%)   </br>&emsp;(<span class='nDam'>Rainbow Damage</span>: +10%) </br> War Scream grants a higher damage boost. Effect: +4% Damage Bonus to Players",
+          "description": "Pressure is stronger. </br> Bash gains +0.5x as many hits and more damage. </br><span class='mc-white'>Total Damage</span>: +5%   </br>&emsp;(<span class='tDam'>Thunder</span>: +5%) </br> Uppercut deals +70% neutral and +10% Damage in all Elements. </br><span class='mc-white'>Total Damage</span>: +120%   </br>&emsp;(<span class='nDam'>Damage</span>: +70%)   </br>&emsp;(<span class='nDam'>Rainbow Damage</span>: +10%) </br> War Scream grants a higher damage boost. Effect: +4% Damage Bonus to Players",
           "abilities": [
             {
               "base_abil": "War Scream",
               "properties": {
                 "pressure_rainbow_uppercut": 10,
                 "pressure_neutral_uppercut": 70,
-                "pressure_bash_hits": 1.0,
+                "pressure_bash_hits": 0.5,
                 "pressure_scream_boost": 4
               },
               "effects": []
@@ -2727,10 +2727,10 @@
               ],
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Harmony",
-                    "slider_max": 1
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Harmony",
+                  "slider_max": 1
                 }
               ]
             }
@@ -2747,10 +2747,10 @@
               ],
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Harmony",
-                    "slider_max": 2
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Harmony",
+                  "slider_max": 2
                 }
               ]
             }
@@ -2760,17 +2760,17 @@
           "threshold": 75,
           "description": "Increase your maximum Harmony by +3.",
           "abilities": [
-                      {
+            {
               "base_abil": "Harmony",
               "dependencies": [
                 "Harmony"
               ],
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Harmony",
-                    "slider_max": 3
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Harmony",
+                  "slider_max": 3
                 }
               ]
             }
@@ -2966,9 +2966,9 @@
                   "toggle": "Activate Dimensional Tear",
                   "bonuses": [
                     {
-                        "type": "stat",
-                        "name": "defMult.Potion",
-                        "value": 5
+                      "type": "stat",
+                      "name": "defMult.Potion",
+                      "value": 5
                     }
                   ]
                 }
@@ -2988,9 +2988,9 @@
                   "toggle": "Activate Dimensional Tear",
                   "bonuses": [
                     {
-                        "type": "stat",
-                        "name": "defMult.Potion",
-                        "value": 5
+                      "type": "stat",
+                      "name": "defMult.Potion",
+                      "value": 5
                     }
                   ]
                 }
@@ -3550,10 +3550,10 @@
               "base_abil": "Distortion",
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Distortion",
-                    "slider_max": 10
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Distortion",
+                  "slider_max": 10
                 }
               ]
             },
@@ -3564,10 +3564,10 @@
               ],
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Distortion",
-                    "slider_max": 15
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Distortion",
+                  "slider_max": 15
                 }
               ]
             }
@@ -3581,10 +3581,10 @@
               "base_abil": "Distortion",
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Distortion",
-                    "slider_max": 10
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Distortion",
+                  "slider_max": 10
                 }
               ]
             },
@@ -3595,10 +3595,10 @@
               ],
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Distortion",
-                    "slider_max": 15
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Distortion",
+                  "slider_max": 15
                 }
               ]
             }
@@ -3612,10 +3612,10 @@
               "base_abil": "Distortion",
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Distortion",
-                    "slider_max": 15
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Distortion",
+                  "slider_max": 15
                 }
               ]
             },
@@ -3626,10 +3626,10 @@
               ],
               "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Distortion",
-                    "slider_max": 23
+                  "type": "stat_scaling",
+                  "slider": true,
+                  "slider_name": "Distortion",
+                  "slider_max": 23
                 }
               ]
             }
@@ -3896,12 +3896,12 @@
               ],
               "effects": [
                 {
-                    "type": "add_spell_prop",
-                    "base_spell": 8,
-                    "target_part": "Rift DPS",
-                    "hits": {
-                        "Riftspawn Damage": 0.5
-                    }
+                  "type": "add_spell_prop",
+                  "base_spell": 8,
+                  "target_part": "Rift DPS",
+                  "hits": {
+                    "Riftspawn Damage": 0.5
+                  }
                 }
               ]
             }
@@ -3918,12 +3918,12 @@
               ],
               "effects": [
                 {
-                    "type": "add_spell_prop",
-                    "base_spell": 8,
-                    "target_part": "Rift DPS",
-                    "hits": {
-                        "Riftspawn Damage": 0.5
-                    }
+                  "type": "add_spell_prop",
+                  "base_spell": 8,
+                  "target_part": "Rift DPS",
+                  "hits": {
+                    "Riftspawn Damage": 0.5
+                  }
                 }
               ]
             }
@@ -3940,12 +3940,12 @@
               ],
               "effects": [
                 {
-                    "type": "add_spell_prop",
-                    "base_spell": 8,
-                    "target_part": "Rift DPS",
-                    "hits": {
-                        "Riftspawn Damage": 1
-                    }
+                  "type": "add_spell_prop",
+                  "base_spell": 8,
+                  "target_part": "Rift DPS",
+                  "hits": {
+                    "Riftspawn Damage": 1
+                  }
                 }
               ]
             }
@@ -3963,17 +3963,17 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Rewind delays +2.5% more damage.",
+          "description": "Paradox delays +3% more damage.",
           "abilities": []
         },
         {
           "threshold": 15,
-          "description": "Rewind delays +3.5% more damage.",
+          "description": "Paradox delays +3% more damage and refunds +5% more mana.",
           "abilities": []
         },
         {
           "threshold": 75,
-          "description": "Rewind delays +5% more damage.",
+          "description": "Paradox delays +5% more damage and refunds +5% more mana.",
           "abilities": []
         }
       ]
@@ -4029,12 +4029,12 @@
               ],
               "effects": [
                 {
-                    "name": "Total Serpent DPS",
-                    "type": "total",
-                    "hits": {
-                        "Thunder Serpent Hit": 0.1,
-                        "Fire Serpent Hit": 0.034
-                    }
+                  "name": "Total Serpent DPS",
+                  "type": "total",
+                  "hits": {
+                    "Thunder Serpent Hit": 0.1,
+                    "Fire Serpent Hit": 0.034
+                  }
                 }
               ]
             }
@@ -4051,12 +4051,12 @@
               ],
               "effects": [
                 {
-                    "name": "Total Serpent DPS",
-                    "type": "total",
-                    "hits": {
-                        "Thunder Serpent Hit": 0.1,
-                        "Fire Serpent Hit": 0.034
-                    }
+                  "name": "Total Serpent DPS",
+                  "type": "total",
+                  "hits": {
+                    "Thunder Serpent Hit": 0.1,
+                    "Fire Serpent Hit": 0.034
+                  }
                 }
               ]
             }
@@ -4101,7 +4101,7 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Shurikens prepares +1 shuriken per Dash. </br> Increase the amount of Shurikens you can hold by. +3 </br> </br><span class='mc-white'>Total Damage</span>: -15% (of your DPS, per shuriken)   </br>&emsp;(<span class='nDam'>Damage</span>: -10%)   </br>&emsp;(<span class='fDam'>Fire</span>: -5%)",
+          "description": "Shurikens prepares +1 shuriken per Dash. </br> Increase the amount of Shurikens you can hold by +3. </br> Dextrous Hands generates +1 extra Shuriken. </br> </br><span class='mc-white'>Total Damage</span>: -15% (of your DPS, per shuriken)   </br>&emsp;(<span class='nDam'>Damage</span>: -10%)   </br>&emsp;(<span class='fDam'>Fire</span>: -5%)",
           "abilities": [
             {
               "base_abil": "Dash",
@@ -4140,7 +4140,7 @@
         },
         {
           "threshold": 15,
-          "description": "Shurikens prepares +2 shurikens per Dash. </br> Increase the amount of Shurikens you can hold by +6. </br> </br><span class='mc-white'>Total Damage</span>: -28% (of your DPS, per shuriken)   </br>&emsp;(<span class='nDam'>Damage</span>: -19%)   </br>&emsp;(<span class='fDam'>Fire</span>: -9%)",
+          "description": "Shurikens prepares +2 shurikens per Dash. </br> Increase the amount of Shurikens you can hold by +6. </br> Dextrous Hands generates +2 extra Shurikens. </br> </br><span class='mc-white'>Total Damage</span>: -28% (of your DPS, per shuriken)   </br>&emsp;(<span class='nDam'>Damage</span>: -19%)   </br>&emsp;(<span class='fDam'>Fire</span>: -9%)",
           "abilities": [
             {
               "base_abil": "Dash",
@@ -4179,7 +4179,7 @@
         },
         {
           "threshold": 75,
-          "description": "Shurikens prepares +3 shurikens per Dash. </br> Increase the amount of Shurikens you can hold by +9. </br> </br><span class='mc-white'>Total Damage</span>: -36% (of your DPS, per shuriken)   </br>&emsp;(<span class='nDam'>Damage</span>: -24%)   </br>&emsp;(<span class='fDam'>Fire</span>: -12%)",
+          "description": "Shurikens prepares +3 shurikens per Dash. </br> Increase the amount of Shurikens you can hold by +9. </br> Dextrous Hands generates +3 extra Shurikens. </br> </br><span class='mc-white'>Total Damage</span>: -36% (of your DPS, per shuriken)   </br>&emsp;(<span class='nDam'>Damage</span>: -24%)   </br>&emsp;(<span class='fDam'>Fire</span>: -12%)",
           "abilities": [
             {
               "base_abil": "Dash",
@@ -5228,7 +5228,7 @@
           "threshold": 75,
           "description": "Increase Smoke Bomb's duration by 30%.",
           "abilities": [
-                      {
+            {
               "base_abil": "Smoke Bomb",
               "properties": {},
               "effects": [
@@ -6949,12 +6949,12 @@
               ],
               "effects": [
                 {
-                    "type": "add_spell_prop",
-                    "target_part": "Rotation DPS",
-                    "base_spell": 4,
-                    "hits": {
-                        "Mask Throw": 0.25
-                    }
+                  "type": "add_spell_prop",
+                  "target_part": "Rotation DPS",
+                  "base_spell": 4,
+                  "hits": {
+                    "Mask Throw": 0.25
+                  }
                 }
               ]
             }
@@ -6971,12 +6971,12 @@
               ],
               "effects": [
                 {
-                    "type": "add_spell_prop",
-                    "target_part": "Rotation DPS",
-                    "base_spell": 4,
-                    "hits": {
-                        "Mask Throw": 0.4
-                    }
+                  "type": "add_spell_prop",
+                  "target_part": "Rotation DPS",
+                  "base_spell": 4,
+                  "hits": {
+                    "Mask Throw": 0.4
+                  }
                 }
               ]
             }
@@ -6993,12 +6993,12 @@
               ],
               "effects": [
                 {
-                    "type": "add_spell_prop",
-                    "target_part": "Rotation DPS",
-                    "base_spell": 4,
-                    "hits": {
-                        "Mask Throw": 0.55
-                    }
+                  "type": "add_spell_prop",
+                  "target_part": "Rotation DPS",
+                  "base_spell": 4,
+                  "hits": {
+                    "Mask Throw": 0.55
+                  }
                 }
               ]
             }
@@ -7015,12 +7015,12 @@
               ],
               "effects": [
                 {
-                    "type": "add_spell_prop",
-                    "target_part": "Rotation DPS",
-                    "base_spell": 4,
-                    "hits": {
-                        "Mask Throw": 0.65
-                    }
+                  "type": "add_spell_prop",
+                  "target_part": "Rotation DPS",
+                  "base_spell": 4,
+                  "hits": {
+                    "Mask Throw": 0.65
+                  }
                 }
               ]
             }

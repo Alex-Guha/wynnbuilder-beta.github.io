@@ -126,7 +126,6 @@ const _DEFAULT_DELTAS = {
     eMdRaw: 100, tMdRaw: 100, wMdRaw: 100, fMdRaw: 100, aMdRaw: 100,
     rSdPct: 15, rSdRaw: 80, rMdPct: 15, rMdRaw: 80,
     rDamPct: 15, rDamRaw: 80,
-    atkTier: 1,
     hpBonus: 1000, hprRaw: 50, hprPct: 20,
     eDef: 50, tDef: 50, wDef: 50, fDef: 50, aDef: 50,
     mr: 15, ms: 10, maxMana: 5,
