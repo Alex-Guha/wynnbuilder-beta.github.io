@@ -319,7 +319,7 @@ function idRound(id){
 // ── Shared stat assembly constants and functions ─────────────────────────────
 // Used by both Build.initBuildStats() and solver worker_shims.js.
 
-const STATMAP_STATIC_IDS = ["hp", "eDef", "tDef", "wDef", "fDef", "aDef", "str", "dex", "int", "def", "agi", "damMobs", "defMobs"];
+const STATMAP_STATIC_IDS = ["hp", "eDef", "tDef", "wDef", "fDef", "aDef", "str", "dex", "int", "def", "agi", "damMobs", "defMobs", "atkTier"];
 const STATMAP_STATIC_ID_SET = new Set(STATMAP_STATIC_IDS);
 
 const STATMAP_MUST_IDS = [
