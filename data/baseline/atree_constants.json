@@ -6146,18 +6146,23 @@
                 {
                     "type": "add_spell_prop",
                     "base_spell": 4,
-                    "target_part": "Tempest Total Damage",
+                    "target_part": "Total Damage",
                     "hits": {
-                        "Tempest": 3
+                        "Tempest": 1
                     }
                 },
                 {
-                    "type": "add_spell_prop",
-                    "base_spell": 4,
-                    "target_part": "Total Damage",
-                    "hits": {
-                        "Tempest Total Damage": 1
-                    }
+                    "type": "stat_scaling",
+                    "slider": true,
+                    "slider_name": "Additional Tempest hits",
+                    "slider_max": 2,
+                    "output": {
+                        "type": "stat",
+                        "name": "damMult.Tempest:4.Tempest"
+                    },
+                    "scaling": [
+                        100
+                    ]
                 }
             ]
         },
@@ -8552,7 +8557,7 @@
             "blockers": [
                 "Larger Heal",
                 "Orphion's Pulse",
-                "Rewind"
+                "Paradox"
             ],
             "cost": 2,
             "display": {

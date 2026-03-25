@@ -16,14 +16,11 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Necessary Improvements
-- Make Tempest hits variable similar to Air Shout
-    - Could add a "default" or similar property to stat_scaling effects, with builder not showing the slider for abilities with this field specified, and solver combo using the value as the default in the boosts
 - Update Transcendence handling - all spells should be castable at any point (i.e. at no point spell cost > remaining mana). This means evaluating cost v mana *before* applying transcendence 20% reduction.
 
 ### Polish
 #### UI
 - Ensure the red and blue solver messages appear at appropriate times. Red requires testing with a poor cpu, and blue probably isn't showing soon enough.
-- Info button that displays an overlay with info on all the buttons and stuff
 
 #### Combo
 

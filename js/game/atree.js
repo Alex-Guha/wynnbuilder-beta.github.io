@@ -686,7 +686,7 @@ const atree_make_interactives = new (class extends ComputeNode {
                             default_val: effective_default,
                             step: slider_step,
                             real_min: slider_min,
-                            id: "ability-slider"+ability.id,
+                            id: "ability-slider-"+slider_name.replace(/\s+/g, '-').toLowerCase(),
                             //color: effect['slider_color'] TODO: add colors to json
                             abil: ability
                         });
