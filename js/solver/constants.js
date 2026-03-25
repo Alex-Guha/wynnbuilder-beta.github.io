@@ -180,7 +180,7 @@ function _allRollsMax() {
 const RESTRICTION_STATS = [
     // ── Health / Sustain ────────────────────────────────────────────────
     { key: 'ehp', label: 'Effective HP' },          // derived — computed during solver eval
-    { key: 'ehp_no_agi', label: 'Effective HP (No Agi)' }, // derived — EHP without agility dodge
+    { key: 'ehp_no_agi', label: 'EHP (No Agi)' }, // derived — EHP without agility dodge
     { key: 'ehpr', label: 'Effective HPR' },         // derived — computed during solver eval
     { key: 'hpr', label: 'HP Regen' },              // derived — hprRaw + hprPct combined
     { key: 'total_hp', label: 'Total HP' },              // derived — hp + hpBonus
