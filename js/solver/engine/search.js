@@ -1334,6 +1334,12 @@ function _run_solver_search_workers(pools, locked, snap) {
         ? Math.max(1, Math.min((navigator.hardwareConcurrency || 4) - 2, 16))
         : parseInt(thread_val);
 
+    // Update "Auto" label to show resolved worker count
+    if (thread_val === 'auto' && thread_sel) {
+        const auto_opt = thread_sel.querySelector('option[value="auto"]');
+        if (auto_opt) auto_opt.textContent = `Auto (${num_workers})`;
+    }
+
     // Serialize pools and locked items
     const pools_ser = _serialize_pools(pools);
     const locked_ser = _serialize_locked(locked);
