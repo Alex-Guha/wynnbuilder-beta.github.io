@@ -207,7 +207,10 @@
     -webkit-appearance: none;
     margin: 0;
 }
-.roll-group-input { -moz-appearance: textfield; }
+
+.roll-group-input {
+    -moz-appearance: textfield;
+}
 
 .roll-group-suffix {
     color: #6c757d;
@@ -306,7 +309,8 @@ body {
     .tome-grid {
         column-gap: 1rem;
     }
-    .tome-grid > .col {
+
+    .tome-grid>.col {
         flex: 0 0 calc(50% - 0.5rem);
         max-width: calc(50% - 0.5rem);
     }
@@ -327,7 +331,7 @@ body {
 
 /* Switch aspect grid to two columns only on very wide screens. */
 @media (min-width: 1800px) {
-    .aspect-grid > .col {
+    .aspect-grid>.col {
         flex: 0 0 50%;
         max-width: 50%;
     }
@@ -348,9 +352,11 @@ body {
     transition: opacity 0.15s;
     color: hsl(145, 60%, 45%);
 }
+
 .solver-lock-col:hover {
     opacity: 1;
 }
+
 .solver-lock-col.solver-lock-free {
     color: hsl(0, 0%, 50%);
 }
@@ -526,13 +532,33 @@ body {
 }
 
 /* Assign grid areas to each child by DOM position */
-.solver-level-roll-grid > :nth-child(1) { grid-area: lvl-lbl; }
-.solver-level-roll-grid > :nth-child(2) { grid-area: lvl-in; }
-.solver-level-roll-grid > :nth-child(3) { grid-area: copy; }
-.solver-level-roll-grid > :nth-child(4) { grid-area: reset; }
-.solver-level-roll-grid > :nth-child(5) { grid-area: roll-lbl; }
-.solver-level-roll-grid > :nth-child(6) { grid-area: roll-in; }
-.solver-level-roll-grid > :nth-child(7) { grid-area: export; }
+.solver-level-roll-grid> :nth-child(1) {
+    grid-area: lvl-lbl;
+}
+
+.solver-level-roll-grid> :nth-child(2) {
+    grid-area: lvl-in;
+}
+
+.solver-level-roll-grid> :nth-child(3) {
+    grid-area: copy;
+}
+
+.solver-level-roll-grid> :nth-child(4) {
+    grid-area: reset;
+}
+
+.solver-level-roll-grid> :nth-child(5) {
+    grid-area: roll-lbl;
+}
+
+.solver-level-roll-grid> :nth-child(6) {
+    grid-area: roll-in;
+}
+
+.solver-level-roll-grid> :nth-child(7) {
+    grid-area: export;
+}
 
 /* Default: narrowest — 3-column, 4-row */
 .solver-level-roll-grid {
@@ -576,6 +602,7 @@ body {
             "roll-lbl roll-in export"
             "reset    reset   reset";
     }
+
     .solver-action-btn {
         text-align: center;
     }
@@ -625,12 +652,13 @@ body {
 
 /* Strip the outer gutter from the first/last col so only the container padding
  * provides the edge inset, while the inner gutter between columns is kept. */
-#summary-stats .row > :first-child,
-#detailed-stats .row > :first-child {
+#summary-stats .row> :first-child,
+#detailed-stats .row> :first-child {
     padding-left: 0;
 }
-#summary-stats .row > :last-child,
-#detailed-stats .row > :last-child {
+
+#summary-stats .row> :last-child,
+#detailed-stats .row> :last-child {
     padding-right: 0;
 }
 
@@ -813,6 +841,7 @@ body {
     opacity: 1;
     color: #9ec5fe;
 }
+
 .solver-expand-toggle {
     cursor: pointer;
     font-size: 1rem;
@@ -825,6 +854,7 @@ body {
     user-select: none;
     color: #adb5bd;
 }
+
 .solver-expand-toggle:hover {
     background-color: rgba(255, 255, 255, 0.12);
 }
@@ -927,6 +957,7 @@ body {
     .col:has(#weapon-dropdown) {
         order: 2 !important;
     }
+
     .col:has(#level-choice) {
         order: 3 !important;
     }
@@ -944,7 +975,8 @@ body {
 @media (max-width: 768px) {
     #atree-ui {
         -webkit-overflow-scrolling: touch;
-        overscroll-behavior-x: contain;  /* prevent back-nav gesture hijack */
+        overscroll-behavior-x: contain;
+        /* prevent back-nav gesture hijack */
     }
 }
 
@@ -977,7 +1009,8 @@ body {
 }
 
 .restr-stat-input {
-    flex: 1 1 0 !important;    /* shrink instead of overflowing */
+    flex: 1 1 0 !important;
+    /* shrink instead of overflowing */
     min-width: 5em;
 }
 
@@ -1002,7 +1035,8 @@ ul.search-box {
     .float-tooltip {
         min-width: 0;
         max-width: 100%;
-        flex-basis: 100%;           /* one tooltip per row on phones */
+        flex-basis: 100%;
+        /* one tooltip per row on phones */
     }
 
     #masonry-container {
@@ -1053,7 +1087,8 @@ ul.search-box {
         max-width: none !important;
         min-width: 0;
         top: auto !important;
-        bottom: 50px !important;    /* above fixed footer */
+        bottom: 50px !important;
+        /* above fixed footer */
         max-height: 60vh;
     }
 
@@ -1099,8 +1134,15 @@ ul.search-box {
 }
 
 @keyframes fade-out-msg {
-    0%, 70% { opacity: 1; }
-    100%    { opacity: 0; }
+
+    0%,
+    70% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
 }
 
 /* ── Advanced panel ───────────────────────────────────────────────────────── */
@@ -1133,4 +1175,154 @@ ul.search-box {
     color: #ccc;
     font-size: 0.8em;
     font-family: monospace;
+}
+
+/* ── Thin scrollbar (override styles.css chunky scrollbar) ─────────────── */
+::-webkit-scrollbar {
+    width: 6px !important;
+    height: 6px !important;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(180, 180, 180, 0.5) !important;
+    border-radius: 3px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(180, 180, 180, 0.7) !important;
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent !important;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(180, 180, 180, 0.5) transparent;
+}
+
+/* ── Info overlay ──────────────────────────────────────────────────────── */
+.solver-info-highlight {
+    position: relative !important;
+    z-index: 10000 !important;
+    box-shadow: 0 0 0 2px rgba(100, 180, 255, 0.7), 0 0 12px 2px rgba(100, 180, 255, 0.3) !important;
+    border-radius: 0.25rem;
+}
+
+.solver-info-badge {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(100, 180, 255, 0.9);
+    color: #000;
+    font-size: 11px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 10001;
+    line-height: 1;
+}
+
+/* >= 1200px: fixed bottom-left panel */
+.solver-info-legend {
+    position: fixed;
+    bottom: 1rem;
+    left: 1rem;
+    max-width: 600px;
+    width: 40%;
+    max-height: 45vh;
+    overflow-y: auto;
+    background: rgba(25, 25, 35, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.3rem 1.5rem;
+    z-index: 10001;
+    cursor: default;
+    font-size: 0.82rem;
+    color: #ccc;
+    line-height: 1.4;
+}
+
+/* < 1200px: inline section that scrolls with the page */
+@media (max-width: 1199.98px) {
+    .solver-info-legend {
+        position: relative;
+        bottom: auto;
+        left: auto;
+        max-width: none;
+        width: 100%;
+        max-height: none;
+        grid-template-columns: 1fr;
+        border-radius: 0.5rem;
+        margin-top: 1rem;
+    }
+}
+
+.solver-info-legend-entry {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.solver-info-legend-summary {
+    font-weight: 500;
+}
+
+.solver-info-legend-detail {
+    display: none;
+    color: #aaa;
+    font-size: 0.78rem;
+    margin-top: 0.15rem;
+    padding-left: 0.4rem;
+}
+
+.solver-info-legend-entry.expanded .solver-info-legend-detail {
+    display: block;
+}
+
+.solver-info-legend-hidden-note {
+    color: #888;
+    font-style: italic;
+    font-size: 0.78rem;
+}
+
+#solver-info-btn.btn-outline-info {
+    color: #7aaccc;
+    border-color: #7aaccc;
+}
+#solver-info-btn.btn-outline-info:hover,
+#solver-info-btn.btn-outline-info:focus {
+    background-color: rgba(122, 172, 204, 0.15);
+    color: #9dc4dc;
+    border-color: #9dc4dc;
+}
+
+.solver-info-badge-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(100, 180, 255, 0.9);
+    color: #000;
+    font-size: 10px;
+    font-weight: bold;
+    flex-shrink: 0;
+    line-height: 1;
 }

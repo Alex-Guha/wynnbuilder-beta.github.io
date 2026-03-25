@@ -1024,7 +1024,7 @@
 
                 <!-- ─── Filters / Requirements ─── -->
                 <div class="mb-2 scaled-font dark-5 rounded dark-shadow">
-                    <div class="fw-bold dark-4 rounded-top p-1 text-center">Filters</div>
+                    <div id="filters-title" class="fw-bold dark-4 rounded-top p-1 text-center">Filters</div>
 
                     <!-- Build Direction -->
                     <div class="px-2 pt-2 pb-1 d-flex gap-1 dir-btn-row mb-1">
@@ -1079,7 +1079,7 @@
                         <div id="restriction-rows" class="d-flex flex-column gap-1"></div>
                         <div id="blacklist-rows" class="d-flex flex-column gap-1"></div>
                         <div class="d-flex gap-2 mt-2">
-                            <button class="btn btn-sm btn-outline-secondary" onclick="restriction_add_row()">+ Add
+                            <button id="restriction-add-btn" class="btn btn-sm btn-outline-secondary" onclick="restriction_add_row()">+ Add
                                 Requirement</button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="blacklist_add_row()">+ Blacklist
                                 Item</button>
@@ -1122,6 +1122,9 @@
                                     <option value="20">20</option>
                                     <option value="24">24</option>
                                 </select>
+                                <button id="solver-advanced-btn" class="btn btn-sm btn-outline-secondary"
+                                    title="Show advanced solver diagnostics"
+                                    onclick="solver_toggle_advanced()">Adv.</button>
                             </div>
                             <div id="solver-progress-text" style="display:none" class="text-secondary small mt-1 w-100">
                                 <div id="solver-progress-header" style="display:flex;justify-content:space-between;cursor:pointer;user-select:none;gap:1em;border-radius:0.25rem;padding:0.15rem 0.4rem;margin:-0.15rem -0.4rem;transition:background-color 0.15s">
@@ -1196,13 +1199,13 @@
                             <button class="btn btn-sm btn-outline-secondary" onclick="combo_add_row()">+ Add
                                 Row</button>
                             <div class="ms-auto d-flex gap-1">
-                                <button class="btn btn-sm btn-outline-secondary" onclick="combo_export()"
+                                <button id="combo-copy-btn" class="btn btn-sm btn-outline-secondary" onclick="combo_export()"
                                     title="Copy combo to clipboard">Copy</button>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="combo_import()"
+                                <button id="combo-paste-btn" class="btn btn-sm btn-outline-secondary" onclick="combo_import()"
                                     title="Paste combo from clipboard">Paste</button>
-                                <button id="solver-advanced-btn" class="btn btn-sm btn-outline-secondary"
-                                    title="Show advanced solver diagnostics"
-                                    onclick="solver_toggle_advanced()">Advanced</button>
+                                <button id="solver-info-btn" class="btn btn-sm btn-outline-info"
+                                    title="Show info about solver controls"
+                                    onclick="solver_toggle_info_overlay()">Info</button>
                             </div>
                         </div>
                     </div>
@@ -1227,7 +1230,7 @@
                         <!-- Mana row — hidden until Time is filled in -->
                         <div id="combo-mana-row" style="display:none;" class="mt-1">
                             <div class="combo-mana-wrapper position-relative d-inline-block">
-                                <span id="combo-mana-display" class="small"></span>
+                                <span id="combo-mana-display" class="small" style="cursor:pointer"></span>
                                 <span id="combo-health-display" class="small" style="display:none;"></span>
                                 <div id="combo-mana-tooltip"
                                     class="combo-mana-tooltip position-absolute bg-dark border border-secondary rounded p-2 small text-secondary">
@@ -1304,6 +1307,9 @@
             </div>
         </div>
 
+        <!-- Anchor for inline info legend (< 1200px) -->
+        <div id="solver-info-legend-anchor" class="px-2 px-lg-3"></div>
+
         <!-- ═══════════════════════ FOOTER ══════════════════════════════════════ -->
         <div class="solver-footer dark-5 scaled-font px-3">
             <footer class="text-center">
@@ -1367,6 +1373,11 @@
     <script src="../js/solver/engine/item_priority.js"></script>
     <script src="../js/solver/engine/search.js"></script>
     <script src="../js/solver/solver.js?v=2"></script>
+
+    <!-- Info overlay (hidden by default) -->
+    <div id="solver-info-overlay" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.75); cursor:pointer;"
+        onclick="solver_close_info_overlay()">
+    </div>
 
 </body>
 

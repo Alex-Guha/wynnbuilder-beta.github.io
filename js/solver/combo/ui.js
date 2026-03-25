@@ -246,3 +246,226 @@ function solver_toggle_advanced() {
 function solver_is_advanced() {
     return document.getElementById('solver-advanced-btn')?.classList.contains('toggleOn') ?? false;
 }
+
+/**
+ * Info overlay entries.  Each has either `id` (getElementById) or `cls`
+ * (querySelector on first combo row).  `text` is the short summary shown
+ * in the legend row; `detail` is the longer description shown on expand.
+ * `pos` controls badge placement: 'over' (default) or 'above'.
+ * `hiddenCheck` (optional): function returning true when the element is
+ * not currently visible — badge is skipped and legend notes it.
+ */
+const _INFO_ENTRIES = [
+    {
+        id: 'helmet-dropdown', text: 'Lock an item to keep it fixed during solving',
+        detail: 'You can also hover over the icon to see item details (desktop), and click the item to display it at the bottom of the screen.'
+    },
+    { id: 'roll-mode-input', text: 'Set roll % per stat group (damage, mana, …)' },
+    {
+        cls: 'combo-row-qty', text: 'Number of sequential spell casts',
+        detail: 'Fractional entry is allowed. If the spell is dps, this is the number of seconds, with decimals allowed. This will count spells as separate casts for mana purposes, factoring in the cost ramp.'
+    },
+    {
+        cls: 'combo-row-spell', text: 'Which event occurs in this combo step',
+        detail: 'This includes melee attacks, active spells, passive spells, really any damage-dealing action as well as Mana Reset and state changes.'
+    },
+    {
+        cls: 'combo-boost-menu-btn', text: 'Per-row damage boosts / overrides',
+        detail: 'Be very deliberate with how you enter your combo and per-spell boosts, they are very powerful and can easily lead to unrealistic results if used incorrectly. Certain hits-based spells like Crepuscular Ray require multiple spell entries with different hit counts experiencing different boosts.'
+    },
+    {
+        cls: 'combo-mana-toggle', text: 'Exclude this row from mana calculation', pos: 'above',
+        detail: 'Completely removes the row from all mana considerations.'
+    },
+    {
+        cls: 'combo-dmg-toggle', text: 'Exclude this row from damage calculation', pos: 'above',
+        detail: 'Completely removes the row from all damage considerations.'
+    },
+    {
+        id: 'combo-time', text: 'Total cycle time for mana simulation',
+        detail: 'If you are only calculating for dps uptime, this is the total time for the cycle. If you want full mana feasibility for the entire build, include the downtime between cycles in this.'
+    },
+    {
+        id: 'combo-downtime-btn', text: 'Allow mana regen between cycles',
+        detail: 'When disabled and combo time is entered, the solver will first ensure ending mana >= starting mana - 5. When enabled, the solver will ensure ending mana >= 0.'
+    },
+    {
+        id: 'combo-copy-btn', text: 'Export combo config to clipboard',
+        detail: 'Exports the current combo as plaintext. Very powerful, allows for easy large-scale combo manipulation in a text editor.'
+    },
+    {
+        id: 'combo-paste-btn', text: 'Import combo config from clipboard'
+    },
+    {
+        id: 'combo-mana-display', text: 'Hover for detailed mana breakdown',
+        detail: 'Clicking this will display a flat mana/cycle entry field for you to enter any mana that is gained from spells like Recycling and not automatically accountable for.',
+        hiddenCheck: () => document.getElementById('combo-mana-row')?.style.display === 'none'
+    },
+    {
+        id: 'filters-title', text: 'Item filtering options',
+        detail: 'These can be used to limit the items the solver has to search through.'
+    },
+    {
+        id: 'dir-str', text: 'Toggle which item SP to consider',
+        detail: 'Disable these to exclude any items that require that skillpoint type. Used to limit the pool of items to search through.'
+    },
+    {
+        id: 'restriction-add-btn', text: 'Add stat threshold constraints',
+        detail: 'These set requirements for the build to have. For example, HP Regen >= 0 is generally recommended. Effective HP (no agi) is another common requirement.'
+    },
+    {
+        id: 'solver-thread-count', text: 'Number of parallel worker threads',
+        detail: 'If you cannot set this higher than ~8-12, searches may take significant time.'
+    },
+];
+
+/** Resolve an _INFO_ENTRIES element to its DOM node. */
+function _info_resolve_el(entry, firstRow) {
+    if (entry.id) return document.getElementById(entry.id);
+    if (entry.cls && firstRow) return firstRow.querySelector('.' + entry.cls);
+    return null;
+}
+
+function _info_overlay_open() {
+    const overlay = document.getElementById('solver-info-overlay');
+    if (!overlay) return;
+
+    // Ensure at least one combo row exists
+    const rows = document.getElementById('combo-selection-rows');
+    if (rows && rows.children.length === 0) combo_add_row();
+    const firstRow = rows?.querySelector('.combo-row');
+
+    const isInline = window.innerWidth < 1200;
+
+    // Badge layer — absolute so badges scroll with the page
+    const badgeLayer = document.createElement('div');
+    badgeLayer.id = 'solver-info-badge-layer';
+    badgeLayer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:0;z-index:10001;pointer-events:none;';
+
+    // Legend panel
+    const legend = document.createElement('div');
+    legend.className = 'solver-info-legend';
+    legend.style.pointerEvents = 'auto';
+    legend.onclick = e => e.stopPropagation();
+
+    let num = 0;
+    for (const entry of _INFO_ENTRIES) {
+        const el = _info_resolve_el(entry, firstRow);
+        if (!el) continue;
+        num++;
+
+        const isHidden = entry.hiddenCheck?.() ?? false;
+
+        if (!isHidden) {
+            // Highlight the element
+            el.classList.add('solver-info-highlight');
+
+            // Place numbered badge (document-relative coords)
+            const rect = el.getBoundingClientRect();
+            const sx = window.scrollX, sy = window.scrollY;
+            const badge = document.createElement('div');
+            badge.className = 'solver-info-badge';
+            badge.textContent = num;
+            const pos = (isInline ? 'over' : entry.pos) || 'over';
+            if (pos === 'above') {
+                badge.style.left = (rect.left + sx + rect.width / 2 - 10) + 'px';
+                badge.style.top = (rect.top + sy - 24) + 'px';
+            } else {
+                badge.style.left = (rect.right + sx - 14) + 'px';
+                badge.style.top = (rect.top + sy - 6) + 'px';
+            }
+            badgeLayer.appendChild(badge);
+        }
+
+        // Legend row (always present)
+        const row = document.createElement('div');
+        row.className = 'solver-info-legend-entry';
+        row.onclick = () => row.classList.toggle('expanded');
+
+        const inlineBadge = document.createElement('span');
+        inlineBadge.className = 'solver-info-badge-inline';
+        inlineBadge.textContent = num;
+
+        const textWrap = document.createElement('div');
+
+        const summary = document.createElement('span');
+        summary.className = 'solver-info-legend-summary';
+        summary.textContent = entry.text;
+        textWrap.appendChild(summary);
+
+        if (isHidden) {
+            const note = document.createElement('span');
+            note.className = 'solver-info-legend-hidden-note';
+            note.textContent = ' (currently hidden)';
+            textWrap.appendChild(note);
+        }
+
+        if (entry.detail) {
+            const detail = document.createElement('div');
+            detail.className = 'solver-info-legend-detail';
+            detail.textContent = entry.detail;
+            textWrap.appendChild(detail);
+        }
+
+        row.appendChild(inlineBadge);
+        row.appendChild(textWrap);
+        legend.appendChild(row);
+    }
+
+    // Place legend: inline (< 1200px) or inside badge layer (fixed, >= 1200px)
+    if (isInline) {
+        const anchor = document.getElementById('solver-info-legend-anchor');
+        if (anchor) {
+            anchor.appendChild(legend);
+        } else {
+            badgeLayer.appendChild(legend);
+        }
+    } else {
+        badgeLayer.appendChild(legend);
+    }
+
+    document.body.appendChild(badgeLayer);
+    overlay.style.display = '';
+
+    // Lock legend height to its collapsed size so expanding a row scrolls
+    // instead of growing the box.
+    requestAnimationFrame(() => {
+        const h = legend.getBoundingClientRect().height;
+        if (h > 0) {
+            legend.style.height = h + 'px';
+            legend.style.maxHeight = h + 'px';
+        }
+    });
+}
+
+function _info_overlay_close() {
+    const overlay = document.getElementById('solver-info-overlay');
+    if (overlay) overlay.style.display = 'none';
+
+    // Remove badge layer from body
+    const layer = document.getElementById('solver-info-badge-layer');
+    if (layer) layer.remove();
+
+    // Remove inline legend from anchor (< 1200px path)
+    const anchor = document.getElementById('solver-info-legend-anchor');
+    if (anchor) anchor.innerHTML = '';
+
+    // Remove highlights
+    document.querySelectorAll('.solver-info-highlight').forEach(el => {
+        el.classList.remove('solver-info-highlight');
+    });
+}
+
+function solver_toggle_info_overlay() {
+    const overlay = document.getElementById('solver-info-overlay');
+    if (!overlay) return;
+    if (overlay.style.display === 'none') {
+        _info_overlay_open();
+    } else {
+        _info_overlay_close();
+    }
+}
+
+function solver_close_info_overlay() {
+    _info_overlay_close();
+}
