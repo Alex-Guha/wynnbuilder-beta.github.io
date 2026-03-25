@@ -856,7 +856,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
         // Mana-excluded rows: skip cost/regen tracking entirely
         if (mana_excl) {
-            if (spell.scaling === 'melee') melee_hits += qty;
+            if (spell.scaling === 'melee') melee_hits += Math.round(qty);
             row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false });
             continue;
         }
@@ -869,15 +869,19 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         const recast_base = spell.mana_derived_from ?? spell.base_spell;
         const is_melee = recast_base === 0;
 
-        if (is_melee_scaling) melee_hits += qty;
-        recast_penalty_total += recast_penalty_per_cast * qty;
+        // Mana/HP simulation uses rounded qty (casts are discrete).
+        // Fractional qty only affects damage output (per_cast * qty in
+        // compute_combo_damage_totals).
+        const sim_qty = Math.round(qty);
+        if (is_melee_scaling) melee_hits += sim_qty;
+        recast_penalty_total += recast_penalty_per_cast * sim_qty;
 
         let row_blood_total = 0;
         let row_blood_casts = 0;
         let hp_warning = false;
         let row_mana_cost = 0;
 
-        for (let c = 0; c < qty; c++) {
+        for (let c = 0; c < sim_qty; c++) {
             // ── Wall-clock time advancement (melee cooldown + spell overlap) ──
             let wall_dt = 0;
             if (is_melee) {
@@ -1006,7 +1010,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         const avg_blood_bonus = row_blood_casts > 0 ? row_blood_total / row_blood_casts : 0;
         total_mana_cost += row_mana_cost;
         if (is_spell) {
-            spell_costs.push({ name: spell.name, qty, cost: cost_per, recast_penalty: recast_penalty_per_cast * qty });
+            spell_costs.push({ name: spell.name, qty: sim_qty, cost: cost_per, recast_penalty: recast_penalty_per_cast * sim_qty });
         }
 
         row_results.push({ blood_pact_bonus: avg_blood_bonus, state_values: _snapshot_states(active_states), hp_warning });

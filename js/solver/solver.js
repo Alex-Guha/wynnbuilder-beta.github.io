@@ -574,8 +574,9 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
 
                     // Disambiguate: has_hits may encode actual DPS hits (for
                     // spells with a Total/Max part, e.g. Burning Sigil) OR a
-                    // decimal qty (for DPS spells without one, e.g. Dimensional
-                    // Tear).  Check the spell's dps_info to route correctly.
+                    // fractional qty stashed in the hits field so it survives
+                    // the 7-bit integer URL encoding.  Check the spell's
+                    // dps_info to route correctly.
                     let qty = r.qty;
                     let hits;
                     if (r.has_hits) {
@@ -584,7 +585,7 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
                         if (dps_info) {
                             hits = r.hits;          // actual DPS hit count
                         } else {
-                            qty = r.hits;           // decimal qty (duration)
+                            qty = r.hits;           // fractional qty
                             hits = undefined;
                         }
                     }

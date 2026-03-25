@@ -112,7 +112,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
     let penalty_counter = 0;
 
     const pure_rows = [];
-    for (const { qty, spell, boost_tokens, dom_row } of rows) {
+    for (const { qty, sim_qty, spell, boost_tokens, dom_row } of rows) {
         const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
         const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
             ?.classList.contains('mana-excluded') ?? false;
@@ -135,7 +135,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
 
         let recast_penalty_per_cast = 0;
 
-        if (!pseudo && qty > 0 && spell && !mana_excl && spell.cost != null) {
+        if (!pseudo && sim_qty > 0 && spell && !mana_excl && spell.cost != null) {
             const recast_base = spell.mana_derived_from ?? spell.base_spell;
             const is_melee = recast_base === 0;
 
@@ -157,7 +157,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
                     row_recast_penalty = penalty_counter * RECAST_MANA_PENALTY;
                     penalty_counter = 0;
                     consecutive_count = 1;
-                    const remaining = qty - 1;
+                    const remaining = sim_qty - 1;
                     if (remaining > 0) {
                         const free_remaining = Math.min(remaining, 1);
                         const penalty_remaining = remaining - free_remaining;
@@ -168,20 +168,20 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
                         consecutive_count += remaining;
                     }
                 } else if (penalty_counter > 0) {
-                    row_recast_penalty = RECAST_MANA_PENALTY * (qty * penalty_counter + qty * (qty + 1) / 2);
-                    penalty_counter += qty;
-                    consecutive_count += qty;
+                    row_recast_penalty = RECAST_MANA_PENALTY * (sim_qty * penalty_counter + sim_qty * (sim_qty + 1) / 2);
+                    penalty_counter += sim_qty;
+                    consecutive_count += sim_qty;
                 } else {
-                    const free_casts = Math.max(0, Math.min(qty, 2 - consecutive_count));
-                    const penalty_casts = qty - free_casts;
+                    const free_casts = Math.max(0, Math.min(sim_qty, 2 - consecutive_count));
+                    const penalty_casts = sim_qty - free_casts;
                     if (penalty_casts > 0) {
                         row_recast_penalty = RECAST_MANA_PENALTY * penalty_casts * (penalty_casts + 1) / 2;
                         penalty_counter = penalty_casts;
                     }
-                    consecutive_count += qty;
+                    consecutive_count += sim_qty;
                 }
 
-                recast_penalty_per_cast = qty > 0 ? row_recast_penalty / qty : 0;
+                recast_penalty_per_cast = sim_qty > 0 ? row_recast_penalty / sim_qty : 0;
             }
         }
 

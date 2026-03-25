@@ -362,13 +362,13 @@ function _eval_combo_mana_check(combo_base) {
 
     let mana_cost = 0;
     let melee_hits = 0;
-    for (const { qty, spell, boost_tokens, mana_excl, recast_penalty_per_cast } of _cfg.parsed_combo) {
+    for (const { sim_qty, spell, boost_tokens, mana_excl, recast_penalty_per_cast } of _cfg.parsed_combo) {
         if (mana_excl) continue;
-        if (spell?.scaling === 'melee') melee_hits += qty;
+        if (spell?.scaling === 'melee') melee_hits += sim_qty;
         if (spell == null || spell.cost == null) continue;
         // Apply per-row combo boosts (e.g. spell cost reductions) before computing cost.
         const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry, _scratch_row);
-        mana_cost += (getSpellCost(stats, spell) + (recast_penalty_per_cast ?? 0)) * qty;
+        mana_cost += (getSpellCost(stats, spell) + (recast_penalty_per_cast ?? 0)) * sim_qty;
     }
 
     // XXX Hardcoded MajorID

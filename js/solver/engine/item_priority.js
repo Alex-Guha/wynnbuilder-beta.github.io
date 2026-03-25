@@ -644,10 +644,10 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
         // Estimate mana deficit proportion for bonus scaling
         const combo_time = snap.combo_time ?? 0;
         let total_mana_cost = 0;
-        for (const { qty, spell, mana_excl, recast_penalty_per_cast } of (snap.parsed_combo ?? [])) {
+        for (const { sim_qty, spell, mana_excl, recast_penalty_per_cast } of (snap.parsed_combo ?? [])) {
             if (mana_excl || !spell || spell.cost == null) continue;
-            total_mana_cost += spell.cost * qty;
-            if (recast_penalty_per_cast) total_mana_cost += recast_penalty_per_cast * qty;
+            total_mana_cost += spell.cost * sim_qty;
+            if (recast_penalty_per_cast) total_mana_cost += recast_penalty_per_cast * sim_qty;
         }
 
         const start_mana = 100;
@@ -677,15 +677,15 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
             // Weight spRaw/spPct by cast frequency relative to mr's mana value.
             const mr_equiv = Math.max(combo_time / 5, 1);
             const casts_by_spell = new Map(); // base_spell_num → { total_casts, base_cost }
-            for (const { qty, spell, mana_excl } of (snap.parsed_combo ?? [])) {
+            for (const { sim_qty, spell, mana_excl } of (snap.parsed_combo ?? [])) {
                 if (mana_excl || !spell || spell.cost == null) continue;
                 const bs = spell.mana_derived_from ?? spell.base_spell;
                 if (!bs) continue;
                 const entry = casts_by_spell.get(bs);
                 if (entry) {
-                    entry.total_casts += qty;
+                    entry.total_casts += sim_qty;
                 } else {
-                    casts_by_spell.set(bs, { total_casts: qty, base_cost: spell.cost });
+                    casts_by_spell.set(bs, { total_casts: sim_qty, base_cost: spell.cost });
                 }
             }
 
@@ -913,10 +913,10 @@ function _estimate_mana_tight(snap) {
 
     // Sum base spell costs (no int reduction = overestimates cost)
     let mana_cost = 0;
-    for (const { qty, spell, mana_excl, recast_penalty_per_cast } of (snap.parsed_combo ?? [])) {
+    for (const { sim_qty, spell, mana_excl, recast_penalty_per_cast } of (snap.parsed_combo ?? [])) {
         if (mana_excl || !spell || spell.cost == null) continue;
-        mana_cost += spell.cost * qty;
-        if (recast_penalty_per_cast) mana_cost += recast_penalty_per_cast * qty;
+        mana_cost += spell.cost * sim_qty;
+        if (recast_penalty_per_cast) mana_cost += recast_penalty_per_cast * sim_qty;
     }
 
     const end_mana = start_mana - mana_cost + base_regen + flat_mana;

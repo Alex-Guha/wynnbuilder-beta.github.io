@@ -63,14 +63,14 @@ class SolverComboTotalNode extends ComputeNode {
 
             let auto_time = 0;
             let melee_cd = 0;
-            for (const { qty, spell, dom_row } of rows) {
+            for (const { sim_qty, spell, dom_row } of rows) {
                 if (!spell) continue;
                 const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
                     ?.classList.contains('mana-excluded') ?? false;
                 const recast_base = spell.mana_derived_from ?? spell.base_spell;
                 const is_melee = recast_base === 0;
                 if (is_melee && mana_excl) continue;
-                for (let i = 0; i < qty; i++) {
+                for (let i = 0; i < sim_qty; i++) {
                     if (is_melee) {
                         auto_time += melee_cd;
                         melee_cd = melee_period;
@@ -108,7 +108,7 @@ class SolverComboTotalNode extends ComputeNode {
 
         // ── Pre-parse rows: extract DOM state for pure function ──
         const parsed_rows = [];
-        for (const { qty, spell, boost_tokens, dom_row } of rows) {
+        for (const { qty, sim_qty, spell, boost_tokens, dom_row } of rows) {
             const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
             const dmg_excl = dom_row?.querySelector('.combo-dmg-toggle')
                 ?.classList.contains('dmg-excluded') ?? false;
@@ -122,7 +122,7 @@ class SolverComboTotalNode extends ComputeNode {
             // DPS hits override from DOM input
             const hits_inp = dom_row?.querySelector('.combo-row-hits');
             const dps_hits_override = hits_inp ? (parseFloat(hits_inp.value) || undefined) : undefined;
-            parsed_rows.push({ qty, spell, boost_tokens, dmg_excl, pseudo, dps_hits_override, dom_row });
+            parsed_rows.push({ qty, sim_qty, spell, boost_tokens, dmg_excl, pseudo, dps_hits_override, dom_row });
         }
 
         // ── Compute damage via shared pure function ──
@@ -221,7 +221,8 @@ class SolverComboTotalNode extends ComputeNode {
                     ?.classList.contains('mana-excluded') ?? false;
                 if (mana_excluded) continue;
 
-                if (row.spell.scaling === 'melee') melee_hits += row.qty;
+                const rqty = row.sim_qty;
+                if (row.spell.scaling === 'melee') melee_hits += rqty;
 
                 // Mana Reset resets recast counter
                 if (row.pseudo === 'mana_reset') {
@@ -253,7 +254,7 @@ class SolverComboTotalNode extends ComputeNode {
                             row_recast_penalty = penalty_counter * RECAST_MANA_PENALTY;
                             penalty_counter = 0;
                             consecutive_count = 1;
-                            const remaining = row.qty - 1;
+                            const remaining = rqty - 1;
                             if (remaining > 0) {
                                 const free_remaining = Math.min(remaining, 1);
                                 const penalty_remaining = remaining - free_remaining;
@@ -264,23 +265,23 @@ class SolverComboTotalNode extends ComputeNode {
                                 consecutive_count += remaining;
                             }
                         } else if (penalty_counter > 0) {
-                            row_recast_penalty = RECAST_MANA_PENALTY * (row.qty * penalty_counter + row.qty * (row.qty + 1) / 2);
-                            penalty_counter += row.qty;
-                            consecutive_count += row.qty;
+                            row_recast_penalty = RECAST_MANA_PENALTY * (rqty * penalty_counter + rqty * (rqty + 1) / 2);
+                            penalty_counter += rqty;
+                            consecutive_count += rqty;
                         } else {
-                            const free_casts = Math.max(0, Math.min(row.qty, 2 - consecutive_count));
-                            const penalty_casts = row.qty - free_casts;
+                            const free_casts = Math.max(0, Math.min(rqty, 2 - consecutive_count));
+                            const penalty_casts = rqty - free_casts;
                             if (penalty_casts > 0) {
                                 row_recast_penalty = RECAST_MANA_PENALTY * penalty_casts * (penalty_casts + 1) / 2;
                                 penalty_counter = penalty_casts;
                             }
-                            consecutive_count += row.qty;
+                            consecutive_count += rqty;
                         }
                     }
 
-                    mana_cost += cost_per * row.qty + row_recast_penalty;
+                    mana_cost += cost_per * rqty + row_recast_penalty;
                     recast_penalty_total += row_recast_penalty;
-                    spell_costs.push({ name: row.spell.name, qty: row.qty, cost: cost_per, recast_penalty: row_recast_penalty });
+                    spell_costs.push({ name: row.spell.name, qty: rqty, cost: cost_per, recast_penalty: row_recast_penalty });
                 }
             }
         }
@@ -359,11 +360,6 @@ class SolverComboTotalNode extends ComputeNode {
     _read_combo_rows(spell_map) {
         return this._iterate_combo_rows().map(({ row, qty, spell_id, toggles, sliders, calcs }) => {
             const spell = spell_map.get(spell_id) ?? null;
-            // Only DPS spells without a Total/Max hit-count part allow decimal
-            // qty (representing duration in seconds).  All others are integer.
-            const dps_info = spell ? compute_dps_spell_hits_info(spell) : null;
-            const allow_decimal = spell_is_dps(spell) && !dps_info;
-            const eff_qty = allow_decimal ? qty : Math.round(qty);
             const boost_tokens = [];
             for (const btn of toggles) {
                 boost_tokens.push({ name: btn.dataset.boostName, value: 1, is_pct: false });
@@ -382,7 +378,7 @@ class SolverComboTotalNode extends ComputeNode {
                 const val = parseFloat(inp.value) || 0;
                 if (val > 0) boost_tokens.push({ name: inp.dataset.boostName, value: val, is_pct: true });
             }
-            return { qty: eff_qty, spell, boost_tokens, dom_row: row };
+            return { qty, sim_qty: Math.round(qty), spell, boost_tokens, dom_row: row };
         });
     }
 
@@ -396,10 +392,6 @@ class SolverComboTotalNode extends ComputeNode {
     _read_selection_rows_as_data() {
         return this._iterate_combo_rows().map(({ row, qty, spell_id, toggles, sliders, calcs }) => {
             const spell = this._spell_map_cache?.get(spell_id);
-            // Only DPS spells without a Total/Max part allow decimal qty.
-            const dps_info = spell ? compute_dps_spell_hits_info(spell) : null;
-            const allow_decimal = spell_is_dps(spell) && !dps_info;
-            if (!allow_decimal) qty = Math.round(qty);
             let spell_name = spell?.name ?? '';
             if (spell_id === MANA_RESET_SPELL_ID) spell_name = 'Mana Reset';
             else {
@@ -675,20 +667,8 @@ class SolverComboTotalNode extends ComputeNode {
                 area.appendChild(sep);
             }
 
-            // DPS spells without a Total/Max hit-count part: allow decimal qty
-            // (the qty field represents duration in seconds, not discrete casts).
-            const qty_inp = row.querySelector('.combo-row-qty');
-            if (qty_inp) {
-                const is_dps_no_hits = spell_is_dps(spell) && !dps_info;
-                if (is_dps_no_hits) {
-                    qty_inp.step = 'any';
-                } else {
-                    qty_inp.step = '1';
-                    // Round to integer when switching away from a decimal-qty spell.
-                    const cur = parseFloat(qty_inp.value);
-                    if (cur !== Math.round(cur)) qty_inp.value = String(Math.round(cur));
-                }
-            }
+            // Ensure qty input always allows decimal (step='any' set in ui.js).
+
 
             // Render toggles first, then sliders (with max-modifier toggles).
             // Filter by relevance to the selected spell.

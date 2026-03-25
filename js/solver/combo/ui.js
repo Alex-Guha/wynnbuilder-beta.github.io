@@ -38,21 +38,11 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     qty_inp.value = String(qty_val);
     qty_inp.min = '0';
     qty_inp.max = String(COMBO_QTY_MAX);
+    qty_inp.step = 'any';
     qty_inp.style.cssText = 'width:3em; text-align:center;';
     _wire_encoding_cap(qty_inp, 0, COMBO_QTY_MAX);
     qty_inp.addEventListener('input', () => {
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
-    });
-    // Auto-correct decimal values on blur/enter for integer-only spells.
-    // step='any' is set by _populate_boost_controls for DPS-without-hits spells.
-    qty_inp.addEventListener('change', () => {
-        if (qty_inp.step !== 'any') {
-            const cur = parseFloat(qty_inp.value);
-            if (!isNaN(cur) && cur !== Math.round(cur)) {
-                qty_inp.value = String(Math.round(cur));
-                if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
-            }
-        }
     });
 
     const spell_sel = document.createElement('select');

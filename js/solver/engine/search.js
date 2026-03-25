@@ -141,6 +141,7 @@ function _parse_combo_for_search(spell_map, weapon) {
 
             const entry = {
                 qty: r.qty,
+                sim_qty: Math.round(r.qty),
                 spell: r.spell,
                 boost_tokens: r.boost_tokens,
                 dmg_excl: r.dom_row?.querySelector('.combo-dmg-toggle')
@@ -254,9 +255,9 @@ function _build_solver_snapshot(restrictions) {
                 }
                 continue;
             }
-            const { qty, spell, mana_excl } = row;
+            const { sim_qty, spell, mana_excl } = row;
             row.recast_penalty_per_cast = 0;
-            if (!spell || qty <= 0 || mana_excl || spell.cost == null) continue;
+            if (!spell || sim_qty <= 0 || mana_excl || spell.cost == null) continue;
             const rc_base = spell.mana_derived_from ?? spell.base_spell;
             if (rc_base === 0) continue; // melee spells have no recast penalty
 
@@ -272,7 +273,7 @@ function _build_solver_snapshot(restrictions) {
                 row_penalty = _rc_penalty * RECAST_MANA_PENALTY;
                 _rc_penalty = 0;
                 _rc_consec = 1;
-                const remaining = qty - 1;
+                const remaining = sim_qty - 1;
                 if (remaining > 0) {
                     const free_remaining = Math.min(remaining, 1);
                     const penalty_remaining = remaining - free_remaining;
@@ -283,19 +284,19 @@ function _build_solver_snapshot(restrictions) {
                     _rc_consec += remaining;
                 }
             } else if (_rc_penalty > 0) {
-                row_penalty = RECAST_MANA_PENALTY * (qty * _rc_penalty + qty * (qty + 1) / 2);
-                _rc_penalty += qty;
-                _rc_consec += qty;
+                row_penalty = RECAST_MANA_PENALTY * (sim_qty * _rc_penalty + sim_qty * (sim_qty + 1) / 2);
+                _rc_penalty += sim_qty;
+                _rc_consec += sim_qty;
             } else {
-                const free_casts = Math.max(0, Math.min(qty, 2 - _rc_consec));
-                const penalty_casts = qty - free_casts;
+                const free_casts = Math.max(0, Math.min(sim_qty, 2 - _rc_consec));
+                const penalty_casts = sim_qty - free_casts;
                 if (penalty_casts > 0) {
                     row_penalty = RECAST_MANA_PENALTY * penalty_casts * (penalty_casts + 1) / 2;
                     _rc_penalty = penalty_casts;
                 }
-                _rc_consec += qty;
+                _rc_consec += sim_qty;
             }
-            row.recast_penalty_per_cast = qty > 0 ? row_penalty / qty : 0;
+            row.recast_penalty_per_cast = sim_qty > 0 ? row_penalty / sim_qty : 0;
         }
     }
 
@@ -476,13 +477,13 @@ function _eval_current_build(snap, restrictions) {
     } else if (snap.combo_time > 0) {
         let mana_cost = 0;
         let melee_hits = 0;
-        for (const { qty, spell, boost_tokens, mana_excl, recast_penalty_per_cast } of snap.parsed_combo) {
+        for (const { sim_qty, spell, boost_tokens, mana_excl, recast_penalty_per_cast } of snap.parsed_combo) {
             if (mana_excl) continue;
-            if (spell?.scaling === 'melee') melee_hits += qty;
+            if (spell?.scaling === 'melee') melee_hits += sim_qty;
             if (spell == null || spell.cost == null) continue;
             // Apply per-row combo boosts (e.g. spell cost reductions) before computing cost.
             const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, snap.boost_registry);
-            mana_cost += (getSpellCost(stats, spell) + (recast_penalty_per_cast ?? 0)) * qty;
+            mana_cost += (getSpellCost(stats, spell) + (recast_penalty_per_cast ?? 0)) * sim_qty;
         }
         if (combo_base.get('activeMajorIDs')?.has('ARCANES')) mana_cost *= 0.75;
         const mr = combo_base.get('mr') ?? 0;
