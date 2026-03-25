@@ -386,7 +386,7 @@
     },
     "FOREST_BLESSING": {
         "displayName": "Forest's Blessing",
-        "description": "Your hound gains increased movement speed, attack speed, vision. Arrow Bomb's damage is reduced by [neutral] -30%.",
+        "description": "Your hound gains increased movement speed, attack speed & vision. Arrow Bomb's damage is reduced by [neutral] -30%.",
         "abilities": [
             {
                 "class": "Archer",
@@ -938,7 +938,9 @@
             {
                 "class": "Mage",
                 "base_abil": "Distortion",
-                "dependencies": ["Distortion"],
+                "dependencies": [
+                    "Distortion"
+                ],
                 "properties": {},
                 "effects": [
                     {
@@ -952,14 +954,20 @@
             {
                 "class": "Mage",
                 "base_abil": "Distortion",
-                "dependencies": ["Devitalize"],
+                "dependencies": [
+                    "Devitalize"
+                ],
                 "properties": {},
                 "effects": [
                     {
                         "type": "raw_stat",
                         "toggle": "Activate Devitalize",
                         "bonuses": [
-                            { "type": "stat", "name": "defMult.Devitalize", "value": 15 }
+                            {
+                                "type": "stat",
+                                "name": "defMult.Devitalize",
+                                "value": 15
+                            }
                         ]
                     }
                 ]
@@ -967,56 +975,90 @@
             {
                 "class": "Mage",
                 "base_abil": "Distortion",
-                "dependencies": ["Frozen Tornado"],
-                "properties": {},
+                "dependencies": [
+                    "Time Vortex"
+                ],
                 "effects": [
                     {
                         "type": "stat_scaling",
                         "slider": true,
                         "slider_name": "Distortion",
                         "requirement": 25,
-                        "output": { "type": "stat", "name": "damMult.Distortion:4.Damage per Tick" },
-                        "scaling": [-0.64]
+                        "output": {
+                            "type": "stat",
+                            "name": "damMult.Distortion:4.Damage per Tick"
+                        },
+                        "scaling": [
+                            -0.64
+                        ]
                     }
                 ]
             },
             {
                 "class": "Mage",
                 "base_abil": "Distortion",
-                "dependencies": ["Vacuokinesis"],
-                "properties": {},
-                "effects": [
-                    {
-                        "type": "stat_scaling",
-                        "slider": true,
-                        "slider_name": "Distortion",
-                        "requirement": 40,
-                        "output": { "type": "stat", "name": "damMult.Distortion:0.Vacuokinesis" },
-                        "scaling": [-0.4]
-                    }
-                ]
-            },
-            {
-                "class": "Mage",
-                "base_abil": "Distortion",
-                "dependencies": ["Stabilized Anomaly"],
-                "properties": {},
+                "dependencies": [
+                    "Time Vortex",
+                    "Stabilized Anomaly"
+                ],
                 "effects": [
                     {
                         "type": "stat_scaling",
                         "slider": true,
                         "slider_name": "Distortion",
                         "requirement": 25,
-                        "output": { "type": "stat", "name": "damMult.Distortion:4.Damage per Tick" },
-                        "scaling": [-0.224]
-                    },
+                        "output": {
+                            "type": "stat",
+                            "name": "damMult.Distortion:4.Damage per Tick"
+                        },
+                        "scaling": [
+                            -0.224
+                        ]
+                    }
+                ]
+            },
+            {
+                "class": "Mage",
+                "base_abil": "Distortion",
+                "dependencies": [
+                    "Vacuokinesis"
+                ],
+                "effects": [
                     {
                         "type": "stat_scaling",
                         "slider": true,
                         "slider_name": "Distortion",
                         "requirement": 40,
-                        "output": { "type": "stat", "name": "damMult.Distortion:0.Vacuokinesis" },
-                        "scaling": [-0.14]
+                        "output": {
+                            "type": "stat",
+                            "name": "damMult.Distortion:0.Vacuokinesis"
+                        },
+                        "scaling": [
+                            -0.4
+                        ]
+                    }
+                ]
+            },
+            {
+                "class": "Mage",
+                "base_abil": "Distortion",
+                "dependencies": [
+                    "Vacuokinesis",
+                    "Stabilized Anomaly"
+                ],
+                "effects": [
+                    {
+                        "type": "stat_scaling",
+                        "slider": true,
+                        "slider_name": "Distortion",
+                        "requirement": 40,
+                        "output": {
+                            "type": "stat",
+                            "name": "damMult.Distortion:0.Vacuokinesis"
+                        },
+                        "scaling": [
+                            -0.14
+                        ]
                     }
                 ]
             }
@@ -2824,7 +2866,7 @@
                         "bonuses": [
                             {
                                 "type": "stat",
-                                "name": "damMult.RiverOfSouls:4.Air Shout",
+                                "name": "damMult.StagnantAir:4.Air Shout",
                                 "value": 100
                             }
                         ]
@@ -3285,7 +3327,7 @@
     },
     "DIVINE_RIGHT": {
         "displayName": "Divine Right",
-        "description": "Sacred Surge's damage is increased by 4% for every 1000 max HP you have when it triggers, up to a maximum of 200%.",
+        "description": "Sacred Surge's damage is increased by 4% (Maximum 200%) for every 1000 max HP you have when it triggers.",
         "abilities": [
             {
                 "class": "Warrior",
@@ -3324,7 +3366,10 @@
         "abilities": [
             {
                 "class": "Assassin",
-                "base_abil": 999,
+                "base_abil": "Dash",
+                "dependencies": [
+                    "Surprise Strike"
+                ],
                 "effects": [
                     {
                         "type": "stat_scaling",
@@ -3337,8 +3382,7 @@
                         },
                         "scaling": [
                             5
-                        ],
-                        "max": 130
+                        ]
                     }
                 ]
             }

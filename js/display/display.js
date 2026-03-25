@@ -485,7 +485,7 @@ function displayExpandedItem(item, parent_id){
                     const powder2_power = powders[j] % POWDER_TIERS;
                     if (powder2_power > 2 && firstPowderType === currentPowderType) {
                         element = currentPowderType;
-                        power_index = powder1_power + powder2_power - 6;
+                        power_index = powder1_power + powder2_power - POWDER_TIERS;
                         break;
                     }
                 }

@@ -2316,37 +2316,7 @@
                   "type": "stat_scaling",
                   "slider": true,
                   "slider_name": "Hits dealt",
-                  "slider_max": 6,
-                  "output": [
-                    {
-                      "type": "stat",
-                      "name": "nDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "eDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "tDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "wDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "fDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "aDamRaw"
-                    }
-                  ],
-                  "max": 25,
-                  "scaling": [
-                    5
-                  ]
+                  "slider_max": 12
                 }
               ]
             }
@@ -2363,37 +2333,7 @@
                   "type": "stat_scaling",
                   "slider": true,
                   "slider_name": "Hits dealt",
-                  "slider_max": 6,
-                  "output": [
-                    {
-                      "type": "stat",
-                      "name": "nDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "eDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "tDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "wDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "fDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "aDamRaw"
-                    }
-                  ],
-                  "max": 40,
-                  "scaling": [
-                    5
-                  ]
+                  "slider_max": 20
                 }
               ]
             }
@@ -2410,37 +2350,7 @@
                   "type": "stat_scaling",
                   "slider": true,
                   "slider_name": "Hits dealt",
-                  "slider_max": 6,
-                  "output": [
-                    {
-                      "type": "stat",
-                      "name": "nDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "eDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "tDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "wDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "fDamRaw"
-                    },
-                    {
-                      "type": "stat",
-                      "name": "aDamRaw"
-                    }
-                  ],
-                  "max": 50,
-                  "scaling": [
-                    5
-                  ]
+                  "slider_max": 25
                 }
               ]
             }
@@ -6929,7 +6839,7 @@
           "description": "Corporeal Manifestation spins 25% faster.",
           "abilities": [
             {
-              "base_abil": "Haunting Memory",
+              "base_abil": "Uproot",
               "dependencies": [
                 "Corporeal Manifestation"
               ],
@@ -6951,7 +6861,7 @@
           "description": "Corporeal Manifestation spins 40% faster.",
           "abilities": [
             {
-              "base_abil": "Haunting Memory",
+              "base_abil": "Uproot",
               "dependencies": [
                 "Corporeal Manifestation"
               ],
@@ -6973,7 +6883,7 @@
           "description": "Corporeal Manifestation spins 55% faster.",
           "abilities": [
             {
-              "base_abil": "Haunting Memory",
+              "base_abil": "Uproot",
               "dependencies": [
                 "Corporeal Manifestation"
               ],
@@ -6995,7 +6905,7 @@
           "description": "Corporeal Manifestation spins 65% faster.",
           "abilities": [
             {
-              "base_abil": "Haunting Memory",
+              "base_abil": "Uproot",
               "dependencies": [
                 "Corporeal Manifestation"
               ],
