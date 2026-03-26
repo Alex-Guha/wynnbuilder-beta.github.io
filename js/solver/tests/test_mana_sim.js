@@ -132,5 +132,27 @@ function assertManaMatch(label, rows, stats, has_trans, flat_mana) {
     assertManaMatch('Empty combo', [], stats, false, 0);
 }
 
+// 7. Transcendence castability gate: spell cost > mana but < mana after 0.75
+//    Should trigger mana warning because castability is checked before reduction.
+{
+    // Starting mana = 100 (base) + 0 (maxMana) + 0 (int) = 100.
+    // Spell cost = 120. adj_cost = 90 (with transcendence).
+    // 100 < 120 → not castable → mana warning, even though 100 >= 90 would pass old logic.
+    const stats = makeStats({ mr: 0, int: 0 });
+    const rows = [
+        makeRow(1, makeSpell('Expensive Spell', 120, { base_spell: 1 })),
+    ];
+    const registry = [];
+    const hc = DEFAULT_HEALTH_CONFIG;
+    const full = simulate_combo_mana_hp(rows, stats, hc, true, registry, undefined, 0);
+    const fast = simulate_combo_mana_fast(rows, stats, hc, true, registry, undefined, 0);
+
+    const full_mana_warn = full.row_results.some(r => r.mana_warning);
+    t.assert(full_mana_warn,
+        'Transcendence gate (full): should warn when mana < effective_cost');
+    t.assert(fast.has_mana_warning,
+        'Transcendence gate (fast): should warn when mana < effective_cost');
+}
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 t.summary();

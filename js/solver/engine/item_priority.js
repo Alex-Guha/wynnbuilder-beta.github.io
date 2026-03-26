@@ -874,6 +874,7 @@ function _build_dmg_weights(snap, locked, pools) {
     if (!result) return _build_dmg_weights_legacy(snap);
 
     _augment_sensitivity_weights(result, snap, snap.restrictions);
+    result.weights._deltas = result.deltas;
     return result.weights;
 }
 

@@ -883,8 +883,16 @@ function _display_priority_weights() {
         }
     }
 
-    // Top N stats by |weight|
-    const entries = [...merged.entries()];
+    // Multiply sensitivity by delta to show actual score impact per typical item
+    const deltas = weights._deltas;
+    const display = new Map();
+    for (const [stat, w] of merged) {
+        const delta = deltas ? (deltas.get(stat) ?? 1) : 1;
+        display.set(stat, w * delta);
+    }
+
+    // Top N stats by |impact|
+    const entries = [...display.entries()];
     entries.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
     const topN = entries.slice(0, _ADV_TOP_N);
 
@@ -901,7 +909,7 @@ function _display_priority_weights() {
     ).join('') : '';
 
     panel.innerHTML =
-        `<div class="text-secondary small mt-2 mb-1">Priority Stats (top ${topN.length}):</div>`
+        `<div class="text-secondary small mt-2 mb-1">Stat Sensitivities (top ${topN.length}):</div>`
         + stat_rows
         + (sp_rows ? `<div class="text-secondary small mt-2 mb-1">SP Sensitivities:</div>`
             + `<div class="adv-sp-row">${sp_rows}</div>` : '');

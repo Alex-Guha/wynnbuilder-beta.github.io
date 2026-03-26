@@ -972,13 +972,13 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
             // Spell cost payment
             if (is_spell) {
                 const effective_cost = cost_per + recast_penalty_per_cast;
-                let adj_cost = effective_cost;
-                if (has_transcendence) adj_cost *= 0.75;
+                const adj_cost = has_transcendence ? effective_cost * 0.75 : effective_cost;
 
-                if (mana >= adj_cost) {
+                if (mana >= effective_cost) {
+                    // Castable — apply transcendence discount
                     mana -= adj_cost;
                 } else if (health_cost_pct > 0) {
-                    // Blood Pact: pay remaining from health
+                    // Blood Pact: pay remaining from health (transcendence still applies)
                     const remaining_mana = Math.max(0, mana);
                     const health_mana = adj_cost - remaining_mana;
                     mana = 0;
@@ -1003,8 +1003,8 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                         row_blood_casts++;
                     }
                 } else {
-                    // No Blood Pact: mana goes negative, flag warning
-                    mana -= adj_cost;
+                    // Not castable, no BP — no transcendence benefit
+                    mana -= effective_cost;
                     mana_warning = true;
                 }
 
@@ -1137,13 +1137,13 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
             // Spell cost payment
             if (is_spell) {
                 const effective_cost = cost_per + recast_penalty_per_cast;
-                let adj_cost = effective_cost;
-                if (has_transcendence) adj_cost *= 0.75;
+                const adj_cost = has_transcendence ? effective_cost * 0.75 : effective_cost;
 
-                if (mana >= adj_cost) {
+                if (mana >= effective_cost) {
+                    // Castable — apply transcendence discount
                     mana -= adj_cost;
                 } else if (health_cost_pct > 0) {
-                    // Blood Pact: pay remaining from health
+                    // Blood Pact: pay remaining from health (transcendence still applies)
                     const remaining_mana = Math.max(0, mana);
                     const health_mana = adj_cost - remaining_mana;
                     mana = 0;
@@ -1152,8 +1152,8 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
                     if (hp < hp_cost) has_hp_warning = true;
                     hp -= hp_cost;
                 } else {
-                    // No Blood Pact: mana goes negative, flag warning
-                    mana -= adj_cost;
+                    // Not castable, no BP — no transcendence benefit
+                    mana -= effective_cost;
                     has_mana_warning = true;
                 }
             }

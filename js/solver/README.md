@@ -16,7 +16,7 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Necessary Improvements
-- Update Transcendence handling - all spells should be castable at any point (i.e. at no point spell cost > remaining mana). This means evaluating cost v mana *before* applying transcendence 20% reduction.
+
 
 ### Polish
 #### UI
@@ -33,15 +33,14 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
     - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
 
 ### Long term
-- Cast time/delay-based mana calc with an advanced mode, where the per-spell cast time and durations and spell hits and what not can be specified in greater detail and control
-    - Mana abilities missing:
-        - Arcanist Manastorm
-        - Boltslinger Recycling
-        - Trapper? Mana Trap
-        - Acrobat weightless
-        - Summoner Aura
-        - Rift Paradox
-    - Handle the variable attack speed
+- Handle the variable attack speed
+- Mana abilities missing:
+    - Arcanist Manastorm
+    - Boltslinger Recycling
+    - Trapper? Mana Trap
+    - Acrobat weightless
+    - Summoner Aura
+    - Rift Paradox
 - Add healing stuff to atree
     - Rejuvenating Skin
     - Dawn (lb ult)
