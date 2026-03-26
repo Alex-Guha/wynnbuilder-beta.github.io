@@ -29,6 +29,8 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 - Test tstack builds
 - Add more complicated scenarios to test_dominance.js
 - Add more tests
+- Testing setup to measure the time it takes to find a build, across many builds. This would be used to test priority weighting changes.
+    - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
 
 ### Long term
 - Cast time/delay-based mana calc with an advanced mode, where the per-spell cast time and durations and spell hits and what not can be specified in greater detail and control

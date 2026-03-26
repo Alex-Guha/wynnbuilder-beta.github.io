@@ -26,6 +26,13 @@ const _MANA_RATIO_EXPONENT = 0.5;
 // requirement burden indirectly, and the freed budget may not all be allocated.
 const _SP_SENSITIVITY_DAMPEN = 0.4;
 
+// Scale factor for SP feasibility bonus.  Multiplied against
+// max_abs × pressure × (per-index demand share) to produce per-unit
+// SP sensitivity.  Higher → SP-providing items compete more strongly
+// with damage items when SP budget is tight.
+const _SP_FEASIBILITY_SCALE = 3;
+
+
 // Stats that are computed from the full build (not direct item stats) —
 // excluded from constraint weights and dominance check_stats.
 const _INDIRECT_CONSTRAINT_STATS = new Set([
@@ -493,6 +500,81 @@ function _compute_sensitivity_weights(snap, locked, pools) {
     }
     weights._sp_sensitivities = sp_sensitivities;
 
+    // ── SP feasibility bonus ─────────────────────────────────────────
+    // When item requirements (locked + pool) exceed the SP budget, SP
+    // provisions from free items are essential for build feasibility.
+    // Each SP index gets its own independent sensitivity derived from its
+    // demand, added on top of the score-based sensitivity (which may be
+    // near zero for stats like agi that don't affect the scoring target).
+    {
+        // Per-index max requirement across all items (locked + weapon + pools).
+        // SP is global: if any item needs 125 agi, you need ≥125 agi total.
+        const max_req = [0, 0, 0, 0, 0];
+        for (const item of Object.values(locked)) {
+            if (!item || item.statMap.has('NONE')) continue;
+            const reqs = item.statMap.get('reqs');
+            if (reqs) for (let i = 0; i < 5; i++) {
+                if (reqs[i] > max_req[i]) max_req[i] = reqs[i];
+            }
+        }
+        const w_reqs = snap.weapon_sm.get('reqs');
+        if (w_reqs) for (let i = 0; i < 5; i++) {
+            if (w_reqs[i] > max_req[i]) max_req[i] = w_reqs[i];
+        }
+        for (const pool of Object.values(pools)) {
+            for (const item of pool) {
+                if (item.statMap.has('NONE')) continue;
+                const reqs = item.statMap.get('reqs');
+                if (reqs) for (let i = 0; i < 5; i++) {
+                    if (reqs[i] > max_req[i]) max_req[i] = reqs[i];
+                }
+            }
+        }
+
+        // Subtract locked items' + weapon's SP provisions (offset requirement burden)
+        const locked_prov = [0, 0, 0, 0, 0];
+        for (const item of Object.values(locked)) {
+            if (!item || item.statMap.has('NONE')) continue;
+            const skp = item.statMap.get('skillpoints');
+            if (skp) for (let i = 0; i < 5; i++) locked_prov[i] += Math.max(0, skp[i]);
+        }
+        const w_skp = snap.weapon_sm.get('skillpoints');
+        if (w_skp) for (let i = 0; i < 5; i++) locked_prov[i] += Math.max(0, w_skp[i]);
+
+        const net_demand = [0, 0, 0, 0, 0];
+        let demand_sum = 0;
+        for (let i = 0; i < 5; i++) {
+            net_demand[i] = Math.max(0, max_req[i] - locked_prov[i]);
+            demand_sum += net_demand[i];
+        }
+
+        const deficit = demand_sum - snap.sp_budget;
+        if (deficit > 0) {
+            // Compute max_abs from current stat weights for scaling reference
+            let local_max_abs = 1.0;
+            for (const [, w] of weights) {
+                const a = Math.abs(w);
+                if (a > local_max_abs) local_max_abs = a;
+            }
+
+            // Each SP index gets an independent feasibility sensitivity
+            // proportional to its share of total demand.  The scale constant
+            // controls how strongly SP items compete with damage items.
+            const pressure = Math.min(deficit / snap.sp_budget, 3.0);
+            for (let i = 0; i < 5; i++) {
+                if (net_demand[i] > 0) {
+                    sp_sensitivities[i] += local_max_abs * pressure
+                        * (net_demand[i] / demand_sum) * _SP_FEASIBILITY_SCALE;
+                }
+            }
+            if (SOLVER_DEBUG_SENSITIVITY) {
+                console.log(`[solver][sensitivity] SP feasibility: demand=${demand_sum}, budget=${snap.sp_budget}, deficit=${deficit}, pressure=${pressure.toFixed(3)}`);
+                console.log(`  net_demand:`, net_demand, 'sp_sens after:', sp_sensitivities.map((s, i) =>
+                    `${skp_order[i]}: ${s.toFixed(4)}`));
+            }
+        }
+    }
+
     if (SOLVER_DEBUG_SENSITIVITY) {
         const elapsed = (performance.now() - t0).toFixed(1);
         console.groupCollapsed(`[solver][sensitivity] computed in ${elapsed}ms (target: ${target})`);
@@ -637,24 +719,17 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
     }
 
     // ── Mana sustainability (combo_time > 0, not hp_casting) ────────────
-    const mana_tight = _estimate_mana_tight(snap);
+    // Uses locked items' mr/ms/int/maxMana via combo_base for accurate deficit.
+    const mana_tight = _estimate_mana_tight(snap, combo_base);
     if (mana_tight) {
         if (!weights._priority_only) weights._priority_only = new Map();
 
-        // Estimate mana deficit proportion for bonus scaling
-        const combo_time = snap.combo_time ?? 0;
-        let total_mana_cost = 0;
-        for (const { sim_qty, spell, mana_excl, recast_penalty_per_cast } of (snap.parsed_combo ?? [])) {
-            if (mana_excl || !spell || spell.cost == null) continue;
-            total_mana_cost += spell.cost * sim_qty;
-            if (recast_penalty_per_cast) total_mana_cost += recast_penalty_per_cast * sim_qty;
-        }
-
-        const start_mana = 100;
-        const base_regen = (BASE_MANA_REGEN / 5) * combo_time;
-        const flat_mana = snap.flat_mana ?? 0;
-        const deficit = total_mana_cost - start_mana - base_regen - flat_mana;
-        const ratio_raw = total_mana_cost > 0 ? Math.min(1, Math.max(0, deficit / total_mana_cost)) : 0;
+        const bal = _estimate_mana_balance(snap, combo_base);
+        const deficit = bal.total_cost - bal.start_mana - bal.regen_mana - bal.ms_mana;
+        // ratio_raw can exceed 1.0 when negative mr/ms from locked items pushes
+        // the deficit well beyond total spell cost.  The sqrt exponent dampens
+        // extreme values naturally (e.g. ratio_raw=9 → ratio=3).
+        const ratio_raw = bal.total_cost > 0 ? Math.max(0, deficit / bal.total_cost) : 0;
         const ratio = Math.pow(ratio_raw, _MANA_RATIO_EXPONENT);
         const mana_bonus = max_abs * _MANA_WEIGHT_FRACTION * ratio;
 
@@ -675,7 +750,7 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
 
             // ── Spell cost reduction bonuses ─────────────────────────
             // Weight spRaw/spPct by cast frequency relative to mr's mana value.
-            const mr_equiv = Math.max(combo_time / 5, 1);
+            const mr_equiv = Math.max((snap.combo_time ?? 0) / 5, 1);
             const casts_by_spell = new Map(); // base_spell_num → { total_casts, base_cost }
             for (const { sim_qty, spell, mana_excl } of (snap.parsed_combo ?? [])) {
                 if (mana_excl || !spell || spell.cost == null) continue;
@@ -821,11 +896,18 @@ function _score_item_priority(item_sm, dmg_weights) {
             if (skp[i]) score += skp[i] * dmg_weights._sp_sensitivities[i];
         }
     }
-    // Priority-only (mana sustainability)
+    // Priority-only (mana sustainability) — take max with main weight, not sum.
+    // If both systems value a stat in the same direction, use the larger magnitude;
+    // the main-loop iteration already contributed main_w, so add only the excess.
     if (dmg_weights._priority_only) {
-        for (const [stat, w] of dmg_weights._priority_only) {
-            const v = _item_stat_val(item_sm, stat);
-            score += v * w;
+        for (const [stat, prio_w] of dmg_weights._priority_only) {
+            const main_w = dmg_weights.get(stat) ?? 0;
+            if (main_w !== 0 && (prio_w > 0) === (main_w > 0)) {
+                const extra = Math.abs(prio_w) - Math.abs(main_w);
+                if (extra > 0) score += _item_stat_val(item_sm, stat) * extra * Math.sign(prio_w);
+            } else {
+                score += _item_stat_val(item_sm, stat) * prio_w;
+            }
         }
     }
     return score;
@@ -893,38 +975,80 @@ function _prioritize_pools(pools, dmg_weights) {
 // ── Dominance stat classification ─────────────────────────────────────────────
 
 /**
- * Conservative mana deficit estimate for dominance pruning decisions.
+ * Estimate mana balance from locked items + combo, mirroring worker's
+ * simulate_combo_mana_fast (pure.js).  Returns an object with mana budget
+ * breakdown, or null when no mana gate applies (Blood Pact / no combo_time).
  *
- * Assumes 0 mr, 0 ms, 0 int, 0 maxMana from equipment (worst case) so that
- * when this says "mana is fine", it truly is — even with the weakest items.
- * Uses base spell costs without int reduction (overestimates cost = safe).
- *
- * Returns true when the combo's mana budget is tight enough that mr/ms
- * should be considered in dominance pruning.
+ * When combo_base is null/undefined, falls back to worst-case assumptions
+ * (0 mr/ms/int/maxMana from equipment) so dominance pruning with legacy
+ * weights remains conservative.
  */
-function _estimate_mana_tight(snap) {
-    if (snap.hp_casting) return false;          // Blood Pact: spells paid with HP
+function _estimate_mana_balance(snap, combo_base) {
+    if (snap.hp_casting) return null;
     const combo_time = snap.combo_time ?? 0;
-    if (!combo_time) return false;              // No combo timing → no mana gate
+    if (!combo_time) return null;
 
-    const start_mana = 100;                     // base mana pool, no item/int bonus
-    const base_regen = (BASE_MANA_REGEN / 5) * combo_time;  // 25/5 * time
+    // Start mana: 100 + int bonus + maxMana (matching worker pure.js:1064)
+    const int_mana = combo_base
+        ? Math.floor(skillPointsToPercentage(combo_base.get('int') ?? 0) * 100)
+        : 0;
+    const item_mana = combo_base ? (combo_base.get('maxMana') ?? 0) : 0;
     const flat_mana = snap.flat_mana ?? 0;
+    const start_mana = 100 + int_mana + item_mana + flat_mana;
+    const max_mana = 100 + int_mana + item_mana;
 
-    // Sum base spell costs (no int reduction = overestimates cost)
-    let mana_cost = 0;
-    for (const { sim_qty, spell, mana_excl, recast_penalty_per_cast } of (snap.parsed_combo ?? [])) {
-        if (mana_excl || !spell || spell.cost == null) continue;
-        mana_cost += spell.cost * sim_qty;
-        if (recast_penalty_per_cast) mana_cost += recast_penalty_per_cast * sim_qty;
+    // MR regen (matching worker pure.js:1072)
+    const mr = combo_base ? (combo_base.get('mr') ?? 0) : 0;
+    const mr_per_sec = (mr + BASE_MANA_REGEN) / MANA_TICK_SECONDS;
+    const regen_mana = mr_per_sec * combo_time;
+
+    // MS contribution: estimate mana steal from melee-scaling hits
+    const ms = combo_base ? (combo_base.get('ms') ?? 0) : 0;
+    let ms_mana = 0;
+    if (ms > 0 && combo_base) {
+        let adjAtkSpd = attackSpeeds.indexOf(combo_base.get('atkSpd'))
+            + (combo_base.get('atkTier') ?? 0);
+        adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+        const ms_per_hit = ms / 3 / baseDamageMultiplier[adjAtkSpd];
+
+        for (const { sim_qty, spell, mana_excl } of (snap.parsed_combo ?? [])) {
+            if (mana_excl || !spell) continue;
+            if (spell.scaling === 'melee') {
+                ms_mana += ms_per_hit * Math.round(sim_qty);
+            }
+        }
     }
 
-    const end_mana = start_mana - mana_cost + base_regen + flat_mana;
+    // Total spell costs (base costs, no int reduction — overestimates = safe)
+    let total_cost = 0;
+    for (const { sim_qty, spell, mana_excl, recast_penalty_per_cast } of (snap.parsed_combo ?? [])) {
+        if (mana_excl || !spell || spell.cost == null) continue;
+        total_cost += spell.cost * sim_qty;
+        if (recast_penalty_per_cast) total_cost += recast_penalty_per_cast * sim_qty;
+    }
+
+    const end_mana = Math.min(max_mana, start_mana - total_cost + regen_mana + ms_mana);
+
+    return { start_mana, max_mana, end_mana, total_cost, regen_mana, ms_mana, flat_mana };
+}
+
+/**
+ * Returns true when the combo's mana budget is tight enough that mr/ms
+ * should be considered in priority weighting and dominance pruning.
+ *
+ * When combo_base is provided, uses locked items' mr/ms/int/maxMana for an
+ * accurate estimate.  When absent, falls back to worst-case (0 equipment
+ * contribution) — conservative for dominance, since "mana is tight" ⇒ more
+ * stats enter the dominance set, never fewer.
+ */
+function _estimate_mana_tight(snap, combo_base) {
+    const bal = _estimate_mana_balance(snap, combo_base);
+    if (!bal) return false;
 
     if (snap.allow_downtime) {
-        return end_mana < 0;                    // net negative → need mr/ms
+        return bal.end_mana < 0;                // net negative → need mr/ms
     } else {
-        return (start_mana - end_mana) > 5;     // deficit > 5 → not sustainable
+        return (bal.start_mana - bal.end_mana) > 5;  // deficit > 5 → not sustainable
     }
 }
 
@@ -988,7 +1112,12 @@ function _build_dominance_stats(snap, dmg_weights, restrictions) {
         }
     }
 
-    // mr/ms enter dominance only when mana is tight
+    // mr/ms enter dominance only when mana is tight.
+    // Pass no combo_base → worst-case (0 equipment mr/ms/int/maxMana).
+    // Intentionally conservative: if mana is "fine" assuming zero equipment
+    // contribution, it's truly fine with any items.  Using actual locked stats
+    // could falsely exclude mr/ms from dominance when locked items have good
+    // mana stats but free items could make it bad.
     const has_melee = (snap.parsed_combo ?? []).some(r => (r.spell?.scaling ?? 'spell') === 'melee');
     const mana_tight = _estimate_mana_tight(snap);
     if (mana_tight) {
