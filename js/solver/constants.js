@@ -17,9 +17,6 @@ const UNLOCK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="curren
 const RESTR_VALUE_MAX = 33554431;
 const RESTR_VALUE_MIN = -33554431;
 
-/** 10-bit unsigned: combo time in seconds */
-const CTIME_MAX = 1023;
-
 /** 10-bit signed: flat mana per cycle */
 const FLAT_MANA_MIN = -512;
 const FLAT_MANA_MAX = 511;

@@ -236,6 +236,16 @@ function combo_toggle_downtime() {
     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
 }
 
+function combo_toggle_mana() {
+    const btn = document.getElementById('combo-mana-btn');
+    if (!btn) return;
+    btn.classList.toggle('toggleOn');
+    const mana_row = document.getElementById('combo-mana-row');
+    if (mana_row) mana_row.style.display = btn.classList.contains('toggleOn') ? 'flex' : 'none';
+    if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+    _schedule_solver_hash_update();
+}
+
 function solver_toggle_advanced() {
     const btn = document.getElementById('solver-advanced-btn');
     if (!btn) return;
@@ -282,12 +292,18 @@ const _INFO_ENTRIES = [
         detail: 'Completely removes the row from all damage considerations.'
     },
     {
-        id: 'combo-time', text: 'Total cycle time for mana simulation',
-        detail: 'If you are only calculating for dps uptime, this is the total time for the cycle. If you want full mana feasibility for the entire build, include the downtime between cycles in this.'
+        id: 'combo-mana-btn', text: 'Toggle mana calculation on/off',
+        detail: 'When enabled, mana feasibility is checked for the combo cycle. Cycle time is auto-computed from the spell sequence. When disabled, the solver ignores mana entirely.'
+    },
+    {
+        id: 'combo-cycle-time-display', text: 'Auto-calculated cycle time',
+        detail: 'Computed from the spell sequence: sum of cast times and delays. Mana-excluded rows are not counted.',
+        hiddenCheck: () => !document.getElementById('combo-mana-btn')?.classList.contains('toggleOn')
     },
     {
         id: 'combo-downtime-btn', text: 'Allow mana regen between cycles',
-        detail: 'When disabled and combo time is entered, the solver will first ensure ending mana >= starting mana - 5. When enabled, the solver will ensure ending mana >= 0.'
+        detail: 'When disabled, the solver ensures ending mana >= starting mana - 5 (sustainable). When enabled, the solver ensures ending mana >= 0 (allows regen during downtime).',
+        hiddenCheck: () => !document.getElementById('combo-mana-btn')?.classList.contains('toggleOn')
     },
     {
         id: 'combo-copy-btn', text: 'Export combo config to clipboard',
@@ -299,7 +315,7 @@ const _INFO_ENTRIES = [
     {
         id: 'combo-mana-display', text: 'Hover for detailed mana breakdown',
         detail: 'Clicking this will display a flat mana/cycle entry field for you to enter any mana that is gained from spells like Recycling and not automatically accountable for.',
-        hiddenCheck: () => document.getElementById('combo-mana-row')?.style.display === 'none'
+        hiddenCheck: () => !document.getElementById('combo-mana-btn')?.classList.contains('toggleOn')
     },
     {
         id: 'filters-title', text: 'Item filtering options',

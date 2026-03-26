@@ -670,7 +670,7 @@ function decodeSolverParams(b64_str) {
             console.warn('[decode] decodeSolverParams: version 0 (extension signal) not supported');
             return null;
         }
-        if (version > 4) {
+        if (version > 5) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -704,7 +704,15 @@ function decodeSolverParams(b64_str) {
         const nomaj = (presence & (1 << 5)) ? cursor.advanceBy(1) === 1 : _SOLVER_DEFAULTS.nomaj;
         const gtome = (presence & (1 << 6)) ? cursor.advanceBy(2) : _SOLVER_DEFAULTS.gtome;
         const dtime = (presence & (1 << 7)) ? cursor.advanceBy(1) === 1 : _SOLVER_DEFAULTS.dtime;
-        const ctime = (presence & (1 << 8)) ? cursor.advanceBy(10) : _SOLVER_DEFAULTS.ctime;
+        let mana_disabled;
+        if (version >= 5) {
+            // v5+: bit 8 is a bare flag (no payload)
+            mana_disabled = !!(presence & (1 << 8));
+        } else {
+            // v3/v4: bit 8 had a 10-bit ctime payload — read and discard
+            if (presence & (1 << 8)) cursor.advanceBy(10);
+            mana_disabled = false;
+        }
         const flat_mana = (presence & (1 << 9)) ? _decode_signed(cursor, 10) : _SOLVER_DEFAULTS.flat_mana;
 
         // ── Restrictions (variable-width values) ──
@@ -755,7 +763,7 @@ function decodeSolverParams(b64_str) {
         }
 
         return {
-            roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, ctime,
+            roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, mana_disabled,
             flat_mana, restrictions, combo_rows, blacklist_ids
         };
     } catch (e) {

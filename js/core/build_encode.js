@@ -563,7 +563,7 @@ const _SOLVER_DEFAULTS = {
     nomaj: false,
     gtome: 0,
     dtime: false,
-    ctime: 0,
+    mana_disabled: false,
     flat_mana: 0,
 };
 
@@ -572,7 +572,7 @@ const _SOLVER_DEFAULTS = {
  * Version 1 binary format — compact binary with default elision.
  *
  * Binary layout (EncodingBitVector):
- *   [3]   version (011 = v3)
+ *   [3]   version (101 = v5)
  *   [10]  field_present bitmask (1 = non-default, field encoded below)
  *          bit 0: roll_groups (default {85,100,85,85})
  *          bit 1: sfree      (default 0)
@@ -582,11 +582,11 @@ const _SOLVER_DEFAULTS = {
  *          bit 5: nomaj      (default false)
  *          bit 6: gtome      (default 0)
  *          bit 7: dtime      (default false)
- *          bit 8: ctime      (default 0)
+ *          bit 8: mana_disabled (default false) — bare flag, no payload
  *          bit 9: flat_mana  (default 0)
  *   --- conditional fixed fields (only if presence bit = 1) ---
  *   NOTE: Bit widths below have corresponding range constants in
- *         constants.js (e.g. CTIME_MAX, FLAT_MANA_MIN/MAX,
+ *         constants.js (e.g. FLAT_MANA_MIN/MAX,
  *         COMBO_QTY_MAX, BOOST_SLIDER_MAX, MAX_RESTRICTION_ROWS,
  *         MAX_COMBO_ROWS, MAX_BLACKLIST_ROWS). Keep them in sync.
  *   [28]  roll_groups: 4×7 bits (damage, mana, healing, misc) each 0-100
@@ -597,7 +597,7 @@ const _SOLVER_DEFAULTS = {
  *   [1]   nomaj
  *   [2]   gtome
  *   [1]   dtime
- *   [10]  ctime
+ *   (bit 8: no payload — presence bit itself is the value)
  *   [10]  flat_mana (signed)
  *   [4]   restriction_count (0-15)
  *     Per restriction:
@@ -632,7 +632,7 @@ const _SOLVER_DEFAULTS = {
  * @param {boolean} params.nomaj - No-Major-ID filter
  * @param {number} params.gtome - Guild tome (0=off, 1=standard, 2=rare)
  * @param {boolean} params.dtime - Allow downtime flag
- * @param {number} params.ctime - Combo time in seconds (0-1023)
+ * @param {boolean} params.mana_disabled - Mana calculation disabled
  * @param {number} params.flat_mana - Flat mana per cycle (-512 to 511)
  * @param {Array} params.restrictions - [{stat_index, op, value}]
  * @param {Array} params.combo_rows - [{spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts: [{node_id, effect_pos, has_value, value}]}]
@@ -643,8 +643,8 @@ function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
     const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-    // Version: 3 bits (v4 = 100)
-    bv.append(4, 3);
+    // Version: 3 bits (v5 = 101)
+    bv.append(5, 3);
 
     // ── Presence bitmask (10 bits) ──
     // v3: bit 0 → roll_groups (4×7 bits), replaces v2's single roll field
@@ -660,7 +660,7 @@ function encodeSolverParams(params) {
     const nomaj = params.nomaj ? 1 : 0;
     const gtome = params.gtome & 0x3;
     const dtime = params.dtime ? 1 : 0;
-    const ctime = Math.min(1023, Math.max(0, params.ctime || 0));
+    const mana_disabled = params.mana_disabled ? 1 : 0;
     const flat_mana = Math.max(-512, Math.min(511, Math.round(params.flat_mana || 0)));
 
     let presence = 0;
@@ -673,7 +673,7 @@ function encodeSolverParams(params) {
     if (nomaj !== 0) presence |= (1 << 5);
     if (gtome !== _SOLVER_DEFAULTS.gtome) presence |= (1 << 6);
     if (dtime !== 0) presence |= (1 << 7);
-    if (ctime !== _SOLVER_DEFAULTS.ctime) presence |= (1 << 8);
+    if (mana_disabled) presence |= (1 << 8);
     if (flat_mana !== _SOLVER_DEFAULTS.flat_mana) presence |= (1 << 9);
 
     bv.append(presence, 10);
@@ -692,7 +692,7 @@ function encodeSolverParams(params) {
     if (presence & (1 << 5)) bv.append(nomaj, 1);
     if (presence & (1 << 6)) bv.append(gtome, 2);
     if (presence & (1 << 7)) bv.append(dtime, 1);
-    if (presence & (1 << 8)) bv.append(ctime, 10);
+    // bit 8 (mana_disabled): bare flag — no payload bits
     if (presence & (1 << 9)) _encode_signed(bv, flat_mana, 10);
 
     // ── Restrictions ──

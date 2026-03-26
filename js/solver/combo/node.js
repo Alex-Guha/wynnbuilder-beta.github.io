@@ -23,6 +23,8 @@ class SolverComboTotalNode extends ComputeNode {
             this._spell_map_cache = spell_map;
             if (spell_map) this._refresh_selection_spells(spell_map);
             if (total_elem) total_elem.textContent = '—';
+            const mr = document.getElementById('combo-mana-row');
+            if (mr) mr.style.display = 'none';
             return null;
         }
 
@@ -49,13 +51,9 @@ class SolverComboTotalNode extends ComputeNode {
         const crit_chance = skillPointsToPercentage(base_stats.get('dex'));
 
         let rows = this._read_combo_rows(aug_spell_map);
-        const spell_to_spell_mode = this._health_config?.hp_casting ?? false;
 
-        // Auto-fill combo time from spell sequence (count non-melee spell casts).
-        // Only auto-fill in spell-to-spell mode (Blood Pact / HP casting builds).
-        const ctime_inp = document.getElementById('combo-time');
-        if (ctime_inp) ctime_inp.placeholder = spell_to_spell_mode ? 'auto' : 'sec';
-        if (ctime_inp && ctime_inp.dataset.auto === 'true' && spell_to_spell_mode) {
+        // Auto-compute cycle time from spell sequence.
+        {
             let adjAtkSpd_t = attackSpeeds.indexOf(base_stats.get('atkSpd'))
                 + (base_stats.get('atkTier') ?? 0);
             adjAtkSpd_t = Math.max(0, Math.min(6, adjAtkSpd_t));
@@ -67,9 +65,9 @@ class SolverComboTotalNode extends ComputeNode {
                 if (!spell) continue;
                 const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
                     ?.classList.contains('mana-excluded') ?? false;
+                if (mana_excl) continue;
                 const recast_base = spell.mana_derived_from ?? spell.base_spell;
                 const is_melee = recast_base === 0;
-                if (is_melee && mana_excl) continue;
                 for (let i = 0; i < sim_qty; i++) {
                     if (is_melee) {
                         auto_time += melee_cd;
@@ -84,27 +82,22 @@ class SolverComboTotalNode extends ComputeNode {
             }
             // Flush any remaining melee cooldown at end of combo
             auto_time += melee_cd;
-            ctime_inp.value = auto_time > 0 ? String(Math.round(auto_time * 100) / 100) : '';
+            this._auto_cycle_time = auto_time > 0 ? Math.round(auto_time * 100) / 100 : 0;
+            const ct_display = document.getElementById('combo-cycle-time-display');
+            if (ct_display) ct_display.textContent = this._auto_cycle_time > 0
+                ? `Cycle Time: ${this._auto_cycle_time}s` : '';
         }
 
-        // In spell-to-spell mode, run simulation pre-pass to determine per-row
-        // Blood Pact bonus, corruption %, and health warnings. This also auto-fills
+        // Run simulation pre-pass to determine per-row Blood Pact bonus,
+        // corruption %, health warnings, and mana tracking. Also auto-fills
         // the calculated boost fields and Corrupted sliders, so the damage loop
         // reads the correct boost values.
-        let sim_result = null;
-        if (spell_to_spell_mode) {
-            sim_result = simulate_spell_by_spell(
-                rows, base_stats, aug_spell_map, registry, this._health_config, build);
-            // Re-read rows so boost_tokens reflect auto-filled Blood Pact / Corrupted values.
-            rows = this._read_combo_rows(aug_spell_map);
-        }
-
-        // Clear warning borders in tally mode (simulation sets them in spell-to-spell mode).
-        if (!spell_to_spell_mode) {
-            for (const row of document.querySelectorAll('#combo-selection-rows .combo-row-spell')) {
-                row.classList.remove('combo-row-warning');
-            }
-        }
+        const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
+        const sim_result = simulate_spell_by_spell(
+            rows, base_stats, aug_spell_map, registry,
+            this._health_config ?? DEFAULT_HEALTH_CONFIG, build, flat_mana);
+        // Re-read rows so boost_tokens reflect auto-filled Blood Pact / Corrupted values.
+        rows = this._read_combo_rows(aug_spell_map);
 
         // ── Pre-parse rows: extract DOM state for pure function ──
         const parsed_rows = [];
@@ -203,88 +196,7 @@ class SolverComboTotalNode extends ComputeNode {
             }
         }
 
-        // ── Tally-mode mana cost tracking (skipped in spell-to-spell mode) ──
-        let mana_cost = 0;
-        let melee_hits = 0;
-        let recast_penalty_total = 0;
-        const spell_costs = [];
-        if (!spell_to_spell_mode) {
-            let last_spell_base = null;
-            let consecutive_count = 0;
-            let penalty_counter = 0;
-
-            for (let i = 0; i < parsed_rows.length; i++) {
-                const row = parsed_rows[i];
-                const pr = dmg_result.per_row[i];
-                if (row.pseudo || !row.spell || row.qty <= 0) continue;
-                const mana_excluded = row.dom_row?.querySelector('.combo-mana-toggle')
-                    ?.classList.contains('mana-excluded') ?? false;
-                if (mana_excluded) continue;
-
-                const rqty = row.sim_qty;
-                if (row.spell.scaling === 'melee') melee_hits += rqty;
-
-                // Mana Reset resets recast counter
-                if (row.pseudo === 'mana_reset') {
-                    last_spell_base = null;
-                    consecutive_count = 0;
-                    penalty_counter = 0;
-                    continue;
-                }
-
-                if (pr.spell_cost != null) {
-                    const cost_per = pr.spell_cost;
-                    let row_recast_penalty = 0;
-                    const recast_base = row.spell.mana_derived_from ?? row.spell.base_spell;
-                    const is_melee = recast_base === 0;
-                    if (!is_melee) {
-                        let is_switch = false;
-                        if (recast_base !== last_spell_base) {
-                            is_switch = true;
-                            if (consecutive_count <= 1) {
-                                penalty_counter = 0;
-                            } else {
-                                penalty_counter += 1;
-                            }
-                            consecutive_count = 0;
-                            last_spell_base = recast_base;
-                        }
-
-                        if (is_switch && penalty_counter > 0) {
-                            row_recast_penalty = penalty_counter * RECAST_MANA_PENALTY;
-                            penalty_counter = 0;
-                            consecutive_count = 1;
-                            const remaining = rqty - 1;
-                            if (remaining > 0) {
-                                const free_remaining = Math.min(remaining, 1);
-                                const penalty_remaining = remaining - free_remaining;
-                                if (penalty_remaining > 0) {
-                                    row_recast_penalty += RECAST_MANA_PENALTY * penalty_remaining * (penalty_remaining + 1) / 2;
-                                    penalty_counter = penalty_remaining;
-                                }
-                                consecutive_count += remaining;
-                            }
-                        } else if (penalty_counter > 0) {
-                            row_recast_penalty = RECAST_MANA_PENALTY * (rqty * penalty_counter + rqty * (rqty + 1) / 2);
-                            penalty_counter += rqty;
-                            consecutive_count += rqty;
-                        } else {
-                            const free_casts = Math.max(0, Math.min(rqty, 2 - consecutive_count));
-                            const penalty_casts = rqty - free_casts;
-                            if (penalty_casts > 0) {
-                                row_recast_penalty = RECAST_MANA_PENALTY * penalty_casts * (penalty_casts + 1) / 2;
-                                penalty_counter = penalty_casts;
-                            }
-                            consecutive_count += rqty;
-                        }
-                    }
-
-                    mana_cost += cost_per * rqty + row_recast_penalty;
-                    recast_penalty_total += row_recast_penalty;
-                    spell_costs.push({ name: row.spell.name, qty: rqty, cost: cost_per, recast_penalty: row_recast_penalty });
-                }
-            }
-        }
+        // (Tally-mode mana cost tracking removed — simulation always provides mana data.)
 
         // Normalize damage & heal columns: measure the widest span in each
         // column and apply that as min-width so all rows line up.
@@ -320,18 +232,7 @@ class SolverComboTotalNode extends ComputeNode {
 
         if (total_elem) total_elem.textContent = Math.round(total).toLocaleString();
 
-        if (spell_to_spell_mode && sim_result) {
-            // Spell-to-spell mode: use simulation results for mana/health display.
-            this._update_mana_display(base_stats, sim_result.total_mana_cost,
-                sim_result.spell_costs, sim_result.has_transcendence,
-                sim_result.melee_hits, sim_result.recast_penalty_total,
-                sim_result);
-        } else {
-            // Tally mode: standard mana display.
-            const has_transcendence = build.statMap.get('activeMajorIDs')?.has('ARCANES') ?? false;
-            if (has_transcendence) mana_cost *= 0.75;
-            this._update_mana_display(base_stats, mana_cost, spell_costs, has_transcendence, melee_hits, recast_penalty_total);
-        }
+        this._update_mana_display(base_stats, sim_result);
 
         // Schedule a hash update; combo data is encoded into the URL hash.
         _schedule_solver_hash_update();
@@ -763,64 +664,49 @@ class SolverComboTotalNode extends ComputeNode {
     }
 
     /** Update the mana display below the combo total. */
-    _update_mana_display(base_stats, mana_cost, spell_costs = [], has_transcendence = false, melee_hits = 0, recast_penalty_total = 0, sim_result = null) {
+    _update_mana_display(base_stats, sim_result) {
         const mana_row = document.getElementById('combo-mana-row');
         const mana_elem = document.getElementById('combo-mana-display');
         const health_elem = document.getElementById('combo-health-display');
         const mana_tooltip = document.getElementById('combo-mana-tooltip');
-        const time_inp = document.getElementById('combo-time');
+        const mana_btn = document.getElementById('combo-mana-btn');
         const downtime_btn = document.getElementById('combo-downtime-btn');
         if (!mana_elem) return;
 
-        const time_str = time_inp?.value?.trim() ?? '';
-        if (!time_str && !sim_result) {
+        const mana_enabled = mana_btn?.classList.contains('toggleOn') ?? true;
+        if (!mana_enabled) {
             if (mana_row) mana_row.style.display = 'none';
             mana_elem.textContent = '';
             if (health_elem) { health_elem.textContent = ''; health_elem.style.display = 'none'; }
             return;
         }
 
-        const combo_time = parseFloat(time_str) || 0;
+        const combo_time = this._auto_cycle_time || 0;
         const allow_down = downtime_btn?.classList.contains('toggleOn') ?? false;
         const mr = base_stats.get('mr') ?? 0;
         const ms = base_stats.get('ms') ?? 0;
         const item_mana = base_stats.get('maxMana') ?? 0;
         const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
-        const start_mana = 100 + item_mana + int_mana;
+        // Display start_mana without flat_mana (flat_mana is not a pool increase).
+        const display_start_mana = 100 + item_mana + int_mana;
 
-        let end_mana, deficit;
-        if (sim_result) {
-            // Spell-to-spell mode: simulation tracked mana directly
-            end_mana = sim_result.end_mana;
-            deficit = start_mana - end_mana;
-        } else {
-            // Tally mode: compute end mana from totals
-            const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * combo_time;
-            let mana_steal = 0;
-            if (ms && melee_hits > 0) {
-                let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
-                    + (base_stats.get('atkTier') ?? 0);
-                adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
-                mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
-            }
-            const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
-            end_mana = start_mana - mana_cost + mana_regen + mana_steal + flat_mana;
-            deficit = start_mana - end_mana;
-        }
+        const end_mana = sim_result.end_mana;
+        const deficit = sim_result.start_mana - end_mana;
 
-        let text = `Mana: ${Math.round(end_mana)}/${start_mana}`;
-        if (!allow_down && !sim_result && deficit > 5) {
+        let text = `Mana: ${Math.round(end_mana)}/${display_start_mana}`;
+        if (!allow_down && deficit > 5) {
             text += ' \u26a0 not sustainable (\u2212' + Math.round(deficit) + ')';
             mana_elem.className = 'small text-warning';
         } else {
             mana_elem.className = 'small text-secondary';
         }
         mana_elem.textContent = text;
-        if (mana_row) mana_row.style.display = '';
+        if (mana_row) mana_row.style.display = 'flex';
 
-        // Health display (spell-to-spell mode only)
+        // Health display — only shown for HP-casting builds (Blood Pact etc.)
+        const show_hp = this._health_config?.hp_casting ?? false;
         if (health_elem) {
-            if (sim_result) {
+            if (show_hp) {
                 let hp_text = `HP: ${Math.round(sim_result.end_hp)}/${sim_result.max_hp}`;
                 const any_hp_warning = sim_result.row_results?.some(r => r.hp_warning);
                 if (sim_result.end_hp <= 0) {
@@ -840,6 +726,12 @@ class SolverComboTotalNode extends ComputeNode {
 
         if (mana_tooltip) {
             const fmt = n => (n >= 0 ? '+' : '\u2212') + Math.abs(Math.round(n));
+            const spell_costs = sim_result.spell_costs ?? [];
+            const mana_cost = sim_result.total_mana_cost ?? 0;
+            const has_transcendence = sim_result.has_transcendence ?? false;
+            const melee_hits = sim_result.melee_hits ?? 0;
+            const recast_penalty_total = sim_result.recast_penalty_total ?? 0;
+
             let html = '';
             if (spell_costs.length) {
                 for (const { name, qty, cost, recast_penalty } of spell_costs) {
@@ -865,7 +757,7 @@ class SolverComboTotalNode extends ComputeNode {
             if (item_mana || int_mana) {
                 if (item_mana) start_str += ` + ${item_mana} item`;
                 if (int_mana) start_str += ` + ${int_mana} int`;
-                start_str += ` = ${start_mana}`;
+                start_str += ` = ${display_start_mana}`;
             }
             let cost_str = fmt(-mana_cost);
             if (has_transcendence) cost_str += ' (\u00d70.75 Transcendence)';
@@ -873,31 +765,27 @@ class SolverComboTotalNode extends ComputeNode {
                 `<div>Starting mana: ${start_str}</div>` +
                 `<div>Spell costs: ${cost_str}</div>`;
 
-            if (sim_result) {
-                // Spell-to-spell mode: show simulation-based regen info
-                html += `<div>Mana/HP tracked per-cast (spell-to-spell mode)</div>`;
-                html += `<hr class="my-1 border-secondary">`;
-                html += `<div>Ending mana: ${Math.round(sim_result.end_mana)} / ${start_mana}</div>`;
+            // Aggregate breakdown for tooltip (regen, steal, flat_mana)
+            const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * combo_time;
+            html += `<div>Regen \u00d7${combo_time}s: ${fmt(mana_regen)} (${mr + BASE_MANA_REGEN}/5s)</div>`;
+            if (ms && melee_hits > 0) {
+                let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
+                    + (base_stats.get('atkTier') ?? 0);
+                adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+                const mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
+                const mana_per_hit = ms / 3 / baseDamageMultiplier[adjAtkSpd];
+                html += `<div>Mana steal \u00d7${melee_hits} hits: ${fmt(mana_steal)} (${Math.round(mana_per_hit * 10) / 10}/hit)</div>`;
+            }
+            const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
+            if (flat_mana !== 0) {
+                html += `<div>Flat mana / cycle: ${fmt(flat_mana)}</div>`;
+            }
+            html +=
+                `<hr class="my-1 border-secondary">` +
+                `<div>Ending mana: ${Math.round(end_mana)} / ${display_start_mana}</div>`;
+            // For BP builds, additionally show ending HP
+            if (show_hp) {
                 html += `<div>Ending HP: ${Math.round(sim_result.end_hp)} / ${sim_result.max_hp}</div>`;
-            } else {
-                const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * combo_time;
-                html += `<div>Regen \u00d7${combo_time}s: ${fmt(mana_regen)} (${mr + BASE_MANA_REGEN}/5s)</div>`;
-                let mana_steal = 0;
-                if (ms && melee_hits > 0) {
-                    let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
-                        + (base_stats.get('atkTier') ?? 0);
-                    adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
-                    mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
-                    const mana_per_hit = ms / 3 / baseDamageMultiplier[adjAtkSpd];
-                    html += `<div>Mana steal \u00d7${melee_hits} hits: ${fmt(mana_steal)} (${Math.round(mana_per_hit * 10) / 10}/hit)</div>`;
-                }
-                const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
-                if (flat_mana !== 0) {
-                    html += `<div>Flat mana / cycle: ${fmt(flat_mana)}</div>`;
-                }
-                html +=
-                    `<hr class="my-1 border-secondary">` +
-                    `<div>Ending mana: ${Math.round(end_mana)} / ${start_mana}</div>`;
             }
             mana_tooltip.innerHTML = html;
         }

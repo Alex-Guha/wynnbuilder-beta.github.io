@@ -344,60 +344,35 @@ function _eval_combo_damage(combo_base, debug) {
  */
 function _eval_combo_mana_check(combo_base) {
     _cached_hp_sim = null;
-    if (_cfg.hp_casting) {
-        // HP casting: run HP simulation, check viability.
-        const hc = _cfg.health_config;
-        if (!hc) return true;
-        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-        const sim = simulate_combo_mana_hp(
-            _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry, _scratch_row);
-        _cached_hp_sim = sim;
-        // Reject if any row would kill the player (HP insufficient for blood cost)
-        if (sim.row_results.some(r => r.hp_warning)) return false;
-        // Blood Pact (health_cost > 0): skip mana gating since spells paid with HP
-        if (hc.health_cost > 0) return true;
-    }
     const combo_time = _cfg.combo_time ?? 0;
-    if (!combo_time) return true;
+    if (!combo_time && !_cfg.hp_casting) return true;
 
-    let mana_cost = 0;
-    let melee_hits = 0;
-    for (const { sim_qty, spell, boost_tokens, mana_excl, recast_penalty_per_cast } of _cfg.parsed_combo) {
-        if (mana_excl) continue;
-        if (spell?.scaling === 'melee') melee_hits += sim_qty;
-        if (spell == null || spell.cost == null) continue;
-        // Apply per-row combo boosts (e.g. spell cost reductions) before computing cost.
-        const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry, _scratch_row);
-        mana_cost += (getSpellCost(stats, spell) + (recast_penalty_per_cast ?? 0)) * sim_qty;
-    }
-
-    // XXX Hardcoded MajorID
-    // Transcendence (ARCANES): 25% chance no mana cost → ×0.75 expected value
-    if (combo_base.get('activeMajorIDs')?.has('ARCANES')) mana_cost *= 0.75;
-
-    const mr = combo_base.get('mr') ?? 0;
-    const ms = combo_base.get('ms') ?? 0;
-    const item_mana = combo_base.get('maxMana') ?? 0;
-    const int_mana = Math.floor(skillPointsToPercentage(combo_base.get('int') ?? 0) * 100);
-    const start_mana = 100 + item_mana + int_mana;
-    const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * combo_time;
-
-    // Mana steal: each melee-scaling hit restores ms/3/atkSpdMult mana.
-    let mana_steal = 0;
-    if (ms && melee_hits > 0) {
-        let adjAtkSpd = attackSpeeds.indexOf(combo_base.get('atkSpd'))
-            + (combo_base.get('atkTier') ?? 0);
-        adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
-        mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
-    }
-
+    const hc = _cfg.health_config ?? DEFAULT_HEALTH_CONFIG;
+    const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
+    // TODO: flat_mana stopgap — see pure.js simulate_combo_mana_hp for details.
     const flat_mana = _cfg.flat_mana ?? 0;
-    const end_mana = start_mana - mana_cost + mana_regen + mana_steal + flat_mana;
+
+    // BP builds: full simulation (damage calc reuses row_results via _cached_hp_sim).
+    // Non-BP builds: fast mana-only check (no per-row object allocations).
+    if (_cfg.hp_casting && hc.health_cost > 0) {
+        const sim = simulate_combo_mana_hp(
+            _cfg.parsed_combo, combo_base, hc, has_transcendence,
+            _cfg.boost_registry, _scratch_row, flat_mana);
+        _cached_hp_sim = sim;
+        if (sim.row_results.some(r => r.hp_warning)) return false;
+        return true;  // BP: skip mana gating, spells paid with HP
+    }
+
+    const sim = simulate_combo_mana_fast(
+        _cfg.parsed_combo, combo_base, hc, has_transcendence,
+        _cfg.boost_registry, _scratch_row, flat_mana);
+
+    if (sim.has_hp_warning) return false;
 
     if (_cfg.allow_downtime) {
-        return end_mana > 0;
+        return sim.end_mana > 0;
     } else {
-        return (start_mana - end_mana) <= 5;
+        return (sim.start_mana - sim.end_mana) <= 5;
     }
 }
 

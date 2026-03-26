@@ -753,6 +753,11 @@ function _apply_radiance_scale_inplace(statMap, boost) {
 
 // ── Combo mana/HP simulation ────────────────────────────────────────────────
 
+const DEFAULT_HEALTH_CONFIG = Object.freeze({
+    hp_casting: false, health_cost: 0, damage_boost: null,
+    buff_states: [], exit_triggers: [],
+});
+
 /**
  * Pure mana+HP simulation kernel for Blood Pact / Bak'al's Grasp / Corruption /
  * Massacre / Mindless Slaughter. Shared by both main thread and worker. DOM-free.
@@ -771,13 +776,16 @@ function _apply_radiance_scale_inplace(statMap, boost) {
  *                     row_results[], spell_costs[], total_mana_cost, melee_hits,
  *                     recast_penalty_total }
  */
-function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcendence, boost_registry, scratch_row) {
+function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcendence, boost_registry, scratch_row, flat_mana = 0) {
     const mr = base_stats.get('mr') ?? 0;
     const ms = base_stats.get('ms') ?? 0;
     const item_mana = base_stats.get('maxMana') ?? 0;
     const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
-    const start_mana = 100 + item_mana + int_mana;
-    const max_mana = start_mana;
+    // TODO: flat_mana is a stopgap — represents per-cycle mana from abilities we
+    // can't auto-calculate. Will be replaced by a more targeted integration.
+    const start_mana = 100 + item_mana + int_mana + flat_mana;
+    // max_mana intentionally does NOT include flat_mana (it's not a pool increase).
+    const max_mana = 100 + item_mana + int_mana;
 
     const base_hp = base_stats.get('hp') ?? 0;
     const hp_bonus = base_stats.get('hpBonus') ?? 0;
@@ -839,25 +847,25 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                 st.value = 0;
                 state_melee_hits[state_name] = 0;
             }
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
             continue;
         }
 
         // Mana Reset pseudo-spell
         if (pseudo === 'mana_reset') {
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
             continue;
         }
 
         if (qty <= 0 || !spell) {
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
             continue;
         }
 
         // Mana-excluded rows: skip cost/regen tracking entirely
         if (mana_excl) {
             if (spell.scaling === 'melee') melee_hits += Math.round(qty);
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
             continue;
         }
 
@@ -879,6 +887,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         let row_blood_total = 0;
         let row_blood_casts = 0;
         let hp_warning = false;
+        let mana_warning = false;
         let row_mana_cost = 0;
 
         for (let c = 0; c < sim_qty; c++) {
@@ -968,7 +977,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
                 if (mana >= adj_cost) {
                     mana -= adj_cost;
-                } else {
+                } else if (health_cost_pct > 0) {
                     // Blood Pact: pay remaining from health
                     const remaining_mana = Math.max(0, mana);
                     const health_mana = adj_cost - remaining_mana;
@@ -993,6 +1002,10 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                         row_blood_total += db.min + (db.max - db.min) * blood_ratio;
                         row_blood_casts++;
                     }
+                } else {
+                    // No Blood Pact: mana goes negative, flag warning
+                    mana -= adj_cost;
+                    mana_warning = true;
                 }
 
                 row_mana_cost += adj_cost;
@@ -1013,7 +1026,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
             spell_costs.push({ name: spell.name, qty: sim_qty, cost: cost_per, recast_penalty: recast_penalty_per_cast * sim_qty });
         }
 
-        row_results.push({ blood_pact_bonus: avg_blood_bonus, state_values: _snapshot_states(active_states), hp_warning });
+        row_results.push({ blood_pact_bonus: avg_blood_bonus, state_values: _snapshot_states(active_states), hp_warning, mana_warning });
     }
 
     return {
@@ -1028,6 +1041,126 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         melee_hits,
         recast_penalty_total,
     };
+}
+
+/**
+ * Lightweight mana-only simulation for non-Blood-Pact worker checks.
+ * Shares the same per-cast mana loop logic as simulate_combo_mana_hp but skips:
+ *   - row_results array (tracks only a has_hp_warning boolean)
+ *   - spell_costs array construction
+ *   - _snapshot_states() calls
+ *   - blood_pact_bonus tracking
+ *
+ * Returns { start_mana, end_mana, max_mana, has_hp_warning, has_mana_warning }.
+ *
+ * IMPORTANT: Any change to the mana loop in simulate_combo_mana_hp must be
+ * mirrored here. See test_mana_sim.js for divergence guards.
+ */
+function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcendence, boost_registry, scratch_row, flat_mana = 0) {
+    const mr = base_stats.get('mr') ?? 0;
+    const ms = base_stats.get('ms') ?? 0;
+    const item_mana = base_stats.get('maxMana') ?? 0;
+    const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
+    const start_mana = 100 + item_mana + int_mana + flat_mana;
+    const max_mana = 100 + item_mana + int_mana;
+
+    const health_cost_pct = health_config.health_cost;
+    const base_hp = base_stats.get('hp') ?? 0;
+    const hp_bonus = base_stats.get('hpBonus') ?? 0;
+    const max_hp = Math.max(5, base_hp + hp_bonus);
+
+    const mr_per_sec = (mr + BASE_MANA_REGEN) / MANA_TICK_SECONDS;
+
+    // Mana steal setup
+    let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
+        + (base_stats.get('atkTier') ?? 0);
+    adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+    const ms_per_hit = ms > 0 ? ms / 3 / baseDamageMultiplier[adjAtkSpd] : 0;
+
+    // Melee cooldown tracking
+    const melee_period = 1 / baseDamageMultiplier[adjAtkSpd];
+    let melee_cd_remaining = 0;
+
+    // State
+    let mana = start_mana;
+    let hp = max_hp;
+    let elapsed_time = 0;
+    let has_hp_warning = false;
+    let has_mana_warning = false;
+
+    for (const row of rows) {
+        const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0 } = row;
+
+        if (pseudo || qty <= 0 || !spell) continue;
+        if (mana_excl) continue;
+
+        const { stats: row_stats } = apply_combo_row_boosts(base_stats, boost_tokens, boost_registry, scratch_row);
+        const cost_per = spell.cost != null ? getSpellCost(row_stats, spell) : 0;
+        const is_spell = spell.cost != null;
+        const is_melee_scaling = spell.scaling === 'melee';
+        const recast_base = spell.mana_derived_from ?? spell.base_spell;
+        const is_melee = recast_base === 0;
+
+        const sim_qty = Math.round(qty);
+
+        for (let c = 0; c < sim_qty; c++) {
+            // ── Wall-clock time advancement (melee cooldown + spell overlap) ──
+            let wall_dt = 0;
+            if (is_melee) {
+                wall_dt = melee_cd_remaining;
+                melee_cd_remaining = melee_period;
+            } else if (is_spell) {
+                const spell_dt = SPELL_CAST_TIME + SPELL_CAST_DELAY;
+                wall_dt = Math.max(spell_dt, melee_cd_remaining);
+                melee_cd_remaining = Math.max(0, melee_cd_remaining - wall_dt);
+            }
+
+            if (wall_dt > 0) {
+                elapsed_time += wall_dt;
+                // Mana regen (proportional to wall time)
+                mana = Math.min(max_mana, mana + mr_per_sec * wall_dt);
+            }
+
+            // Mana steal from melee hits
+            if (is_melee_scaling && ms_per_hit > 0) {
+                mana = Math.min(max_mana, mana + ms_per_hit);
+            }
+
+            // Spell-level HP cost (Mindless Slaughter)
+            const spell_hp_cost = spell.hp_cost ?? 0;
+            if (spell_hp_cost > 0) {
+                const hp_deduction = spell_hp_cost / 100 * max_hp;
+                if (hp < hp_deduction) has_hp_warning = true;
+                hp -= hp_deduction;
+            }
+
+            // Spell cost payment
+            if (is_spell) {
+                const effective_cost = cost_per + recast_penalty_per_cast;
+                let adj_cost = effective_cost;
+                if (has_transcendence) adj_cost *= 0.75;
+
+                if (mana >= adj_cost) {
+                    mana -= adj_cost;
+                } else if (health_cost_pct > 0) {
+                    // Blood Pact: pay remaining from health
+                    const remaining_mana = Math.max(0, mana);
+                    const health_mana = adj_cost - remaining_mana;
+                    mana = 0;
+
+                    const hp_cost = health_mana * health_cost_pct * max_hp / 100;
+                    if (hp < hp_cost) has_hp_warning = true;
+                    hp -= hp_cost;
+                } else {
+                    // No Blood Pact: mana goes negative, flag warning
+                    mana -= adj_cost;
+                    has_mana_warning = true;
+                }
+            }
+        }
+    }
+
+    return { start_mana, end_mana: mana, max_mana, has_hp_warning, has_mana_warning };
 }
 
 function _snapshot_states(active_states) {

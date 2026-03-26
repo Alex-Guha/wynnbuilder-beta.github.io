@@ -103,7 +103,7 @@ function extract_health_config(atree_mg) {
  *           spell_costs[], total_mana_cost, melee_hits, recast_penalty_total,
  *           has_transcendence }.
  */
-function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, health_config, build) {
+function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, health_config, build, flat_mana = 0) {
     const has_transcendence = build.statMap.get('activeMajorIDs')?.has('ARCANES') ?? false;
 
     // ── Pre-pass: compute recast penalties and serialize DOM state ──
@@ -190,7 +190,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
 
     // ── Call pure simulation kernel ──
     const result = simulate_combo_mana_hp(
-        pure_rows, base_stats, health_config, has_transcendence, registry);
+        pure_rows, base_stats, health_config, has_transcendence, registry, undefined, flat_mana);
 
     // ── Auto-fill DOM elements from simulation results ──
     for (let i = 0; i < rows.length; i++) {
@@ -221,10 +221,10 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
             }
         }
 
-        // Warning border
+        // Warning border (HP or mana insufficient)
         const spell_sel = dom_row.querySelector('.combo-row-spell');
         if (spell_sel) {
-            spell_sel.classList.toggle('combo-row-warning', res.hp_warning);
+            spell_sel.classList.toggle('combo-row-warning', res.hp_warning || res.mana_warning);
         }
 
         // Re-sync boost button highlight after auto-fill

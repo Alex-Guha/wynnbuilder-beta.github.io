@@ -1216,19 +1216,14 @@
                             <span class="fw-bold">Combo Total:</span>
                             <span class="Damage fw-bold" id="combo-total-avg">—</span>
                             <span class="text-secondary small">(avg)</span>
-                            <div class="ms-auto d-flex align-items-center gap-2">
-                                <span class="text-secondary small">Time:</span>
-                                <input id="combo-time" type="number" min="0" step="0.1" placeholder="sec"
-                                    class="combo-row-input" style="width:5em; text-align:center;"
-                                    title="Optional - Total cycle time for mana calculations (include cooldown)."
-                                    oninput="if(solver_combo_total_node) solver_combo_total_node.mark_dirty().update()">
-                                <button id="combo-downtime-btn" class="btn btn-sm btn-outline-secondary toggleOn"
-                                    title="Allow for time in between cycles to regen mana"
-                                    onclick="combo_toggle_downtime()">Allow Downtime</button>
+                            <div class="ms-auto">
+                                <button id="combo-mana-btn" class="btn btn-sm btn-outline-mana toggleOn"
+                                    title="Enable mana calculation and constraints"
+                                    onclick="combo_toggle_mana()">Calculate Mana</button>
                             </div>
                         </div>
-                        <!-- Mana row — hidden until Time is filled in -->
-                        <div id="combo-mana-row" style="display:none;" class="mt-1">
+                        <!-- Mana row — hidden when Calculate Mana is off -->
+                        <div id="combo-mana-row" class="mt-1 align-items-center justify-content-between" style="display:none;">
                             <div class="combo-mana-wrapper position-relative d-inline-block">
                                 <span id="combo-mana-display" class="small" style="cursor:pointer"></span>
                                 <span id="combo-health-display" class="small" style="display:none;"></span>
@@ -1243,6 +1238,12 @@
                                             min="0" step="1">
                                     </label>
                                 </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span id="combo-cycle-time-display" class="text-secondary small"></span>
+                                <button id="combo-downtime-btn" class="btn btn-sm btn-outline-secondary toggleOn"
+                                    title="Allow for time in between cycles to regen mana"
+                                    onclick="combo_toggle_downtime()">Allow Downtime</button>
                             </div>
                         </div>
                     </div>

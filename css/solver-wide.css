@@ -435,6 +435,39 @@ body {
     /* gap handles spacing — no individual margin needed */
 }
 
+/* ── Calculate Mana button ──────────────────────────────────────────────────── */
+
+/*
+ * Mirrors Bootstrap btn-outline-* pattern using the same mana-blue as the
+ * per-spell mana toggles.  Off = blue border + text, on/hover = blue fill +
+ * white text.
+ */
+.btn-outline-mana {
+    --mana-blue: hsl(213, 90%, 62%);
+    color: var(--mana-blue) !important;
+    border-color: var(--mana-blue) !important;
+    background-color: transparent !important;
+}
+
+.btn-outline-mana:hover,
+.btn-outline-mana:focus-visible {
+    color: #fff !important;
+    background-color: var(--mana-blue) !important;
+    border-color: var(--mana-blue) !important;
+}
+
+.btn-outline-mana.toggleOn {
+    color: #fff !important;
+    background-color: var(--mana-blue) !important;
+    border-color: var(--mana-blue) !important;
+}
+
+.btn-outline-mana.toggleOn:hover,
+.btn-outline-mana.toggleOn:focus-visible {
+    background-color: hsl(213, 90%, 55%) !important;
+    border-color: hsl(213, 90%, 55%) !important;
+}
+
 /* ── Per-spell mana inclusion toggle ────────────────────────────────────────── */
 
 /*

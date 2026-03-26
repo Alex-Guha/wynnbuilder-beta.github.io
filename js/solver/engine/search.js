@@ -232,8 +232,9 @@ function _build_solver_snapshot(restrictions) {
 
     const scoring_target = document.getElementById('solver-target')?.value ?? 'combo_damage';
 
-    const combo_time_str = document.getElementById('combo-time')?.value?.trim() ?? '';
-    const combo_time = parseFloat(combo_time_str) || 0;
+    const mana_enabled = document.getElementById('combo-mana-btn')?.classList.contains('toggleOn') ?? true;
+    const combo_time_text = document.getElementById('combo-cycle-time-display')?.textContent ?? '';
+    const combo_time = mana_enabled ? (parseFloat(combo_time_text.replace(/[^0-9.]/g, '')) || 0) : 0;
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
     const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
 
@@ -467,44 +468,25 @@ function _eval_current_build(snap, restrictions) {
     }
 
     // Mana / HP check (mirrors worker's _eval_combo_mana_check)
-    if (snap.hp_casting) {
-        if (snap.health_config) {
-            const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-            const sim = simulate_combo_mana_hp(
-                snap.parsed_combo, combo_base, snap.health_config, has_transcendence, snap.boost_registry);
-            if (sim.row_results.some(r => r.hp_warning)) { console.warn('[seed] rejected: HP casting sim has hp_warning'); return null; }
-        }
-    } else if (snap.combo_time > 0) {
-        let mana_cost = 0;
-        let melee_hits = 0;
-        for (const { sim_qty, spell, boost_tokens, mana_excl, recast_penalty_per_cast } of snap.parsed_combo) {
-            if (mana_excl) continue;
-            if (spell?.scaling === 'melee') melee_hits += sim_qty;
-            if (spell == null || spell.cost == null) continue;
-            // Apply per-row combo boosts (e.g. spell cost reductions) before computing cost.
-            const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, snap.boost_registry);
-            mana_cost += (getSpellCost(stats, spell) + (recast_penalty_per_cast ?? 0)) * sim_qty;
-        }
-        if (combo_base.get('activeMajorIDs')?.has('ARCANES')) mana_cost *= 0.75;
-        const mr = combo_base.get('mr') ?? 0;
-        const ms = combo_base.get('ms') ?? 0;
-        const item_mana = combo_base.get('maxMana') ?? 0;
-        const int_mana = Math.floor(skillPointsToPercentage(combo_base.get('int') ?? 0) * 100);
-        const start_mana = 100 + item_mana + int_mana;
-        const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * snap.combo_time;
-        let mana_steal = 0;
-        if (ms && melee_hits > 0) {
-            let adjAtkSpd = attackSpeeds.indexOf(combo_base.get('atkSpd'))
-                + (combo_base.get('atkTier') ?? 0);
-            adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
-            mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
-        }
+    const has_combo_time = (snap.combo_time ?? 0) > 0;
+    if (snap.hp_casting || has_combo_time) {
+        const hc = snap.health_config ?? DEFAULT_HEALTH_CONFIG;
+        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
+        // TODO: flat_mana stopgap — see pure.js simulate_combo_mana_hp for details.
         const flat_mana = snap.flat_mana ?? 0;
-        const end_mana = start_mana - mana_cost + mana_regen + mana_steal + flat_mana;
-        if (snap.allow_downtime) {
-            if (end_mana <= 0) { console.warn('[seed] rejected: mana depleted (downtime mode), end_mana:', end_mana); return null; }
+        const sim = simulate_combo_mana_hp(
+            snap.parsed_combo, combo_base, hc, has_transcendence,
+            snap.boost_registry, undefined, flat_mana);
+        if (sim.row_results.some(r => r.hp_warning)) {
+            console.warn('[seed] rejected: HP sim has hp_warning');
+            return null;
+        }
+        if (hc.health_cost > 0) {
+            // Blood Pact: skip mana gating, spells paid with HP.
+        } else if (snap.allow_downtime) {
+            if (sim.end_mana <= 0) { console.warn('[seed] rejected: mana depleted, end_mana:', sim.end_mana); return null; }
         } else {
-            if ((start_mana - end_mana) > 5) { console.warn('[seed] rejected: mana deficit too high:', start_mana - end_mana); return null; }
+            if ((sim.start_mana - sim.end_mana) > 5) { console.warn('[seed] rejected: mana deficit:', sim.start_mana - sim.end_mana); return null; }
         }
     }
 

@@ -180,18 +180,7 @@ function solver_graph_init() {
         });
     }
 
-    // Clamp combo time input to encoding limit; auto-fill from spell sequence.
-    const ctime_inp = document.getElementById('combo-time');
-    if (ctime_inp) {
-        _wire_encoding_cap(ctime_inp, 0, CTIME_MAX);
-        ctime_inp.dataset.auto = 'true';
-        ctime_inp.placeholder = 'auto';
-        ctime_inp.addEventListener('input', () => {
-            ctime_inp.dataset.auto = ctime_inp.value.trim() ? 'false' : 'true';
-            if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
-            _schedule_solver_hash_update();
-        });
-    }
+    // "Calculate Mana" toggle — fully handled by combo_toggle_mana() onclick.
 
     // ── URL encoding ─────────────────────────────────────────────────────────
     const encode_node = new SolverBuildEncodeNode()

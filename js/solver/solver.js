@@ -535,12 +535,11 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
 
     // Restore combo time, downtime toggle, and combo rows from solver params.
     if (solver_params) {
-        if (solver_params.ctime) {
-            const time_inp = document.getElementById('combo-time');
-            if (time_inp) {
-                time_inp.value = solver_params.ctime;
-                time_inp.dataset.auto = 'false';  // URL-provided = manual
-            }
+        if (solver_params.mana_disabled) {
+            const btn = document.getElementById('combo-mana-btn');
+            if (btn) btn.classList.remove('toggleOn');
+            const mana_row = document.getElementById('combo-mana-row');
+            if (mana_row) mana_row.style.display = 'none';
         }
 
         if (!solver_params.dtime) {
