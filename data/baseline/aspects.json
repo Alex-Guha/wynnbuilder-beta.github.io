@@ -300,7 +300,32 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Grape Bomb gains +1 grapes.",
+          "description": "Grape Bomb gains +25% neutral damage.",
+          "abilities": [
+            {
+              "base_abil": "Grape Bomb",
+              "properties": {},
+              "effects": [
+                {
+                  "type": "add_spell_prop",
+                  "base_spell": 3,
+                  "target_part": "Grape Bomb",
+                  "multipliers": [
+                    25,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "threshold": 15,
+          "description": "Grape Bomb gains +25% neutral damage. +1 Grape Bomb.",
           "abilities": [
             {
               "base_abil": "Grape Bomb",
@@ -308,32 +333,57 @@
                 "grapes": 1
               },
               "effects": []
-            }
-          ]
-        },
-        {
-          "threshold": 15,
-          "description": "Grape Bomb gains +2 grapes.",
-          "abilities": [
+            },
             {
               "base_abil": "Grape Bomb",
-              "properties": {
-                "grapes": 2
-              },
-              "effects": []
+              "properties": {},
+              "effects": [
+                {
+                  "type": "add_spell_prop",
+                  "base_spell": 3,
+                  "target_part": "Grape Bomb",
+                  "multipliers": [
+                    25,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              ]
             }
           ]
         },
         {
           "threshold": 75,
-          "description": "Grape Bomb gains +3 grapes.",
+          "description": "Grape Bomb gains +45% neutral damage. +1 Grape Bomb.",
           "abilities": [
             {
               "base_abil": "Grape Bomb",
               "properties": {
-                "grapes": 3
+                "grapes": 1
               },
               "effects": []
+            },
+            {
+              "base_abil": "Grape Bomb",
+              "properties": {},
+              "effects": [
+                {
+                  "type": "add_spell_prop",
+                  "base_spell": 3,
+                  "target_part": "Grape Bomb",
+                  "multipliers": [
+                    45,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              ]
             }
           ]
         }

@@ -75,6 +75,19 @@ For smaller updates that only touch atree, aspects, major IDs, or items:
 cd /path/to/wynnbuilder-beta.github.io/py_script && python atree-generateID.py && cp atree_constants_min.json ../data/{version}/atree.json && cp aspects_min.json ../data/{version}/aspects.json && cp major_ids_min.json ../data/{version}/majid.json && python compress_json.py ../data/baseline/clean.json ../data/{version}/items.json
 ```
 
+## Bumping DB version constants
+
+When baseline data files change, the corresponding IndexedDB version constants in `js/data/load_*.js` must be incremented so that browsers invalidate their cached data:
+
+| Baseline file changed | Constant to bump | Location |
+|----------------------|------------------|----------|
+| `clean.json` | `ITEM_DB_VERSION` | `js/data/load_item.js` |
+| `ingreds_clean.json` | `ING_DB_VERSION` | `js/data/load_ing.js` |
+| `tomes.json` | `TOME_DB_VERSION` | `js/data/load_tome.js` |
+| `aspects.json` | `ASPECT_DB_VERSION` | `js/data/load_aspect.js` |
+
+Note: `atree.json` and `majid.json` are loaded directly from the versioned data directory (not via IndexedDB), so they don't have a DB version constant.
+
 ## On live vs beta
 
 On **live** (wynnbuilder.github.io), data generation is automated via CI. On **beta**, data is generated and committed manually using the steps above. See `py_script/README.md` for the full workflow details.

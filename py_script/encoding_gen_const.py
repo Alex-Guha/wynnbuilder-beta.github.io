@@ -30,16 +30,21 @@ note: do not use math.ceil:
 
 If signed == True, the function returns the # of bits required to represent [-num, num).
 """
+
+
 def get_bitlen(num, signed=False):
-    if num == 1: 
+    if num == 1:
         return 1 + int(signed)
     return math.floor(math.log(num - int(signed), 2)) + 1 + int(signed)
+
 
 """
 Generate an ID map for an array of flags, and store the maximum bit length required to represent all flags.
 
 Example: ["REPEAT", "NO_REPEAT"] => {"REPEAT": 0, "NO_REPEAT": 1, BITLEN: 1}
 """
+
+
 def generate_id_map(arr):
     m = {v: i for i, v in enumerate(arr)}
     m["BITLEN"] = get_bitlen(len(m) - 1)
@@ -48,6 +53,7 @@ def generate_id_map(arr):
 ################
 # Data section #
 ################
+
 
 bit_len_map = {}
 
@@ -59,7 +65,7 @@ bit_len_map["POWDERABLE_EQUIPMENT_NUM"] = 5
 
 # Powders
 bit_len_map["POWDER_ELEMENTS"] = ["E", "T", "W", "F", "A"]
-bit_len_map["POWDER_TIERS"] = 6
+bit_len_map["POWDER_TIERS"] = 7
 bit_len_map["POWDER_WRAPPER_BITLEN"] = get_bitlen(len(bit_len_map["POWDER_ELEMENTS"]) - 1 - 1)
 bit_len_map["POWDER_ID_BITLEN"] = get_bitlen(len(bit_len_map["POWDER_ELEMENTS"]) * bit_len_map["POWDER_TIERS"])
 bit_len_map["POWDER_REPEAT_OP"] = generate_id_map(["REPEAT", "NO_REPEAT"])
@@ -74,22 +80,23 @@ bit_len_map["TOME_NUM"] = 14
 # Aspects
 bit_len_map["ASPECT_TIERS"] = 4
 bit_len_map["NUM_ASPECTS"] = 5
-bit_len_map["ASPECT_TIER_BITLEN"] = get_bitlen(bit_len_map["ASPECT_TIERS"] - 1) # tiers are [1, ASPECT_TITERS], we can map to [0, ASPECT_TITERS - 1]
+# tiers are [1, ASPECT_TITERS], we can map to [0, ASPECT_TITERS - 1]
+bit_len_map["ASPECT_TIER_BITLEN"] = get_bitlen(bit_len_map["ASPECT_TIERS"] - 1)
 bit_len_map["ASPECTS_FLAG"] = generate_id_map(["NO_ASPECTS", "HAS_ASPECTS"])
 bit_len_map["ASPECT_SLOT_FLAG"] = generate_id_map(["UNUSED", "USED"])
 
 # Atree
 
 # Skillpoints
-bit_len_map["MAX_SP"] = pow(2, 11) # Maximum allowed skillpoint value (signed)
-bit_len_map["SP_TYPES"] = 5 # Types of skillpoints
+bit_len_map["MAX_SP"] = pow(2, 11)  # Maximum allowed skillpoint value (signed)
+bit_len_map["SP_TYPES"] = 5  # Types of skillpoints
 bit_len_map["MAX_SP_BITLEN"] = get_bitlen(bit_len_map["MAX_SP"], signed=True)
 bit_len_map["SP_FLAG"] = generate_id_map(["ASSIGNED", "AUTOMATIC"])
 bit_len_map["SP_ELEMENT_FLAG"] = generate_id_map(["ELEMENT_UNASSIGNED", "ELEMENT_ASSIGNED"])
 
 # Level
 bit_len_map["LEVEL_FLAG"] = generate_id_map(["MAX", "OTHER"])
-bit_len_map["MAX_LEVEL"] = 106
+bit_len_map["MAX_LEVEL"] = 121
 bit_len_map["LEVEL_BITLEN"] = get_bitlen(bit_len_map["MAX_LEVEL"])
 
 # CRAFTED ITEMS
@@ -108,7 +115,8 @@ tomes_filename = "tomes.json"
 
 parser = argparse.ArgumentParser(description="Generate encoding constants for Wynnbuilder's binary encoding.")
 parser.add_argument('version', help='a data version folder name in `data/.`', default=None)
-parser.add_argument("--override", action=argparse.BooleanOptionalAction, help='allows re-generating data for existing versions')
+parser.add_argument("--override", action=argparse.BooleanOptionalAction,
+                    help='allows re-generating data for existing versions')
 parser.add_argument("--write", action=argparse.BooleanOptionalAction, help='writes the data to a file')
 parser.add_argument("--preview", action=argparse.BooleanOptionalAction, help='prints a preview of the data')
 args = parser.parse_args()
@@ -121,10 +129,12 @@ override = args.override
 write_premission = args.write
 preview = args.preview
 
+
 def get_file(path):
-    data_path = f'../data/{version}/{path}' 
+    data_path = f'../data/{version}/{path}'
     with open(data_path, "r") as infile:
         return json.load(infile)
+
 
 """
 Get the maximum #id of a list of items.
@@ -134,10 +144,12 @@ each item in the list.
 
 Here, "item" refers to any object with an ID property.
 """
+
+
 def get_max_id(lst):
     max_id = 0
     zero_id = False
-    item = None 
+    item = None
     for x in lst:
         if x["id"] > max_id:
             max_id = x["id"]
@@ -149,10 +161,11 @@ def get_max_id(lst):
     # Make sure the number of items in the list does not exceed the maximum ID
     # Account for an ID of 0.
     if len(lst) - 1 > max_id or (len(lst) - 1 == max_id and zero_id == False):
-        print(f"WARNING: There are more items in the list ({len(lst)}) than there are IDs ({max_id}).") 
-        print(f"WARNING: Encoding bitlen for len(lst) instead of item IDs. This could be an error - check manually.") 
+        print(f"WARNING: There are more items in the list ({len(lst)}) than there are IDs ({max_id}).")
+        print(f"WARNING: Encoding bitlen for len(lst) instead of item IDs. This could be an error - check manually.")
         max_id = len(lst)
     return max_id
+
 
 def gen_items():
     data = get_file(items_filename)
@@ -160,10 +173,12 @@ def gen_items():
     max_id = get_max_id(data["items"]) + 1
     bit_len_map["ITEM_ID_BITLEN"] = get_bitlen(max_id)
 
+
 def gen_tomes():
     data = get_file(tomes_filename)
     max_id = get_max_id(data["tomes"])
     bit_len_map["TOME_ID_BITLEN"] = get_bitlen(max_id)
+
 
 def gen_aspects():
     data = get_file(aspects_filename)
@@ -177,18 +192,22 @@ def gen_aspects():
     else:
         bit_len_map["ASPECT_ID_BITLEN"] = 0
 
+
 def get_data_versions():
-    data_names = os.listdir("../data")
+    data_names = [d for d in os.listdir("../data") if d != "baseline"]
     data_names.sort(reverse=True, key=Version)
     return data_names
 
 # https://stackoverflow.com/questions/27265939/comparing-python-dictionaries-and-nested-dictionaries
+
+
 def diff_versions(prev_version_data, current_version_data, path=""):
     diff = False
     for k in prev_version_data:
         if k in current_version_data:
             if (type(current_version_data[k]) is dict):
-                diff = diff_versions(prev_version_data[k], current_version_data[k], "%s -> %s" % (path, k) if path else k)
+                diff = diff_versions(prev_version_data[k], current_version_data[k],
+                                     "%s -> %s" % (path, k) if path else k)
             if current_version_data[k] != prev_version_data[k]:
                 curr_v = current_version_data[k]
                 prev_v = prev_version_data[k]
@@ -199,10 +218,11 @@ def diff_versions(prev_version_data, current_version_data, path=""):
                     print("If this is intended, take great care to make sure backwards compatability is retained, then change it manually.")
                     write_premission = False
                 elif curr_v is list and len(curr_v) < len(prev_v):
-                    print("WARNING: list in recent data is shorter than previous data. This either indicates a bug or requires an encoder change.")
+                    print(
+                        "WARNING: list in recent data is shorter than previous data. This either indicates a bug or requires an encoder change.")
                 diff = True
                 result = [
-                   "%s: " % path if path else "TOP_LEVEL:",
+                    "%s: " % path if path else "TOP_LEVEL:",
                     " - %s : %s" % (k, prev_version_data[k]),
                     " + %s : %s" % (k, current_version_data[k])
                 ]
@@ -227,7 +247,8 @@ if __name__ == "__main__":
         print("NOTE: Make sure to review errors and warnings.\n")
 
     if len(all_data_versions) != curr_version_idx:
-        prev_version = all_data_versions[curr_version_idx + 1] if curr_version_idx == len(all_data_versions) else version
+        prev_version = all_data_versions[curr_version_idx +
+                                         1] if curr_version_idx + 1 < len(all_data_versions) else version
         with open(f"../data/{prev_version}/encoding_consts.json", "r") as infile:
             prev_version_data = json.load(infile)
             if diff_versions(prev_version_data, bit_len_map):

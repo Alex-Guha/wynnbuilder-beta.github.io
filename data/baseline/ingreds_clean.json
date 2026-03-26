@@ -2744,8 +2744,8 @@
         "maximum": -4
       },
       "mdRaw": {
-        "minimum": 35,
-        "maximum": 35
+        "minimum": 60,
+        "maximum": 60
       }
     },
     "tier": 2,
@@ -3433,12 +3433,12 @@
         "maximum": -2
       },
       "mdPct": {
-        "minimum": 35,
-        "maximum": 45
+        "minimum": 40,
+        "maximum": 50
       },
       "mdRaw": {
-        "minimum": 120,
-        "maximum": 130
+        "minimum": 140,
+        "maximum": 150
       }
     },
     "tier": 3,
@@ -5264,8 +5264,8 @@
         "maximum": 75
       },
       "mdRaw": {
-        "minimum": 60,
-        "maximum": 75
+        "minimum": 75,
+        "maximum": 90
       }
     },
     "tier": 2,
@@ -8854,8 +8854,8 @@
         "maximum": 4
       },
       "mdRaw": {
-        "minimum": 65,
-        "maximum": 70
+        "minimum": 70,
+        "maximum": 80
       }
     },
     "tier": 2,
@@ -11391,8 +11391,8 @@
         "maximum": 1
       },
       "mdRaw": {
-        "minimum": 30,
-        "maximum": 35
+        "minimum": 35,
+        "maximum": 40
       }
     },
     "tier": 2,
@@ -12585,12 +12585,12 @@
         "maximum": 65
       },
       "sdRaw": {
-        "minimum": 35,
-        "maximum": 40
+        "minimum": 30,
+        "maximum": 35
       },
       "mdRaw": {
-        "minimum": 40,
-        "maximum": 45
+        "minimum": 50,
+        "maximum": 55
       }
     },
     "tier": 3,

@@ -16,38 +16,44 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 
 ### Necessary Improvements
-
+- Mana
+    - Flat mana/cycle
+    - Mana abilities missing:
+        - Arcanist Manastorm
+        - Boltslinger Recycling
+        - Trapper? Mana Trap
+        - Acrobat weightless
+        - Summoner Aura
+        - Rift Paradox
+    - Mana majids
+        - Manic Edge
+- Add healing stuff to atree
+    - Rejuvenating Skin
+    - Dawn (lb ult)
+    - Beyond Salvation (fallen ult)?
+    - Heavenly Trumpet
+- Testing setup to measure the time it takes to find a build, across many builds. This would be used to test priority weighting changes.
+    - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
+- Verify Sanguine Strike bleeding is accounted for
+- Weighted multi-target solving
+- DPS-based calc
+- Major IDs and adding mana/health considerations to items
 
 ### Polish
 #### UI
 - Ensure the red and blue solver messages appear at appropriate times. Red requires testing with a poor cpu, and blue probably isn't showing soon enough.
 
 #### Combo
+> Taking wall of smoke doesn't auto-bump the hits to 30 either
+> It would be pretty complicated to fix too, because the entry doesn't know whether you specified 10 hits or jsut to use the max right now
 
 
 ### Testing
 - Test tstack builds
 - Add more complicated scenarios to test_dominance.js
 - Add more tests
-- Testing setup to measure the time it takes to find a build, across many builds. This would be used to test priority weighting changes.
-    - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
 
 ### Long term
-- Mana abilities missing:
-    - Arcanist Manastorm
-    - Boltslinger Recycling
-    - Trapper? Mana Trap
-    - Acrobat weightless
-    - Summoner Aura
-    - Rift Paradox
-- Add healing stuff to atree
-    - Rejuvenating Skin
-    - Dawn (lb ult)
-    - Beyond Salvation (fallen ult)?
-    - Heavenly Trumpet
-- Verify Sanguine Strike bleeding is accounted for
-- Weighted multi-target solving
-- Major IDs and adding mana/health considerations to items
 - Premade archetype combo selectors
 - Automatic combo sequencing - tracking state-dependent effects across a combo sequence (clone counts consumed by Bamboozle after Vanish, etc.) would require a lot of work
 - Tree-assembler: "I want ability X, Y, and Z, give me a tree that gets all 3 if possible"

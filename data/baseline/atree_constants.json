@@ -3196,7 +3196,7 @@
         },
         {
             "display_name": "Grape Bomb",
-            "desc": "Arrow Bomb will throw 3 additional smaller bombs when exploding. </br> </br><span class='mc-white'>Total Damage</span>: 80% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 60%)   </br>&emsp;(<span class='fDam'>Fire</span>: 20%) </br>Area of Effect: 2 Blocks (Circle-Shaped)",
+            "desc": "Arrow Bomb will throw 2 additional smaller bombs when exploding. </br> </br><span class='mc-white'>Total Damage</span>: 65% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 45%)   </br>&emsp;(<span class='fDam'>Fire</span>: 20%) </br>Area of Effect: 2 Blocks (Circle-Shaped)",
             "base_abil": "Arrow Bomb",
             "parents": [
                 "Leap",
@@ -3213,7 +3213,7 @@
             },
             "properties": {
                 "aoe": 2,
-                "grapes": 3
+                "grapes": 2
             },
             "effects": [
                 {
@@ -3221,11 +3221,11 @@
                     "base_spell": 3,
                     "target_part": "Grape Bomb",
                     "multipliers": [
-                        60,
+                        50,
                         0,
                         0,
                         0,
-                        20,
+                        15,
                         0
                     ]
                 }
@@ -3409,7 +3409,7 @@
         },
         {
             "display_name": "Fimbulwinter",
-            "desc": "Enemies are frozen after standing inside of Chilling Snare for 3s.</br>[1000%n/500%w]",
+            "desc": "Enemies are frozen after standing inside of Chilling Snare for 2s.</br>[1000%n/500%w]",
             "base_abil": "Basaltic Trap",
             "archetype": "Trapper",
             "parents": [
@@ -10445,7 +10445,7 @@
         },
         {
             "display_name": "Crystallize",
-            "desc": "Lightweaver applies +10 Crystallized to enemies it hits.</br></br>Casting Ice Snake while holding shift shatters enemies with 100 Crystallized, damaging and slowing them.</br></br>Crystallized starts decaying at a rate of -5 every second if none is applied for 5s.</br></br>Damage: [1500%n/250%w/250%a]</br>Effect: 80% Slowness to Enemies</br>Duration: 3s",
+            "desc": "Lightweaver applies +10 Crystallized to enemies it hits.</br></br>Casting Ice Snake shatters enemies with 100 Crystallized, damaging and slowing them.</br></br>Crystallized starts decaying at a rate of -5 every second if none is applied for 5s.</br></br>Damage: [900%n/125%w/125%a]</br>Effect: 80% Slowness to Enemies</br>Duration: 3s",
             "archetype": "Light Bender",
             "parents": [
                 "Interweave"
@@ -10472,12 +10472,12 @@
                             "name": "Shatter Damage",
                             "type": "damage",
                             "multipliers": [
-                                1500,
+                                900,
                                 0,
                                 0,
-                                250,
+                                125,
                                 0,
-                                250
+                                125
                             ]
                         }
                     ]
@@ -10486,7 +10486,7 @@
         },
         {
             "display_name": "Diffraction",
-            "desc": "When an enemy dies, leftover Crystallized is transferred to other nearby enemies.</br></br>Ophanim also applies +1 Crystallized.</br></br>Range: 8 Blocks",
+            "desc": "When an enemy dies, leftover Crystallized is transferred to other nearby enemies.</br></br>Ophanim also applies +3 Crystallized.</br></br>Range: 8 Blocks",
             "archetype": "Light Bender",
             "parents": [
                 "Crystallize"

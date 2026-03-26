@@ -895,7 +895,7 @@
     },
     "LIFESTREAM": {
         "displayName": "Lifestream",
-        "description": "Blood Sorrow deals [neutral]450% and grants 4 times the overhealth, but shortens its duration by 75%.",
+        "description": "Blood Sorrow has 4 times the damage and overhealth, but shortens its duration by 75%.",
         "abilities": [
             {
                 "class": "Shaman",
@@ -911,7 +911,7 @@
                             {
                                 "type": "stat",
                                 "name": "damMult.Lifestream:10.Beam Tick Damage",
-                                "value": 250
+                                "value": 300
                             }
                         ]
                     },
@@ -2220,7 +2220,7 @@
                                 "multipliers": [
                                     0,
                                     0,
-                                    270,
+                                    225,
                                     0,
                                     0,
                                     0
@@ -2232,7 +2232,7 @@
                                 "multipliers": [
                                     0,
                                     0,
-                                    270,
+                                    225,
                                     0,
                                     0,
                                     0
@@ -2686,46 +2686,8 @@
     },
     "SPLIT_SECOND": {
         "displayName": "Split Second",
-        "description": "Commander charges three times faster, but only boosts puppet attack speed by 10%, and Main Attack Damage by 2%.",
-        "abilities": [
-            {
-                "class": "Shaman",
-                "base_abil": "Commander",
-                "properties": {},
-                "effects": [
-                    {
-                        "type": "raw_stat",
-                        "toggle": "Commander",
-                        "bonuses": [
-                            {
-                                "type": "prop",
-                                "abil": "Puppet Master",
-                                "name": "attack_frequency",
-                                "value": -0.3
-                            }
-                        ]
-                    },
-                    {
-                        "type": "stat_scaling",
-                        "slider": false,
-                        "inputs": [
-                            {
-                                "type": "prop",
-                                "abil": "Puppet Master",
-                                "name": "rallied_puppets"
-                            }
-                        ],
-                        "output": {
-                            "type": "stat",
-                            "name": "damMult.Commander:0.Single Beam"
-                        },
-                        "scaling": [
-                            -3
-                        ]
-                    }
-                ]
-            }
-        ]
+        "description": "Aura now travels 30% faster with Invigorating Wave unlocked, but no longer gives mana.",
+        "abilities": []
     },
     "MOB_MENTALITY": {
         "displayName": "Mob Mentality",
@@ -3392,5 +3354,46 @@
         "displayName": "+Psychic Obsession",
         "description": "Your Totems will now all move towards you at an increased rate, if you are using Mask of the Heretic.",
         "abilities": []
+    },
+    "BURNT_SHADOWS": {
+        "displayName": "Burnt Shadows",
+        "description": "Buried Light is faster and is controlled by the direction you face. Enemies in the light instead take [fire]80% and receive 10% more damage.",
+        "abilities": [
+            {
+                "class": "Warrior",
+                "base_abil": "Buried Light",
+                "dependencies": [
+                    "Buried Light"
+                ],
+                "properties": {},
+                "effects": [
+                    {
+                        "type": "add_spell_prop",
+                        "base_spell": 10,
+                        "target_part": "Damage per Tick",
+                        "behavior": "overwrite",
+                        "multipliers": [
+                            0,
+                            0,
+                            0,
+                            0,
+                            80,
+                            0
+                        ]
+                    },
+                    {
+                        "type": "raw_stat",
+                        "toggle": "Burnt Shadows",
+                        "bonuses": [
+                            {
+                                "type": "stat",
+                                "name": "damMult.Burnt Shadows",
+                                "value": 10
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     }
 }
