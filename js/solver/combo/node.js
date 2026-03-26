@@ -61,7 +61,7 @@ class SolverComboTotalNode extends ComputeNode {
 
             let auto_time = 0;
             let melee_cd = 0;
-            for (const { sim_qty, spell, dom_row } of rows) {
+            for (const { sim_qty, spell, dom_row, cast_time, delay } of rows) {
                 if (!spell) continue;
                 const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
                     ?.classList.contains('mana-excluded') ?? false;
@@ -73,7 +73,7 @@ class SolverComboTotalNode extends ComputeNode {
                         auto_time += melee_cd;
                         melee_cd = melee_period;
                     } else if (spell.cost != null) {
-                        const spell_dt = SPELL_CAST_TIME + SPELL_CAST_DELAY;
+                        const spell_dt = cast_time + delay;
                         const wall_dt = Math.max(spell_dt, melee_cd);
                         melee_cd = Math.max(0, melee_cd - wall_dt);
                         auto_time += wall_dt;
@@ -279,7 +279,11 @@ class SolverComboTotalNode extends ComputeNode {
                 const val = parseFloat(inp.value) || 0;
                 if (val > 0) boost_tokens.push({ name: inp.dataset.boostName, value: val, is_pct: true });
             }
-            return { qty, sim_qty: Math.round(qty), spell, boost_tokens, dom_row: row };
+            const ct_inp = row.querySelector('.combo-row-cast-time');
+            const dl_inp = row.querySelector('.combo-row-delay');
+            const cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
+            const delay = dl_inp ? parseFloat(dl_inp.value) : SPELL_CAST_DELAY;
+            return { qty, sim_qty: Math.round(qty), spell, boost_tokens, dom_row: row, cast_time, delay };
         });
     }
 
@@ -320,7 +324,18 @@ class SolverComboTotalNode extends ComputeNode {
             // DPS hits (only present for DPS spells with a Total/Max part).
             const hits_inp = row.querySelector('.combo-row-hits');
             const hits = hits_inp ? parseFloat(hits_inp.value) || 0 : undefined;
-            return { qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl, hits };
+            // Per-row timing (only for cast spells — not melee/pseudo).
+            let cast_time, delay;
+            const is_cast_spell = spell && spell.cost != null
+                && spell_id !== 0 && spell_id !== MANA_RESET_SPELL_ID
+                && ![...STATE_CANCEL_IDS.values()].includes(spell_id);
+            if (is_cast_spell) {
+                const ct_inp = row.querySelector('.combo-row-cast-time');
+                const dl_inp = row.querySelector('.combo-row-delay');
+                cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
+                delay = dl_inp ? parseFloat(dl_inp.value) : SPELL_CAST_DELAY;
+            }
+            return { qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl, hits, cast_time, delay };
         });
     }
 
@@ -329,8 +344,8 @@ class SolverComboTotalNode extends ComputeNode {
         const container = document.getElementById('combo-selection-rows');
         if (!container) return;
         container.innerHTML = '';
-        for (const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl, hits } of data) {
-            const row = _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, spell_value);
+        for (const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay } of data) {
+            const row = _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, spell_value, cast_time, delay);
             if (hits !== undefined && hits !== null) row.dataset.pendingHits = String(hits);
             container.appendChild(row);
         }

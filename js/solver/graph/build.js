@@ -348,7 +348,20 @@ function _collect_solver_params() {
                 hits = qty_raw;
             }
 
-            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts });
+            // Per-row timing: only for cast spells (spells with mana cost).
+            let cast_time, delay;
+            const spell = solver_combo_total_node._spell_map_cache?.get(spell_id);
+            const is_cast_spell = spell && spell.cost != null
+                && spell_id !== 0 && spell_id !== MANA_RESET_SPELL_ID
+                && ![...STATE_CANCEL_IDS.values()].includes(spell_id);
+            if (is_cast_spell) {
+                const ct_inp = row.querySelector('.combo-row-cast-time');
+                const dl_inp = row.querySelector('.combo-row-delay');
+                cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
+                delay = dl_inp ? parseFloat(dl_inp.value) : SPELL_CAST_DELAY;
+            }
+
+            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts, cast_time, delay });
         }
     }
 

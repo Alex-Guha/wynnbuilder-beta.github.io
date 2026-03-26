@@ -17,7 +17,7 @@ function _update_boost_btn_highlight(row) {
 
 // ── Combo row builder ─────────────────────────────────────────────────────────
 
-function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_mana_excl, pending_dmg_excl, pending_spell_value) {
+function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_mana_excl, pending_dmg_excl, pending_spell_value, pending_cast_time, pending_delay) {
     const row = document.createElement('div');
     row.className = 'combo-row d-flex gap-2 align-items-center';
     if (pending_spell !== undefined) row.dataset.pendingSpell = pending_spell;
@@ -154,13 +154,24 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     });
 
+    // Hidden timing inputs (per-row cast time & delay overrides).
+    const ct_inp = document.createElement('input');
+    ct_inp.type = 'hidden';
+    ct_inp.className = 'combo-row-cast-time';
+    ct_inp.value = String(pending_cast_time ?? SPELL_CAST_TIME);
+
+    const dl_inp = document.createElement('input');
+    dl_inp.type = 'hidden';
+    dl_inp.className = 'combo-row-delay';
+    dl_inp.value = String(pending_delay ?? SPELL_CAST_DELAY);
+
     // Wrap toggles + damage in a group so they always move to line 2 together
     // when the row wraps, instead of splitting across lines.
     const toggles_wrap = document.createElement('div');
     toggles_wrap.className = 'combo-row-toggles-wrap';
     toggles_wrap.append(mana_btn, dmg_btn, dmg_wrap);
 
-    row.append(rm_btn, qty_inp, spell_sel, boost_wrap, toggles_wrap);
+    row.append(rm_btn, qty_inp, spell_sel, boost_wrap, toggles_wrap, ct_inp, dl_inp);
     return row;
 }
 

@@ -550,6 +550,32 @@ function _restr_size_class(value) {
 }
 
 /**
+ * Timing size classes (per value, unsigned):
+ *   SC 0: 3-bit ×20  → 0.00–0.35s  (covers defaults 0.3, 0.1)
+ *   SC 1: 5-bit int  → 0–31s
+ *   SC 2: 6-bit ×20  → 0.00–3.15s
+ *   SC 3: 10-bit ×100 → 0.00–10.23s
+ */
+const _TIMING_BITS = [3, 5, 6, 10];
+const _TIMING_DIVISOR = [20, 1, 20, 100];
+
+function _timing_size_class(seconds) {
+    const v20 = Math.round(seconds * 20);
+    if (v20 >= 0 && v20 <= 7) return 0;
+    const vi = Math.round(seconds);
+    if (vi >= 0 && vi <= 31) return 1;
+    if (v20 >= 0 && v20 <= 63) return 2;
+    return 3;
+}
+
+function _encode_timing(bv, seconds, sc) {
+    const div = _TIMING_DIVISOR[sc];
+    const bits = _TIMING_BITS[sc];
+    const raw = Math.min((1 << bits) - 1, Math.max(0, Math.round(seconds * div)));
+    bv.append(raw, bits);
+}
+
+/**
  * Default values for solver fixed-header fields.
  * Fields matching their default are omitted from the binary via a presence bitmask.
  */
@@ -738,6 +764,19 @@ function encodeSolverParams(params) {
             if (b.has_value) {
                 bv.append(Math.min(1023, Math.max(0, b.value || 0)), 10);
             }
+        }
+
+        // v5: per-row timing (cast_time + delay). Elide when both are defaults.
+        const has_timing = (row.cast_time !== undefined && row.delay !== undefined
+            && !(row.cast_time === SPELL_CAST_TIME && row.delay === SPELL_CAST_DELAY)) ? 1 : 0;
+        bv.append(has_timing, 1);
+        if (has_timing) {
+            const ct_sc = _timing_size_class(row.cast_time);
+            bv.append(ct_sc, 2);
+            _encode_timing(bv, row.cast_time, ct_sc);
+            const dl_sc = _timing_size_class(row.delay);
+            bv.append(dl_sc, 2);
+            _encode_timing(bv, row.delay, dl_sc);
         }
     }
 

@@ -635,6 +635,15 @@ async function decodeHashLegacy(url_tag) {
 
 // ── Solver params decoding ───────────────────────────────────────────────────
 
+/** Timing size class decode tables (mirror of build_encode.js). */
+const _DEC_TIMING_BITS = [3, 5, 6, 10];
+const _DEC_TIMING_DIVISOR = [20, 1, 20, 100];
+
+function _decode_timing(cursor, sc) {
+    const raw = cursor.advanceBy(_DEC_TIMING_BITS[sc]);
+    return raw / _DEC_TIMING_DIVISOR[sc];
+}
+
 /** Read a signed integer from 2's complement in a BitVectorCursor. */
 function _decode_signed(cursor, bits) {
     const raw = cursor.advanceBy(bits);
@@ -752,7 +761,18 @@ function decodeSolverParams(b64_str) {
                 const value = has_value ? cursor.advanceBy(version >= 4 ? 10 : 7) : 0;
                 boosts.push({ node_id, effect_pos, has_value, value });
             }
-            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts });
+            // v5: per-row timing (cast_time + delay).
+            let cast_time, delay;
+            if (version >= 5) {
+                const has_timing = cursor.advanceBy(1) === 1;
+                if (has_timing) {
+                    const ct_sc = cursor.advanceBy(2);
+                    cast_time = _decode_timing(cursor, ct_sc);
+                    const dl_sc = cursor.advanceBy(2);
+                    delay = _decode_timing(cursor, dl_sc);
+                }
+            }
+            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts, cast_time, delay });
         }
 
         // ── Blacklist ──
