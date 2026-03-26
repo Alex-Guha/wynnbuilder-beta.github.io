@@ -71,6 +71,7 @@ const _NODE_TO_PS_IDX = new Map([..._PS_IDX_TO_NODE].map(([k, v]) => [v, k]));
 function spell_to_node_id(base_spell_id) {
     // Pseudo-spells
     if (base_spell_id === MANA_RESET_SPELL_ID) return MANA_RESET_NODE_ID;
+    if (base_spell_id === MELEE_TIME_SPELL_ID) return MELEE_TIME_NODE_ID;
     // Check cancel state pseudo-spells
     for (const [state_name, cancel_spell_id] of STATE_CANCEL_IDS) {
         if (base_spell_id === cancel_spell_id) {
@@ -100,6 +101,7 @@ function spell_to_node_id(base_spell_id) {
 function node_id_to_spell_name(node_id, atree_merged) {
     // Pseudo-spells
     if (node_id === MANA_RESET_NODE_ID) return 'Mana Reset';
+    if (node_id === MELEE_TIME_NODE_ID) return 'Melee Time';
     // Check cancel state pseudo-spells
     for (const [state_name, cancel_node_id] of STATE_CANCEL_NODE_IDS) {
         if (node_id === cancel_node_id) return 'Cancel ' + state_name;
@@ -138,6 +140,7 @@ function node_id_to_spell_name(node_id, atree_merged) {
 function node_id_to_spell_value(node_id) {
     // Pseudo-spells
     if (node_id === MANA_RESET_NODE_ID) return String(MANA_RESET_SPELL_ID);
+    if (node_id === MELEE_TIME_NODE_ID) return String(MELEE_TIME_SPELL_ID);
     // Check cancel state pseudo-spells
     for (const [state_name, cancel_node_id] of STATE_CANCEL_NODE_IDS) {
         if (node_id === cancel_node_id) {

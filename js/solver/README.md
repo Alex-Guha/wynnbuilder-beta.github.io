@@ -33,7 +33,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
     - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
 
 ### Long term
-- Handle the variable attack speed
 - Mana abilities missing:
     - Arcanist Manastorm
     - Boltslinger Recycling

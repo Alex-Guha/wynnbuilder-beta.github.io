@@ -751,6 +751,47 @@ function _apply_radiance_scale_inplace(statMap, boost) {
 // _solver_sp_calc removed — replaced by calculate_skillpoints(equipment, weapon, sp_budget)
 // in skillpoints.js, which now supports an optional sp_budget parameter.
 
+// ── Combo timing helpers ────────────────────────────────────────────────────
+
+/**
+ * Compute wall-clock time delta for a single cast (melee or spell) and the
+ * resulting melee cooldown.  Shared by cycle-time display, full mana+HP sim,
+ * and fast mana sim so the timing model is defined in exactly one place.
+ *
+ * @param {boolean} is_melee  - true when the row is a melee attack (base_spell 0)
+ * @param {boolean} is_spell  - true when the row has a mana cost
+ * @param {number} melee_cd   - remaining melee cooldown before this cast
+ * @param {number} melee_period - attack-speed-based melee cooldown (1/dmgMult)
+ * @param {number} cast_time  - spell cast time (0 for melee)
+ * @param {number} delay      - post-action delay
+ * @returns {{ wall_dt: number, melee_cd: number }}
+ */
+function compute_wall_dt(is_melee, is_spell, melee_cd, melee_period, cast_time, delay) {
+    if (is_melee) {
+        return { wall_dt: melee_cd + delay, melee_cd: Math.max(0, melee_period - delay) };
+    }
+    if (is_spell) {
+        const spell_dt = cast_time + delay;
+        return { wall_dt: spell_dt, melee_cd: Math.max(0, melee_cd - spell_dt) };
+    }
+    return { wall_dt: 0, melee_cd };
+}
+
+/**
+ * Compute effective melee hit count for a "Melee Time" row.
+ * @param {number} qty_seconds - Duration in seconds
+ * @param {Map} base_stats - Build stats (needs atkSpd, atkTier)
+ * @param {number} [delay=SPELL_CAST_DELAY] - Post-hit delay
+ * @returns {number} Effective hit count (fractional)
+ */
+function compute_melee_time_hits(qty_seconds, base_stats, delay) {
+    let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
+        + (base_stats.get('atkTier') ?? 0);
+    adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+    const melee_period = 1 / baseDamageMultiplier[adjAtkSpd];
+    return qty_seconds / Math.max(melee_period, delay ?? SPELL_CAST_DELAY);
+}
+
 // ── Combo mana/HP simulation ────────────────────────────────────────────────
 
 const DEFAULT_HEALTH_CONFIG = Object.freeze({
@@ -830,7 +871,8 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
     let recast_penalty_total = 0;
 
     for (const row of rows) {
-        const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0 } = row;
+        const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0,
+                cast_time: row_cast_time, delay: row_delay } = row;
 
         // Cancel state pseudo-spell (e.g. "cancel_state:Corrupted")
         if (pseudo?.startsWith('cancel_state:')) {
@@ -864,7 +906,11 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
         // Mana-excluded rows: skip cost/regen tracking entirely
         if (mana_excl) {
-            if (spell.scaling === 'melee') melee_hits += Math.round(qty);
+            if (spell.scaling === 'melee') {
+                melee_hits += row.is_melee_time
+                    ? Math.round(compute_melee_time_hits(qty, base_stats, row_delay ?? SPELL_CAST_DELAY))
+                    : Math.round(qty);
+            }
             row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
             continue;
         }
@@ -877,10 +923,16 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         const recast_base = spell.mana_derived_from ?? spell.base_spell;
         const is_melee = recast_base === 0;
 
+        const eff_cast_time = is_melee ? 0 : (row_cast_time ?? SPELL_CAST_TIME);
+        const eff_delay = row_delay ?? SPELL_CAST_DELAY;
+
         // Mana/HP simulation uses rounded qty (casts are discrete).
         // Fractional qty only affects damage output (per_cast * qty in
         // compute_combo_damage_totals).
-        const sim_qty = Math.round(qty);
+        // Melee Time rows: compute effective hits from attack speed.
+        const sim_qty = row.is_melee_time
+            ? Math.round(compute_melee_time_hits(qty, base_stats, eff_delay))
+            : Math.round(qty);
         if (is_melee_scaling) melee_hits += sim_qty;
         recast_penalty_total += recast_penalty_per_cast * sim_qty;
 
@@ -892,15 +944,9 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
         for (let c = 0; c < sim_qty; c++) {
             // ── Wall-clock time advancement (melee cooldown + spell overlap) ──
-            let wall_dt = 0;
-            if (is_melee) {
-                wall_dt = melee_cd_remaining;
-                melee_cd_remaining = melee_period;
-            } else if (is_spell) {
-                const spell_dt = SPELL_CAST_TIME + SPELL_CAST_DELAY;
-                wall_dt = Math.max(spell_dt, melee_cd_remaining);
-                melee_cd_remaining = Math.max(0, melee_cd_remaining - wall_dt);
-            }
+            const dt = compute_wall_dt(is_melee, is_spell, melee_cd_remaining, melee_period, eff_cast_time, eff_delay);
+            const wall_dt = dt.wall_dt;
+            melee_cd_remaining = dt.melee_cd;
 
             if (wall_dt > 0) {
                 const prev_time = elapsed_time;
@@ -1089,7 +1135,8 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
     let has_mana_warning = false;
 
     for (const row of rows) {
-        const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0 } = row;
+        const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0,
+                cast_time: row_cast_time, delay: row_delay } = row;
 
         if (pseudo || qty <= 0 || !spell) continue;
         if (mana_excl) continue;
@@ -1101,19 +1148,17 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
         const recast_base = spell.mana_derived_from ?? spell.base_spell;
         const is_melee = recast_base === 0;
 
-        const sim_qty = Math.round(qty);
+        const eff_cast_time = is_melee ? 0 : (row_cast_time ?? SPELL_CAST_TIME);
+        const eff_delay = row_delay ?? SPELL_CAST_DELAY;
+        const sim_qty = row.is_melee_time
+            ? Math.round(compute_melee_time_hits(qty, base_stats, eff_delay))
+            : Math.round(qty);
 
         for (let c = 0; c < sim_qty; c++) {
             // ── Wall-clock time advancement (melee cooldown + spell overlap) ──
-            let wall_dt = 0;
-            if (is_melee) {
-                wall_dt = melee_cd_remaining;
-                melee_cd_remaining = melee_period;
-            } else if (is_spell) {
-                const spell_dt = SPELL_CAST_TIME + SPELL_CAST_DELAY;
-                wall_dt = Math.max(spell_dt, melee_cd_remaining);
-                melee_cd_remaining = Math.max(0, melee_cd_remaining - wall_dt);
-            }
+            const dt = compute_wall_dt(is_melee, is_spell, melee_cd_remaining, melee_period, eff_cast_time, eff_delay);
+            const wall_dt = dt.wall_dt;
+            melee_cd_remaining = dt.melee_cd;
 
             if (wall_dt > 0) {
                 elapsed_time += wall_dt;
@@ -1294,9 +1339,12 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
             }
         }
 
-        const row_damage = dmg_excl ? 0 : per_cast * qty;
+        const eff_qty = row.is_melee_time
+            ? compute_melee_time_hits(qty, base_stats, SPELL_CAST_DELAY)
+            : qty;
+        const row_damage = dmg_excl ? 0 : per_cast * eff_qty;
         const heal_per_cast = computeSpellHealingTotal(stats, mod_spell);
-        const row_healing = heal_per_cast * qty;
+        const row_healing = heal_per_cast * eff_qty;
 
         if (debug) {
             const _bt = boost_tokens?.map(t => `${t.name}=${t.value}${t.is_pct?'%':''}`) ?? [];

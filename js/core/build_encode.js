@@ -766,9 +766,12 @@ function encodeSolverParams(params) {
             }
         }
 
-        // v5: per-row timing (cast_time + delay). Elide when both are defaults.
+        // v5: per-row timing (cast_time + delay). Elide when both match defaults
+        // (melee default cast_time is 0; spell default is SPELL_CAST_TIME).
+        const is_melee_row = (row.spell_node_id & 0x7F) === 0;
+        const default_ct = is_melee_row ? 0 : SPELL_CAST_TIME;
         const has_timing = (row.cast_time !== undefined && row.delay !== undefined
-            && !(row.cast_time === SPELL_CAST_TIME && row.delay === SPELL_CAST_DELAY)) ? 1 : 0;
+            && !(row.cast_time === default_ct && row.delay === SPELL_CAST_DELAY)) ? 1 : 0;
         bv.append(has_timing, 1);
         if (has_timing) {
             const ct_sc = _timing_size_class(row.cast_time);

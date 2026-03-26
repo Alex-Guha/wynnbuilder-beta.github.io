@@ -148,6 +148,9 @@ function _parse_combo_for_search(spell_map, weapon) {
                     ?.classList.contains('dmg-excluded') ?? false,
                 mana_excl: r.dom_row?.querySelector('.combo-mana-toggle')
                     ?.classList.contains('mana-excluded') ?? false,
+                cast_time: r.cast_time,
+                delay: r.delay,
+                is_melee_time: r.is_melee_time || false,
             };
             // DPS spells with a Total/Max part: pass per-hit display name and
             // hit count so the worker computes total damage (per-hit × hits)

@@ -382,7 +382,10 @@ function _eval_combo_healing(combo_base) {
         if (row.pseudo) continue;
         const { qty, spell, boost_tokens } = row;
         const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry, _scratch_row);
-        total += computeSpellHealingTotal(stats, spell) * qty;
+        const eff_qty = row.is_melee_time
+            ? compute_melee_time_hits(qty, combo_base, SPELL_CAST_DELAY)
+            : qty;
+        total += computeSpellHealingTotal(stats, spell) * eff_qty;
     }
     return total;
 }

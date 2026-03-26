@@ -8,6 +8,9 @@
 const LOCK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M11 6V4a3 3 0 0 0-6 0v2H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1zM7 4a1 1 0 0 1 2 0v2H7V4z"/></svg>';
 const UNLOCK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M11 4a3 3 0 0 0-6 0H7a1 1 0 0 1 2 0v2H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4z"/></svg>';
 
+// ── Timing button SVG icon ─────────────────────────────────────────────────
+const CLOCK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5A5.5 5.5 0 1 1 8 2.5a5.5 5.5 0 0 1 0 11zM8.5 4H7v5l3.5 2.1.75-1.23L8.5 8.25V4z"/></svg>';
+
 // ── Encoding limits (derived from binary URL format bit widths) ──────────────
 // These caps prevent silent truncation when values are encoded into the URL hash.
 // Mirror of the bit widths in encodeSolverParams() / decodeSolverParams()
@@ -55,6 +58,16 @@ const CANCEL_BAKALS_SPELL_ID = -2001;
 
 /** Reserved 7-bit node ID for Cancel Bak'al's Grasp in binary URL encoding. */
 const CANCEL_BAKALS_NODE_ID = 119;
+
+/**
+ * Internal spell ID for the "Melee Time" attack option.
+ * Like regular Melee (base_spell 0) but qty represents seconds instead of hits.
+ * Effective hit count is computed from attack speed.
+ */
+const MELEE_TIME_SPELL_ID = -2002;
+
+/** Reserved 7-bit node ID for Melee Time in binary URL encoding. */
+const MELEE_TIME_NODE_ID = 118;
 
 // ── Generic buff state cancel mappings ───────────────────────────────────────
 // Static spell ID → state name mapping for cancel pseudo-spells.

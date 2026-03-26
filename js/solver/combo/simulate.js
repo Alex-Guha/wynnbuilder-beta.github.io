@@ -112,7 +112,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
     let penalty_counter = 0;
 
     const pure_rows = [];
-    for (const { qty, sim_qty, spell, boost_tokens, dom_row } of rows) {
+    for (const { qty, sim_qty, spell, boost_tokens, dom_row, cast_time, delay, is_melee_time } of rows) {
         const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
         const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
             ?.classList.contains('mana-excluded') ?? false;
@@ -185,7 +185,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
             }
         }
 
-        pure_rows.push({ qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast });
+        pure_rows.push({ qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast, cast_time, delay, is_melee_time });
     }
 
     // ── Call pure simulation kernel ──

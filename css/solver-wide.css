@@ -23,6 +23,13 @@
     /* width intentionally omitted — set by flex or inline style per element */
 }
 
+.combo-row-input:disabled {
+    color: hsl(0, 0%, 45%);
+    background-color: hsl(0, 0%, 12%);
+    border-color: hsl(0, 0%, 22%);
+    cursor: not-allowed;
+}
+
 .combo-row-input:focus {
     border-color: rgba(255, 255, 255, 0.4);
     outline: 0;
@@ -55,6 +62,8 @@
 }
 
 .combo-boost-menu-btn.toggleOn,
+.combo-timing-menu-btn.toggleOn,
+#combo-adv-btn.toggleOn,
 #combo-downtime-btn.toggleOn,
 #solver-advanced-btn.toggleOn,
 #combo-mode-text.toggleOn,
@@ -727,6 +736,14 @@ body {
     z-index: 1050;
 }
 
+.timing-popup {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    width: max-content;
+    z-index: 1050;
+}
+
 /* ── Per-spell damage breakdown popup ────────────────────────────────────────── */
 
 /*
@@ -1122,6 +1139,17 @@ ul.search-box {
         top: auto !important;
         bottom: 50px !important;
         /* above fixed footer */
+        max-height: 60vh;
+    }
+
+    .timing-popup {
+        position: fixed !important;
+        left: 4px !important;
+        right: 4px !important;
+        width: auto !important;
+        min-width: 0;
+        top: auto !important;
+        bottom: 50px !important;
         max-height: 60vh;
     }
 

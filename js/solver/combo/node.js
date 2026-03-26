@@ -46,6 +46,7 @@ class SolverComboTotalNode extends ComputeNode {
         const registry = build_combo_boost_registry(atree_mg ?? new Map(), build);
         this._registry_cache = registry;
         this._refresh_selection_boosts(registry);
+        this._refresh_selection_timing(aug_spell_map);
         this._apply_pending_selection_data();
 
         const crit_chance = skillPointsToPercentage(base_stats.get('dex'));
@@ -61,23 +62,25 @@ class SolverComboTotalNode extends ComputeNode {
 
             let auto_time = 0;
             let melee_cd = 0;
-            for (const { sim_qty, spell, dom_row, cast_time, delay } of rows) {
+            for (const { qty, sim_qty, spell, dom_row, cast_time, delay, is_melee_time } of rows) {
                 if (!spell) continue;
                 const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
                     ?.classList.contains('mana-excluded') ?? false;
                 if (mana_excl) continue;
+                // Melee Time: fixed time contribution
+                if (is_melee_time) {
+                    auto_time += qty;
+                    melee_cd = 0;
+                    continue;
+                }
                 const recast_base = spell.mana_derived_from ?? spell.base_spell;
                 const is_melee = recast_base === 0;
+                const is_spell = spell.cost != null;
+                const eff_cast_time = is_melee ? 0 : cast_time;
                 for (let i = 0; i < sim_qty; i++) {
-                    if (is_melee) {
-                        auto_time += melee_cd;
-                        melee_cd = melee_period;
-                    } else if (spell.cost != null) {
-                        const spell_dt = cast_time + delay;
-                        const wall_dt = Math.max(spell_dt, melee_cd);
-                        melee_cd = Math.max(0, melee_cd - wall_dt);
-                        auto_time += wall_dt;
-                    }
+                    const dt = compute_wall_dt(is_melee, is_spell, melee_cd, melee_period, eff_cast_time, delay);
+                    auto_time += dt.wall_dt;
+                    melee_cd = dt.melee_cd;
                 }
             }
             // Flush any remaining melee cooldown at end of combo
@@ -101,7 +104,7 @@ class SolverComboTotalNode extends ComputeNode {
 
         // ── Pre-parse rows: extract DOM state for pure function ──
         const parsed_rows = [];
-        for (const { qty, sim_qty, spell, boost_tokens, dom_row } of rows) {
+        for (const { qty, sim_qty, spell, boost_tokens, dom_row, is_melee_time } of rows) {
             const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
             const dmg_excl = dom_row?.querySelector('.combo-dmg-toggle')
                 ?.classList.contains('dmg-excluded') ?? false;
@@ -115,7 +118,7 @@ class SolverComboTotalNode extends ComputeNode {
             // DPS hits override from DOM input
             const hits_inp = dom_row?.querySelector('.combo-row-hits');
             const dps_hits_override = hits_inp ? (parseFloat(hits_inp.value) || undefined) : undefined;
-            parsed_rows.push({ qty, sim_qty, spell, boost_tokens, dmg_excl, pseudo, dps_hits_override, dom_row });
+            parsed_rows.push({ qty, sim_qty, spell, boost_tokens, dmg_excl, pseudo, dps_hits_override, dom_row, is_melee_time });
         }
 
         // ── Compute damage via shared pure function ──
@@ -283,7 +286,9 @@ class SolverComboTotalNode extends ComputeNode {
             const dl_inp = row.querySelector('.combo-row-delay');
             const cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
             const delay = dl_inp ? parseFloat(dl_inp.value) : SPELL_CAST_DELAY;
-            return { qty, sim_qty: Math.round(qty), spell, boost_tokens, dom_row: row, cast_time, delay };
+            const is_melee_time = (spell_id === MELEE_TIME_SPELL_ID);
+            const eff_spell = is_melee_time ? (spell_map.get(0) ?? null) : spell;
+            return { qty, sim_qty: Math.round(qty), spell: eff_spell, boost_tokens, dom_row: row, cast_time, delay, is_melee_time };
         });
     }
 
@@ -299,6 +304,7 @@ class SolverComboTotalNode extends ComputeNode {
             const spell = this._spell_map_cache?.get(spell_id);
             let spell_name = spell?.name ?? '';
             if (spell_id === MANA_RESET_SPELL_ID) spell_name = 'Mana Reset';
+            else if (spell_id === MELEE_TIME_SPELL_ID) spell_name = 'Melee Time';
             else {
                 for (const [state_name, cancel_id] of STATE_CANCEL_IDS) {
                     if (spell_id === cancel_id) { spell_name = 'Cancel ' + state_name; break; }
@@ -324,16 +330,21 @@ class SolverComboTotalNode extends ComputeNode {
             // DPS hits (only present for DPS spells with a Total/Max part).
             const hits_inp = row.querySelector('.combo-row-hits');
             const hits = hits_inp ? parseFloat(hits_inp.value) || 0 : undefined;
-            // Per-row timing (only for cast spells — not melee/pseudo).
+            // Per-row timing (cast spells and melee — not pseudo-spells).
             let cast_time, delay;
             const is_cast_spell = spell && spell.cost != null
-                && spell_id !== 0 && spell_id !== MANA_RESET_SPELL_ID
+                && spell_id !== 0 && spell_id !== MELEE_TIME_SPELL_ID
+                && spell_id !== MANA_RESET_SPELL_ID
                 && ![...STATE_CANCEL_IDS.values()].includes(spell_id);
+            const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID;
             if (is_cast_spell) {
                 const ct_inp = row.querySelector('.combo-row-cast-time');
                 const dl_inp = row.querySelector('.combo-row-delay');
                 cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
                 delay = dl_inp ? parseFloat(dl_inp.value) : SPELL_CAST_DELAY;
+            } else if (is_melee) {
+                cast_time = 0;
+                delay = parseFloat(row.querySelector('.combo-row-delay')?.value) || SPELL_CAST_DELAY;
             }
             return { qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl, hits, cast_time, delay };
         });
@@ -470,10 +481,11 @@ class SolverComboTotalNode extends ComputeNode {
                 opt.textContent = s._is_powder_special ? s.name + ' (Powder Special)' : s.name;
                 sel.appendChild(opt);
             }
-            // Mana Reset pseudo-spell: resets the spell recast counter.
+            // Mana Reset pseudo-spell: resets the spell recast counter (advanced-only).
             const reset_opt = document.createElement('option');
             reset_opt.value = String(MANA_RESET_SPELL_ID);
             reset_opt.textContent = 'Mana Reset';
+            if (!combo_is_advanced()) reset_opt.style.display = 'none';
             sel.appendChild(reset_opt);
             // Cancel pseudo-spells: data-driven from buff_state effects.
             for (const bs of (this._health_config?.buff_states ?? [])) {
@@ -486,6 +498,13 @@ class SolverComboTotalNode extends ComputeNode {
                     sel.appendChild(opt);
                 }
             }
+
+            // Melee Time: advanced-mode-only option
+            const mt_opt = document.createElement('option');
+            mt_opt.value = String(MELEE_TIME_SPELL_ID);
+            mt_opt.textContent = 'Melee Time';
+            if (!combo_is_advanced()) mt_opt.style.display = 'none';
+            sel.appendChild(mt_opt);
 
             if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
         }
@@ -675,6 +694,27 @@ class SolverComboTotalNode extends ComputeNode {
             const boost_btn_el = row.querySelector('.combo-boost-menu-btn');
             const any_visible = toggles.length > 0 || sliders.length > 0;
             if (boost_btn_el) boost_btn_el.disabled = (!any_visible && !dps_info);
+        }
+    }
+
+    /** Grey out the timing button for spells that don't use cast time/delay. */
+    _refresh_selection_timing(spell_map) {
+        const container = document.getElementById('combo-selection-rows');
+        if (!container) return;
+        for (const row of container.querySelectorAll('.combo-row')) {
+            const btn = row.querySelector('.combo-timing-menu-btn');
+            if (!btn) continue;
+            const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
+            const spell = spell_map.get(spell_id) ?? null;
+            const is_cast_spell = spell && spell.cost != null
+                && spell_id !== 0 && spell_id !== MELEE_TIME_SPELL_ID
+                && spell_id !== MANA_RESET_SPELL_ID
+                && ![...STATE_CANCEL_IDS.values()].includes(spell_id);
+            const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID;
+            btn.disabled = !(is_cast_spell || is_melee);
+            // Melee ignores cast time — grey out that field.
+            const ct_field = row.querySelector('.timing-cast-time');
+            if (ct_field) ct_field.disabled = is_melee;
         }
     }
 

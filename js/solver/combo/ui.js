@@ -52,6 +52,27 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     });
 
+    // Timing button + popup (advanced-only, between spell select and boosts).
+    const timing_wrap = document.createElement('div');
+    timing_wrap.className = 'combo-timing-btn-wrap position-relative';
+    if (!combo_is_advanced()) timing_wrap.style.display = 'none';
+
+    const timing_btn = document.createElement('button');
+    timing_btn.className = 'btn btn-sm btn-outline-secondary combo-timing-menu-btn';
+    timing_btn.innerHTML = CLOCK_SVG;
+    timing_btn.title = 'Cast timing overrides';
+    timing_btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        combo_toggle_timing_popup(timing_btn);
+    });
+
+    const timing_popup = document.createElement('div');
+    timing_popup.className = 'timing-popup bg-dark border border-secondary rounded p-2';
+    timing_popup.style.display = 'none';
+    _build_timing_popup_content(timing_popup, pending_cast_time, pending_delay);
+
+    timing_wrap.append(timing_btn, timing_popup);
+
     const boost_wrap = document.createElement('div');
     boost_wrap.className = 'combo-boost-btn-wrap position-relative';
 
@@ -171,7 +192,7 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     toggles_wrap.className = 'combo-row-toggles-wrap';
     toggles_wrap.append(mana_btn, dmg_btn, dmg_wrap);
 
-    row.append(rm_btn, qty_inp, spell_sel, boost_wrap, toggles_wrap, ct_inp, dl_inp);
+    row.append(rm_btn, qty_inp, spell_sel, timing_wrap, boost_wrap, toggles_wrap, ct_inp, dl_inp);
     return row;
 }
 
@@ -235,6 +256,74 @@ document.addEventListener('click', (e) => {
     });
 });
 
+// ── Timing popup (cast time / delay overrides) ───────────────────────────────
+
+/** Build the inner content of a timing popup (two labeled number inputs). */
+function _build_timing_popup_content(popup, cast_time, delay) {
+    popup.innerHTML = '';
+    const make_field = (label, cls, val, def) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'd-flex align-items-center gap-1 m-1';
+        const lbl = document.createElement('span');
+        lbl.className = 'text-secondary small text-nowrap';
+        lbl.textContent = label;
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.className = 'combo-row-input ' + cls;
+        inp.style.cssText = 'width:4.5em; text-align:center;';
+        inp.value = String(val ?? def);
+        inp.step = '0.01';
+        inp.min = '0';
+        const unit = document.createElement('span');
+        unit.className = 'text-secondary small';
+        unit.textContent = 's';
+        inp.addEventListener('input', () => {
+            // Sync to hidden input on the row.
+            const row = popup.closest('.combo-row');
+            if (!row) return;
+            const hidden = row.querySelector(cls === 'timing-cast-time' ? '.combo-row-cast-time' : '.combo-row-delay');
+            if (hidden) hidden.value = inp.value;
+            _update_timing_btn_highlight(row);
+            if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+        });
+        wrap.append(lbl, inp, unit);
+        return wrap;
+    };
+    popup.appendChild(make_field('Cast Time', 'timing-cast-time', cast_time, SPELL_CAST_TIME));
+    popup.appendChild(make_field('Cast Delay', 'timing-cast-delay', delay, SPELL_CAST_DELAY));
+}
+
+/** Highlight timing button when values differ from defaults. */
+function _update_timing_btn_highlight(row) {
+    const btn = row.querySelector('.combo-timing-menu-btn');
+    if (!btn) return;
+    const ct = parseFloat(row.querySelector('.combo-row-cast-time')?.value);
+    const dl = parseFloat(row.querySelector('.combo-row-delay')?.value);
+    const custom = (!isNaN(ct) && ct !== SPELL_CAST_TIME) || (!isNaN(dl) && dl !== SPELL_CAST_DELAY);
+    btn.classList.toggle('toggleOn', custom);
+}
+
+function combo_toggle_timing_popup(btn) {
+    const popup = btn.parentElement.querySelector('.timing-popup');
+    if (!popup) return;
+    const showing = popup.style.display !== 'none';
+    // Hide all timing popups.
+    _close_all_timing_popups();
+    if (!showing) {
+        popup.style.display = 'block';
+    }
+}
+
+function _close_all_timing_popups() {
+    document.querySelectorAll('.timing-popup').forEach(p => p.style.display = 'none');
+}
+
+// Close timing popups when clicking outside.
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.timing-popup') || e.target.closest('.combo-timing-menu-btn')) return;
+    _close_all_timing_popups();
+});
+
 function combo_remove_row(btn) {
     btn.closest('.combo-row')?.remove();
     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
@@ -255,6 +344,23 @@ function combo_toggle_mana() {
     if (mana_row) mana_row.style.display = btn.classList.contains('toggleOn') ? 'flex' : 'none';
     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     _schedule_solver_hash_update();
+}
+
+function combo_toggle_advanced() {
+    const btn = document.getElementById('combo-adv-btn');
+    if (!btn) return;
+    btn.classList.toggle('toggleOn');
+    const adv = btn.classList.contains('toggleOn');
+    // Show/hide timing buttons on existing rows.
+    document.querySelectorAll('.combo-timing-btn-wrap').forEach(w => {
+        w.style.display = adv ? '' : 'none';
+    });
+    // Re-run graph so _refresh_selection_spells shows/hides Melee Time / Mana Reset options
+    if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+}
+
+function combo_is_advanced() {
+    return document.getElementById('combo-adv-btn')?.classList.contains('toggleOn') ?? false;
 }
 
 function solver_toggle_advanced() {
@@ -319,6 +425,10 @@ const _INFO_ENTRIES = [
     {
         id: 'combo-copy-btn', text: 'Export combo config to clipboard',
         detail: 'Exports the current combo as plaintext. Very powerful, allows for easy large-scale combo manipulation in a text editor.'
+    },
+    {
+        id: 'combo-adv-btn', text: 'Toggle advanced combo options',
+        detail: 'Shows additional per-row controls for fine-tuning combo behaviour. Adds a few options to the attack menu, and displays a cast time / delay menu.'
     },
     {
         id: 'combo-paste-btn', text: 'Import combo config from clipboard'
