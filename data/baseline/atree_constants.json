@@ -7891,7 +7891,7 @@
                     "parts": [
                         {
                             "name": "Heal",
-                            "power": 0.15
+                            "max_hp_heal_pct": 0.15
                         },
                         {
                             "name": "Healing per Second",
@@ -9260,13 +9260,13 @@
                     "type": "add_spell_prop",
                     "base_spell": 1,
                     "target_part": "Second and Third Pulses",
-                    "power": 0.2
+                    "max_hp_heal_pct": 0.2
                 },
                 {
                     "type": "add_spell_prop",
                     "base_spell": 1,
                     "target_part": "Heal",
-                    "power": 0.05
+                    "max_hp_heal_pct": 0.05
                 },
                 {
                     "type": "add_spell_prop",
@@ -10214,7 +10214,7 @@
                     "type": "add_spell_prop",
                     "base_spell": 1,
                     "target_part": "Sunflare Healing per Second",
-                    "power": 0.05
+                    "max_hp_heal_pct": 0.05
                 }
             ]
         },
@@ -15537,7 +15537,7 @@
                     "type": "add_spell_prop",
                     "base_spell": 3,
                     "target_part": "Heal Amount",
-                    "power": 0.25
+                    "max_hp_heal_pct": 0.25
                 }
             ]
         },
@@ -16263,14 +16263,14 @@
                     "type": "add_spell_prop",
                     "base_spell": 1,
                     "target_part": "Heal Tick",
-                    "power": 0.01,
+                    "max_hp_heal_pct": 0.01,
                     "display": "Heal Rate"
                 },
                 {
                     "type": "add_spell_prop",
                     "base_spell": 5,
                     "target_part": "Explosion Heal",
-                    "power": 0.1
+                    "max_hp_heal_pct": 0.1
                 }
             ]
         },
@@ -16497,7 +16497,7 @@
         },
         {
             "display_name": "Depersonalization",
-            "desc": "Masquerade will trigger after -1 less Mask switch. Reduces mana  bonus by -10.",
+            "desc": "Masquerade will trigger after -1 less Mask switch. Reduces mana bonus by -10.",
             "archetype": "Ritualist",
             "archetype_req": 7,
             "base_abil": "Uproot",
@@ -18181,7 +18181,7 @@
                     "type": "add_spell_prop",
                     "base_spell": 1,
                     "target_part": "Heal Tick",
-                    "power": 0.05,
+                    "max_hp_heal_pct": 0.05,
                     "display": "Heal Rate"
                 }
             ]

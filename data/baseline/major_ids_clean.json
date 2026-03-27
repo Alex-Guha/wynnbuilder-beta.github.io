@@ -200,13 +200,13 @@
                         "base_spell": 2,
                         "display": "Rally Self Heal",
                         "target_part": "Rally Self Heal",
-                        "power": 0.15
+                        "max_hp_heal_pct": 0.15
                     },
                     {
                         "type": "add_spell_prop",
                         "base_spell": 2,
                         "target_part": "Rally Ally Heal",
-                        "power": 0.2
+                        "max_hp_heal_pct": 0.2
                     },
                     {
                         "type": "raw_stat",
@@ -694,7 +694,7 @@
                         "base_spell": 1,
                         "target_part": "Second and Third Pulses",
                         "behavior": "overwrite",
-                        "power": 0.0,
+                        "max_hp_heal_pct": 0.0,
                         "hide": true
                     },
                     {
@@ -711,7 +711,7 @@
                         "base_spell": 1,
                         "target_part": "Heal",
                         "behavior": "overwrite",
-                        "power": 0.15
+                        "max_hp_heal_pct": 0.15
                     }
                 ]
             }
@@ -1295,7 +1295,7 @@
                         "type": "add_spell_prop",
                         "base_spell": 5,
                         "target_part": "Explosion Heal",
-                        "power": 0.05
+                        "max_hp_heal_pct": 0.05
                     }
                 ]
             }
@@ -2979,7 +2979,7 @@
                         "type": "stat_scaling",
                         "slider": true,
                         "slider_name": "Knives Active",
-                        "slider_max": 5
+                        "slider_max_mult": 2
                     }
                 ]
             }
@@ -3260,7 +3260,21 @@
     "ICE_STORM": {
         "displayName": "Ice Storm",
         "description": "Arrow Shield and Snowstorm's radius' increase by 6 blocks. Arrow Shield's charges are doubled, but no longer give defense.",
-        "abilities": []
+        "abilities": [
+            {
+                "class": "Archer",
+                "base_abil": "Arrow Shield",
+                "dependencies": [
+                    "Arrow Shield"
+                ],
+                "properties": {
+                    "range": 6,
+                    "charges": 3,
+                    "resistance": -20
+                },
+                "effects": []
+            }
+        ]
     },
     "REGICIDES_VANTAGE": {
         "displayName": "Regicide",

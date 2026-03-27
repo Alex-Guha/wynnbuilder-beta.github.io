@@ -324,7 +324,7 @@ function compute_radiance(statmap) {
 
     let boost = 1;
     if (document.getElementById('radiance-boost')?.classList.contains('toggleOn'))    { boost += 0.15; }
-    if (document.getElementById('divinehonor-boost')?.classList.contains('toggleOn')) { boost += 0.05; }
+    if (document.getElementById('divinehonor-boost')?.classList.contains('toggleOn')) { boost += 0.10; }
     if (document.getElementById('shine-boost')?.classList.contains('toggleOn'))      { boost += 0.05; }
     if (document.getElementById('judgement-boost')?.classList.contains('toggleOn'))   { boost = 1.4; }
 

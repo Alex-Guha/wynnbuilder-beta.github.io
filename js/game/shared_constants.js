@@ -91,7 +91,7 @@ let tome_keys        = ['weaponTome1', 'weaponTome2', 'armorTome1', 'armorTome2'
 // distinguish schema keys from generic numeric fields like hp_cost, corruption_rate.
 const _ASPELL_META = new Set([
     'type', 'base_spell', 'target_part', 'behavior', 'cost',
-    'multipliers', 'power', 'hits', 'hide', 'ignored_mults',
+    'multipliers', 'max_hp_heal_pct', 'hits', 'hide', 'ignored_mults',
     'display', 'use_str', 'name', 'mana_derived_from',
     'spell_type', 'scaling',
 ]);

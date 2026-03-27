@@ -2527,22 +2527,78 @@
         {
           "threshold": 1,
           "description": "Exhilarate restores +2% of your Corrupted bar as max health.",
-          "abilities": []
+          "abilities": [
+            {
+              "base_abil": "Exhilarate",
+              "properties": {},
+              "effects": [
+                {
+                  "type": "trigger",
+                  "on": "exit",
+                  "state": "Corrupted",
+                  "effect": "heal_pct_of_state",
+                  "value": 0.02
+                }
+              ]
+            }
+          ]
         },
         {
           "threshold": 5,
           "description": "Exhilarate restores +3% of your Corrupted bar as max health.",
-          "abilities": []
+          "abilities": [
+            {
+              "base_abil": "Exhilarate",
+              "properties": {},
+              "effects": [
+                {
+                  "type": "trigger",
+                  "on": "exit",
+                  "state": "Corrupted",
+                  "effect": "heal_pct_of_state",
+                  "value": 0.03
+                }
+              ]
+            }
+          ]
         },
         {
           "threshold": 30,
           "description": "Exhilarate restores +4% of your Corrupted bar as max health.",
-          "abilities": []
+          "abilities": [
+            {
+              "base_abil": "Exhilarate",
+              "properties": {},
+              "effects": [
+                {
+                  "type": "trigger",
+                  "on": "exit",
+                  "state": "Corrupted",
+                  "effect": "heal_pct_of_state",
+                  "value": 0.04
+                }
+              ]
+            }
+          ]
         },
         {
           "threshold": 150,
           "description": "Exhilarate restores +5% of your Corrupted bar as max health.",
-          "abilities": []
+          "abilities": [
+            {
+              "base_abil": "Exhilarate",
+              "properties": {},
+              "effects": [
+                {
+                  "type": "trigger",
+                  "on": "exit",
+                  "state": "Corrupted",
+                  "effect": "heal_pct_of_state",
+                  "value": 0.05
+                }
+              ]
+            }
+          ]
         }
       ]
     },

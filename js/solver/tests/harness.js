@@ -743,9 +743,9 @@ function collectSpells(ctx, atree_merged) {
                             if (behavior === 'overwrite') part.multipliers[idx] = v;
                             else part.multipliers[idx] += v;
                         }
-                    } else if ('power' in effect) {
-                        if (behavior === 'overwrite') part.power = effect.power;
-                        else part.power += effect.power;
+                    } else if ('max_hp_heal_pct' in effect) {
+                        if (behavior === 'overwrite') part.max_hp_heal_pct = effect.max_hp_heal_pct;
+                        else part.max_hp_heal_pct += effect.max_hp_heal_pct;
                     } else if ('hits' in effect) {
                         for (const [idx, _v] of Object.entries(effect.hits)) {
                             const v = ctx.atree_translate(atree_merged, _v);

@@ -55,7 +55,7 @@ add_spell_prop: {
                                     //     overwrite: set part. do nothing if not exist
     cost:           Optional[int]   // change to spellcost. If the spell is not spell 1-4, this must be left empty.
     multipliers:    Optional[array[float, 6]]   // Additive changes to spellmult (for damage spell)
-    power:          Optional[float] // Additive change to healing power (for heal spell)
+    max_hp_heal_pct: Optional[float] // Additive change to healing power (for heal spell)
 
     hits:           Optional[Map[str, Union[str, float]]]   // Additive changes to hits (for total entry)
                                                             // Can either be a raw value number, or a reference
@@ -952,9 +952,9 @@ const atree_collect_spells = new (class extends ComputeNode {
                                 else { part.multipliers[idx] += v; }
                             }
                         }
-                        else if ('power' in effect) {
-                            if (behavior === 'overwrite') { part.power = effect.power; }
-                            else { part.power += effect.power; }
+                        else if ('max_hp_heal_pct' in effect) {
+                            if (behavior === 'overwrite') { part.max_hp_heal_pct = effect.max_hp_heal_pct; }
+                            else { part.max_hp_heal_pct += effect.max_hp_heal_pct; }
                         }
                         else if ('hits' in effect) {
                             for (const [idx, _v] of Object.entries(effect.hits)) { // looks kinda similar to multipliers case... hmm... can we unify all of these three? (make healpower a list)

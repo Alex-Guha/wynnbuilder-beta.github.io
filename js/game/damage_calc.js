@@ -286,7 +286,7 @@ spell_damage: {
 spell_heal: {
     name:           str != "total"  Name of the part.
     type:           "heal"          [TODO: DEPRECATED/REMOVE] flag signaling what type of part it is. Can infer from fields
-    power:          num             floating point healing power (1 is 100% of max hp).
+    max_hp_heal_pct: num            floating point healing power (1 is 100% of max hp).
     display:        bool            To show part or not (for some spells there are too many intermediate calc parts). Default: True
     ignored_mults:  List[str]       Multiplier effects to ignore.
 }
