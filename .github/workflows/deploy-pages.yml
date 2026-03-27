@@ -15,7 +15,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build site with branch previews
+        run: |
+          mkdir -p _site
+          # Master as the base site
+          git checkout origin/master -- . 2>/dev/null || true
+          cp -r . _site/ 2>/dev/null || true
+          rm -rf _site/.git _site/_site
+
+          # Add a preview for every non-master remote branch
+          for branch in $(git branch -r --format='%(refname:short)' | sed 's|origin/||' | grep -v '^master$' | grep -v '^HEAD$'); do
+            echo "Adding preview for: $branch"
+            mkdir -p "_site/_preview/$branch"
+            git checkout "origin/$branch" -- . 2>/dev/null || true
+            rsync -a --exclude='.git' --exclude='_site' . "_site/_preview/$branch/"
+            git checkout origin/master -- . 2>/dev/null || true
+          done
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
       - uses: actions/deploy-pages@v4
