@@ -303,6 +303,7 @@ class SolverComboTotalNode extends ComputeNode {
             const spell = this._spell_map_cache?.get(spell_id);
             let spell_name = spell?.name ?? '';
             if (spell_id === MANA_RESET_SPELL_ID) spell_name = 'Mana Reset';
+            else if (spell_id === ADD_FLAT_MANA_SPELL_ID) spell_name = 'Add Flat Mana';
             else if (spell_id === MELEE_TIME_SPELL_ID) spell_name = 'Melee Time';
             else {
                 for (const [state_name, cancel_id] of STATE_CANCEL_IDS) {
