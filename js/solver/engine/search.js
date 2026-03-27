@@ -138,6 +138,11 @@ function _parse_combo_for_search(spell_map, weapon) {
                     ?.classList.contains('mana-excluded') ?? false;
                 return { pseudo: 'mana_reset', mana_excl };
             }
+            if (spell_id === ADD_FLAT_MANA_SPELL_ID) {
+                const mana_excl = r.dom_row?.querySelector('.combo-mana-toggle')
+                    ?.classList.contains('mana-excluded') ?? false;
+                return { pseudo: 'add_flat_mana', qty: r.qty, mana_excl };
+            }
 
             const entry = {
                 qty: r.qty,
