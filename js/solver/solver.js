@@ -547,11 +547,6 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
             if (btn) btn.classList.remove('toggleOn');
         }
 
-        if (solver_params.flat_mana) {
-            const inp = document.getElementById('flat-mana-input');
-            if (inp) inp.value = solver_params.flat_mana;
-        }
-
         if (solver_params.combo_rows && solver_params.combo_rows.length > 0 && solver_combo_total_node) {
             try {
                 // atree_merge.value is available at this point (solver_graph_init ran,

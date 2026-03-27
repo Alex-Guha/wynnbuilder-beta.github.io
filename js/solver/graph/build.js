@@ -267,9 +267,6 @@ function _collect_solver_params() {
     // Allow Downtime
     const dtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
 
-    // Flat mana per cycle
-    const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
-
     // Get atree_merged for spell/boost mapping
     const atree_mg = (typeof atree_merge !== 'undefined' && atree_merge) ? atree_merge.value : null;
 
@@ -317,6 +314,7 @@ function _collect_solver_params() {
                 boosts.push({ node_id: ref.node_id, effect_pos: ref.effect_pos, has_value: false, value: 0 });
             }
             for (const inp of row.querySelectorAll('.combo-row-boost-slider')) {
+                if (inp.dataset.auto === 'true') continue;  // auto-filled values recompute on load
                 const val = parseFloat(inp.value) || 0;
                 if (val <= 0) continue;
                 const name = inp.dataset.boostName;
@@ -325,6 +323,7 @@ function _collect_solver_params() {
                 boosts.push({ node_id: ref.node_id, effect_pos: ref.effect_pos, has_value: true, value: Math.round(val) });
             }
             for (const inp of row.querySelectorAll('.combo-row-boost-calc')) {
+                if (inp.dataset.auto === 'true') continue;  // auto-filled values recompute on load
                 const val = parseFloat(inp.value) || 0;
                 if (val <= 0) continue;
                 const name = inp.dataset.boostName;
@@ -383,5 +382,5 @@ function _collect_solver_params() {
     }
 
     return { roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, mana_disabled,
-             flat_mana, restrictions, combo_rows, blacklist_ids };
+             restrictions, combo_rows, blacklist_ids };
 }

@@ -42,7 +42,7 @@ Key pieces captured:
 - **Parsed combo** — the ordered list of `{qty, spell, boost_tokens, dmg_excl, mana_excl, recast_penalty_per_cast}` rows. `dmg_excl` skips the row in damage scoring; `mana_excl` skips it in mana cost calculation. Powder-special spells are synthesised and inserted. Pseudo-spell rows (`cancel_bakals`, `mana_reset`) are included for state tracking. **Recast penalties** are precomputed per-row based on the combo sequence (consecutive same-spell casts incur +5 mana per recast).
 - **Boost registry** — built from `build_combo_boost_registry`; maps boost token names to their stat/prop contributions.
 - **Scoring target** — from `#solver-target` dropdown: `combo_damage` (default), `ehp`, `ehp_no_agi`, `total_hp`, `hpr`, `ehpr`, `total_healing`, `spd`, `poison`, `lb`, `xpb`.
-- **Mana constraint** — `combo_time` (seconds), `allow_downtime` flag, and `flat_mana` (additional mana per cycle).
+- **Mana constraint** — `combo_time` (seconds) and `allow_downtime` flag. Additional mana can be injected via "Add Flat Mana" combo rows.
 - **Blood Pact** — when active (`hp_casting = true`), spells cost HP instead of mana. The snapshot includes `health_config` (extracted from atree) so workers can dynamically compute blood pact bonuses and corruption percentages per candidate. Calculated boost tokens (Blood Pact %, Corrupted) are stripped from parsed_combo rows — workers recompute them dynamically.
 - **Spell base costs** — `spell_base_costs` for final spell cost restrictions.
 - **Restrictions** — from `get_restrictions()`: level range, build direction, no-major-ID flag, stat thresholds.
@@ -160,7 +160,7 @@ Partition types:
 ## Step 7 — Worker Protocol
 
 ### Init message (main → worker, once per worker)
-Heavy structured-clone payload: serialized pools, locked items, weapon/tome/guild-tome statMaps, atree state, combo rows, boost registry, sets data, scoring target, combo time/downtime/flat_mana, hp_casting/health_config, restrictions, ring_pool, none_item_sms, etc. The first partition is embedded directly so the worker starts immediately.
+Heavy structured-clone payload: serialized pools, locked items, weapon/tome/guild-tome statMaps, atree state, combo rows, boost registry, sets data, scoring target, combo time/downtime, hp_casting/health_config, restrictions, ring_pool, none_item_sms, etc. The first partition is embedded directly so the worker starts immediately.
 
 ### Run message (main → worker, subsequent partitions)
 Lightweight: `{type:'run', partition, worker_id}`. Reuses stored `_cfg`.

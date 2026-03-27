@@ -54,11 +54,11 @@ function makeRow(qty, spell, opts = {}) {
     };
 }
 
-function assertManaMatch(label, rows, stats, has_trans, flat_mana) {
+function assertManaMatch(label, rows, stats, has_trans) {
     const registry = [];
     const hc = DEFAULT_HEALTH_CONFIG;
-    const full = simulate_combo_mana_hp(rows, stats, hc, has_trans, registry, undefined, flat_mana);
-    const fast = simulate_combo_mana_fast(rows, stats, hc, has_trans, registry, undefined, flat_mana);
+    const full = simulate_combo_mana_hp(rows, stats, hc, has_trans, registry);
+    const fast = simulate_combo_mana_fast(rows, stats, hc, has_trans, registry);
 
     const eps = 1e-9;
     t.assert(Math.abs(full.start_mana - fast.start_mana) < eps,
@@ -75,14 +75,14 @@ function assertManaMatch(label, rows, stats, has_trans, flat_mana) {
 
 // ── Test cases ───────────────────────────────────────────────────────────────
 
-// 1. Basic: 3 spells, no melee, no transcendence, no flat_mana
+// 1. Basic: 3 spells, no melee, no transcendence
 {
     const stats = makeStats({ mr: 10, int: 50 });
     const rows = [
         makeRow(2, makeSpell('Spell 1', 30, { base_spell: 1 })),
         makeRow(1, makeSpell('Spell 2', 45, { base_spell: 2 })),
     ];
-    assertManaMatch('Basic 3 spells', rows, stats, false, 0);
+    assertManaMatch('Basic 3 spells', rows, stats, false);
 }
 
 // 2. Melee + mana steal
@@ -93,7 +93,7 @@ function assertManaMatch(label, rows, stats, has_trans, flat_mana) {
         makeRow(3, makeSpell('Melee', null, { base_spell: 0, scaling: 'melee', mana_derived_from: 0 })),
         makeRow(1, makeSpell('Spell 2', 40, { base_spell: 2 })),
     ];
-    assertManaMatch('Melee + mana steal', rows, stats, false, 0);
+    assertManaMatch('Melee + mana steal', rows, stats, false);
 }
 
 // 3. Transcendence: has_transcendence=true
@@ -103,16 +103,18 @@ function assertManaMatch(label, rows, stats, has_trans, flat_mana) {
         makeRow(3, makeSpell('Spell 1', 50, { base_spell: 1 })),
         makeRow(2, makeSpell('Spell 2', 35, { base_spell: 2 })),
     ];
-    assertManaMatch('Transcendence', rows, stats, true, 0);
+    assertManaMatch('Transcendence', rows, stats, true);
 }
 
-// 4. flat_mana: nonzero flat_mana value
+// 4. Add Flat Mana pseudo-spell: injects mana mid-combo
 {
     const stats = makeStats({ mr: 5, int: 20 });
     const rows = [
         makeRow(2, makeSpell('Spell 1', 40, { base_spell: 1 })),
+        makeRow(15, null, { pseudo: 'add_flat_mana' }),
+        makeRow(1, makeSpell('Spell 2', 30, { base_spell: 2 })),
     ];
-    assertManaMatch('Flat mana', rows, stats, false, 15);
+    assertManaMatch('Add Flat Mana', rows, stats, false);
 }
 
 // 5. High regen: mr/ms values that would exceed mana cap mid-combo
@@ -123,13 +125,13 @@ function assertManaMatch(label, rows, stats, has_trans, flat_mana) {
         makeRow(5, makeSpell('Melee', null, { base_spell: 0, scaling: 'melee', mana_derived_from: 0 })),
         makeRow(1, makeSpell('Spell 2', 10, { base_spell: 2 })),
     ];
-    assertManaMatch('High regen (mana cap)', rows, stats, false, 0);
+    assertManaMatch('High regen (mana cap)', rows, stats, false);
 }
 
 // 6. Edge: empty combo (no rows)
 {
     const stats = makeStats({ mr: 10, int: 50 });
-    assertManaMatch('Empty combo', [], stats, false, 0);
+    assertManaMatch('Empty combo', [], stats, false);
 }
 
 // 7. Transcendence castability gate: spell cost > mana but < mana after 0.75

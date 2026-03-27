@@ -994,9 +994,8 @@ function _estimate_mana_balance(snap, combo_base) {
         ? Math.floor(skillPointsToPercentage(combo_base.get('int') ?? 0) * 100)
         : 0;
     const item_mana = combo_base ? (combo_base.get('maxMana') ?? 0) : 0;
-    const flat_mana = snap.flat_mana ?? 0;
-    const start_mana = 100 + int_mana + item_mana + flat_mana;
-    const max_mana = 100 + int_mana + item_mana;
+    const start_mana = 100 + int_mana + item_mana;
+    const max_mana = start_mana;
 
     // MR regen (matching worker pure.js:1072)
     const mr = combo_base ? (combo_base.get('mr') ?? 0) : 0;
@@ -1030,7 +1029,7 @@ function _estimate_mana_balance(snap, combo_base) {
 
     const end_mana = Math.min(max_mana, start_mana - total_cost + regen_mana + ms_mana);
 
-    return { start_mana, max_mana, end_mana, total_cost, regen_mana, ms_mana, flat_mana };
+    return { start_mana, max_mana, end_mana, total_cost, regen_mana, ms_mana };
 }
 
 /**

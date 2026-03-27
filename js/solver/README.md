@@ -9,7 +9,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 # Todo
 
 ### Necessary Improvements
-- Flat mana/cycle rework
 - Testing setup to measure the time it takes to find a build, across many builds. This would be used to test priority weighting changes.
     - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
 - Weighted multi-target solving
@@ -51,7 +50,7 @@ the time it takes to cast the combo once was basically calculated using 1+mana d
 
 ### Systems
 #### Abilities
-- Vanish (and Pierce the Veil)
+- Pierce the Veil
 - Acolyte Blood Pool
 	- Sacrificial Shrine
 	- Twisted Tether
@@ -114,7 +113,6 @@ the time it takes to cast the combo once was basically calculated using 1+mana d
 - Generalist
 
 #### Majids
-- Manic Edge - connect to mana
 - Soul Eater
 - Mana Surge - geh
 - Transcendence

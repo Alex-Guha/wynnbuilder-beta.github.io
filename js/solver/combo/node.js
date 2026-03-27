@@ -95,10 +95,9 @@ class SolverComboTotalNode extends ComputeNode {
         // corruption %, health warnings, and mana tracking. Also auto-fills
         // the calculated boost fields and Corrupted sliders, so the damage loop
         // reads the correct boost values.
-        const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
         const sim_result = simulate_spell_by_spell(
             rows, base_stats, aug_spell_map, registry,
-            this._health_config ?? DEFAULT_HEALTH_CONFIG, build, flat_mana);
+            this._health_config ?? DEFAULT_HEALTH_CONFIG, build);
         // Re-read rows so boost_tokens reflect auto-filled Blood Pact / Corrupted values.
         rows = this._read_combo_rows(aug_spell_map);
 
@@ -487,6 +486,12 @@ class SolverComboTotalNode extends ComputeNode {
             reset_opt.textContent = 'Mana Reset';
             if (!combo_is_advanced()) reset_opt.style.display = 'none';
             sel.appendChild(reset_opt);
+            // Add Flat Mana pseudo-spell: injects qty mana at this point (advanced-only).
+            const fm_opt = document.createElement('option');
+            fm_opt.value = String(ADD_FLAT_MANA_SPELL_ID);
+            fm_opt.textContent = 'Add Flat Mana';
+            if (!combo_is_advanced()) fm_opt.style.display = 'none';
+            sel.appendChild(fm_opt);
             // Cancel pseudo-spells: data-driven from buff_state effects.
             for (const bs of (this._health_config?.buff_states ?? [])) {
                 if (bs.deactivate === 'cancel') {
@@ -571,6 +576,17 @@ class SolverComboTotalNode extends ComputeNode {
                 spell_id = parseInt(row.dataset.pendingSpellValue);
             }
             const spell = this._spell_map_cache?.get(spell_id) ?? null;
+
+            // Pseudo-spells with no boosts: skip boost/DPS rendering entirely.
+            const is_boostless_pseudo = spell_id === MANA_RESET_SPELL_ID
+                || spell_id === ADD_FLAT_MANA_SPELL_ID;
+            if (is_boostless_pseudo) {
+                area.dataset.renderedSpellId = cur_spell_id_str;
+                const boost_btn_el = row.querySelector('.combo-boost-menu-btn');
+                if (boost_btn_el) boost_btn_el.disabled = true;
+                continue;
+            }
+
             const dps_info = spell ? compute_dps_spell_hits_info(spell) : null;
             if (dps_info) {
                 const wrap = document.createElement('div');
@@ -742,7 +758,6 @@ class SolverComboTotalNode extends ComputeNode {
         const ms = base_stats.get('ms') ?? 0;
         const item_mana = base_stats.get('maxMana') ?? 0;
         const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
-        // Display start_mana without flat_mana (flat_mana is not a pool increase).
         const display_start_mana = 100 + item_mana + int_mana;
 
         const end_mana = sim_result.end_mana;
@@ -820,7 +835,7 @@ class SolverComboTotalNode extends ComputeNode {
                 `<div>Starting mana: ${start_str}</div>` +
                 `<div>Spell costs: ${cost_str}</div>`;
 
-            // Aggregate breakdown for tooltip (regen, steal, flat_mana)
+            // Aggregate breakdown for tooltip (regen, steal)
             const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * combo_time;
             html += `<div>Regen \u00d7${combo_time}s: ${fmt(mana_regen)} (${mr + BASE_MANA_REGEN}/5s)</div>`;
             if (ms && melee_hits > 0) {
@@ -830,10 +845,6 @@ class SolverComboTotalNode extends ComputeNode {
                 const mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
                 const mana_per_hit = ms / 3 / baseDamageMultiplier[adjAtkSpd];
                 html += `<div>Mana steal \u00d7${melee_hits} hits: ${fmt(mana_steal)} (${Math.round(mana_per_hit * 10) / 10}/hit)</div>`;
-            }
-            const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
-            if (flat_mana !== 0) {
-                html += `<div>Flat mana / cycle: ${fmt(flat_mana)}</div>`;
             }
             html +=
                 `<hr class="my-1 border-secondary">` +

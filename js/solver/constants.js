@@ -20,10 +20,6 @@ const CLOCK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="current
 const RESTR_VALUE_MAX = 33554431;
 const RESTR_VALUE_MIN = -33554431;
 
-/** 10-bit signed: flat mana per cycle */
-const FLAT_MANA_MIN = -512;
-const FLAT_MANA_MAX = 511;
-
 /** 7-bit unsigned: combo row quantity */
 const COMBO_QTY_MAX = 127;
 
@@ -68,6 +64,15 @@ const MELEE_TIME_SPELL_ID = -2002;
 
 /** Reserved 7-bit node ID for Melee Time in binary URL encoding. */
 const MELEE_TIME_NODE_ID = 118;
+
+/**
+ * Internal spell ID for the "Add Flat Mana" pseudo-spell.
+ * Injects qty mana into the simulation at that point in the combo.
+ */
+const ADD_FLAT_MANA_SPELL_ID = -2003;
+
+/** Reserved 7-bit node ID for Add Flat Mana in binary URL encoding. */
+const ADD_FLAT_MANA_NODE_ID = 117;
 
 // ── Generic buff state cancel mappings ───────────────────────────────────────
 // Static spell ID → state name mapping for cancel pseudo-spells.

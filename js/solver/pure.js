@@ -817,16 +817,13 @@ const DEFAULT_HEALTH_CONFIG = Object.freeze({
  *                     row_results[], spell_costs[], total_mana_cost, melee_hits,
  *                     recast_penalty_total }
  */
-function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcendence, boost_registry, scratch_row, flat_mana = 0) {
+function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcendence, boost_registry, scratch_row) {
     const mr = base_stats.get('mr') ?? 0;
     const ms = base_stats.get('ms') ?? 0;
     const item_mana = base_stats.get('maxMana') ?? 0;
     const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
-    // TODO: flat_mana is a stopgap — represents per-cycle mana from abilities we
-    // can't auto-calculate. Will be replaced by a more targeted integration.
-    const start_mana = 100 + item_mana + int_mana + flat_mana;
-    // max_mana intentionally does NOT include flat_mana (it's not a pool increase).
-    const max_mana = 100 + item_mana + int_mana;
+    const start_mana = 100 + item_mana + int_mana;
+    const max_mana = start_mana;
 
     const base_hp = base_stats.get('hp') ?? 0;
     const hp_bonus = base_stats.get('hpBonus') ?? 0;
@@ -895,6 +892,15 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
         // Mana Reset pseudo-spell
         if (pseudo === 'mana_reset') {
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
+            continue;
+        }
+
+        // Add Flat Mana pseudo-spell: inject qty mana at this point
+        if (pseudo === 'add_flat_mana') {
+            if (!mana_excl && qty > 0) {
+                mana = Math.min(max_mana, mana + qty);
+            }
             row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
             continue;
         }
@@ -1102,13 +1108,13 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
  * IMPORTANT: Any change to the mana loop in simulate_combo_mana_hp must be
  * mirrored here. See test_mana_sim.js for divergence guards.
  */
-function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcendence, boost_registry, scratch_row, flat_mana = 0) {
+function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcendence, boost_registry, scratch_row) {
     const mr = base_stats.get('mr') ?? 0;
     const ms = base_stats.get('ms') ?? 0;
     const item_mana = base_stats.get('maxMana') ?? 0;
     const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
-    const start_mana = 100 + item_mana + int_mana + flat_mana;
-    const max_mana = 100 + item_mana + int_mana;
+    const start_mana = 100 + item_mana + int_mana;
+    const max_mana = start_mana;
 
     const health_cost_pct = health_config.health_cost;
     const base_hp = base_stats.get('hp') ?? 0;
@@ -1138,6 +1144,11 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
         const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0,
                 cast_time: row_cast_time, delay: row_delay } = row;
 
+        // Add Flat Mana: inject qty mana at this point
+        if (pseudo === 'add_flat_mana') {
+            if (!mana_excl && qty > 0) mana = Math.min(max_mana, mana + qty);
+            continue;
+        }
         if (pseudo || qty <= 0 || !spell) continue;
         if (mana_excl) continue;
 

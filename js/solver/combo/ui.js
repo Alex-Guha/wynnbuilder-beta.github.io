@@ -435,7 +435,6 @@ const _INFO_ENTRIES = [
     },
     {
         id: 'combo-mana-display', text: 'Hover for detailed mana breakdown',
-        detail: 'Clicking this will display a flat mana/cycle entry field for you to enter any mana that is gained from spells like Recycling and not automatically accountable for.',
         hiddenCheck: () => !document.getElementById('combo-mana-btn')?.classList.contains('toggleOn')
     },
     {

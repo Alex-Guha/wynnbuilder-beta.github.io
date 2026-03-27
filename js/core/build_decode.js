@@ -679,7 +679,7 @@ function decodeSolverParams(b64_str) {
             console.warn('[decode] decodeSolverParams: version 0 (extension signal) not supported');
             return null;
         }
-        if (version > 5) {
+        if (version > 6) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -722,7 +722,9 @@ function decodeSolverParams(b64_str) {
             if (presence & (1 << 8)) cursor.advanceBy(10);
             mana_disabled = false;
         }
-        const flat_mana = (presence & (1 << 9)) ? _decode_signed(cursor, 10) : _SOLVER_DEFAULTS.flat_mana;
+        // v5 and earlier: bit 9 was flat_mana (10-bit signed) — read and discard.
+        // v6+: bit 9 is unused.
+        if (version <= 5 && (presence & (1 << 9))) _decode_signed(cursor, 10);
 
         // ── Restrictions (variable-width values) ──
         const restriction_count = cursor.advanceBy(4);
@@ -784,7 +786,7 @@ function decodeSolverParams(b64_str) {
 
         return {
             roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, mana_disabled,
-            flat_mana, restrictions, combo_rows, blacklist_ids
+            restrictions, combo_rows, blacklist_ids
         };
     } catch (e) {
         console.warn('[decode] decodeSolverParams failed:', e);

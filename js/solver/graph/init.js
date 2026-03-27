@@ -170,16 +170,6 @@ function solver_graph_init() {
         });
     }
 
-    // Recalc when the flat-mana input changes.
-    const flat_mana_inp = document.getElementById('flat-mana-input');
-    if (flat_mana_inp) {
-        _wire_encoding_cap(flat_mana_inp, FLAT_MANA_MIN, FLAT_MANA_MAX);
-        flat_mana_inp.addEventListener('input', () => {
-            if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
-            _schedule_solver_hash_update();
-        });
-    }
-
     // "Calculate Mana" toggle — fully handled by combo_toggle_mana() onclick.
 
     // ── URL encoding ─────────────────────────────────────────────────────────

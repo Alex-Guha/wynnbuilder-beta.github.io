@@ -349,15 +349,13 @@ function _eval_combo_mana_check(combo_base) {
 
     const hc = _cfg.health_config ?? DEFAULT_HEALTH_CONFIG;
     const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-    // TODO: flat_mana stopgap — see pure.js simulate_combo_mana_hp for details.
-    const flat_mana = _cfg.flat_mana ?? 0;
 
     // BP builds: full simulation (damage calc reuses row_results via _cached_hp_sim).
     // Non-BP builds: fast mana-only check (no per-row object allocations).
     if (_cfg.hp_casting && hc.health_cost > 0) {
         const sim = simulate_combo_mana_hp(
             _cfg.parsed_combo, combo_base, hc, has_transcendence,
-            _cfg.boost_registry, _scratch_row, flat_mana);
+            _cfg.boost_registry, _scratch_row);
         _cached_hp_sim = sim;
         if (sim.row_results.some(r => r.hp_warning)) return false;
         return true;  // BP: skip mana gating, spells paid with HP
@@ -365,7 +363,7 @@ function _eval_combo_mana_check(combo_base) {
 
     const sim = simulate_combo_mana_fast(
         _cfg.parsed_combo, combo_base, hc, has_transcendence,
-        _cfg.boost_registry, _scratch_row, flat_mana);
+        _cfg.boost_registry, _scratch_row);
 
     if (sim.has_hp_warning) return false;
 

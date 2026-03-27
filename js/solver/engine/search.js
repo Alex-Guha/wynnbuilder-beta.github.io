@@ -239,7 +239,6 @@ function _build_solver_snapshot(restrictions) {
     const combo_time_text = document.getElementById('combo-cycle-time-display')?.textContent ?? '';
     const combo_time = mana_enabled ? (parseFloat(combo_time_text.replace(/[^0-9.]/g, '')) || 0) : 0;
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
-    const flat_mana = parseFloat(document.getElementById('flat-mana-input')?.value) || 0;
 
     // Extract health_config so workers can dynamically compute per-candidate
     // blood pact bonuses, corruption state, etc.
@@ -355,7 +354,7 @@ function _build_solver_snapshot(restrictions) {
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
         restrictions, button_states, slider_states, scoring_target,
-        combo_time, allow_downtime, flat_mana, hp_casting, health_config, auto_slider_names: [...auto_slider_names], spell_base_costs,
+        combo_time, allow_downtime, hp_casting, health_config, auto_slider_names: [...auto_slider_names], spell_base_costs,
     };
 }
 
@@ -475,11 +474,9 @@ function _eval_current_build(snap, restrictions) {
     if (snap.hp_casting || has_combo_time) {
         const hc = snap.health_config ?? DEFAULT_HEALTH_CONFIG;
         const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-        // TODO: flat_mana stopgap — see pure.js simulate_combo_mana_hp for details.
-        const flat_mana = snap.flat_mana ?? 0;
         const sim = simulate_combo_mana_hp(
             snap.parsed_combo, combo_base, hc, has_transcendence,
-            snap.boost_registry, undefined, flat_mana);
+            snap.boost_registry);
         if (sim.row_results.some(r => r.hp_warning)) {
             console.warn('[seed] rejected: HP sim has hp_warning');
             return null;
@@ -1067,7 +1064,6 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         scoring_target: snap.scoring_target,
         combo_time: snap.combo_time,
         allow_downtime: snap.allow_downtime,
-        flat_mana: snap.flat_mana,
         hp_casting: snap.hp_casting,
         health_config: snap.health_config,
         auto_slider_names: snap.auto_slider_names,

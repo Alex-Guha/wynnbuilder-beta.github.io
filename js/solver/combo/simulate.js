@@ -7,7 +7,7 @@
 //   - pure.js:              simulate_combo_mana_hp
 //   - combo/ui.js:          _update_boost_btn_highlight
 //   - constants.js:         CANCEL_BAKALS_SPELL_ID, MANA_RESET_SPELL_ID,
-//                            RECAST_MANA_PENALTY
+//                            ADD_FLAT_MANA_SPELL_ID, RECAST_MANA_PENALTY
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -103,7 +103,7 @@ function extract_health_config(atree_mg) {
  *           spell_costs[], total_mana_cost, melee_hits, recast_penalty_total,
  *           has_transcendence }.
  */
-function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, health_config, build, flat_mana = 0) {
+function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, health_config, build) {
     const has_transcendence = build.statMap.get('activeMajorIDs')?.has('ARCANES') ?? false;
 
     // ── Pre-pass: compute recast penalties and serialize DOM state ──
@@ -119,6 +119,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
 
         let pseudo = null;
         if (spell_id === MANA_RESET_SPELL_ID) pseudo = 'mana_reset';
+        else if (spell_id === ADD_FLAT_MANA_SPELL_ID) pseudo = 'add_flat_mana';
         else {
             // Check if this spell_id is a cancel pseudo-spell for any buff state
             for (const [state_name, cancel_id] of STATE_CANCEL_IDS) {
@@ -190,7 +191,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
 
     // ── Call pure simulation kernel ──
     const result = simulate_combo_mana_hp(
-        pure_rows, base_stats, health_config, has_transcendence, registry, undefined, flat_mana);
+        pure_rows, base_stats, health_config, has_transcendence, registry);
 
     // ── Auto-fill DOM elements from simulation results ──
     for (let i = 0; i < rows.length; i++) {
