@@ -20,8 +20,9 @@
 <body id="body"></body>
 <script type="text/javascript">
     let getUrl = window.location;
-    let previewMatch = getUrl.pathname.match(/^(\/_preview\/[^/]+)\//);
-    let siteBase = previewMatch ? previewMatch[1] : getUrl.pathname.startsWith('/wynnbuilder-beta.github.io/') ? '/wynnbuilder-beta.github.io' : '';
+    let projectBase = getUrl.pathname.startsWith('/wynnbuilder-beta.github.io/') ? '/wynnbuilder-beta.github.io' : '';
+    let previewMatch = getUrl.pathname.match(new RegExp('^' + projectBase.replace(/\./g, '\\.') + '(\/_preview\/[^/]+)\/'));
+    let siteBase = projectBase + (previewMatch ? previewMatch[1] : '');
     let baseUrl = getUrl.protocol + "//" + getUrl.host + siteBase + "/";
     let hash = window.location.hash;
     window.location.href = baseUrl + "builder/" + hash;
