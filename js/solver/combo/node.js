@@ -356,7 +356,33 @@ class SolverComboTotalNode extends ComputeNode {
         if (!container) return;
         container.innerHTML = '';
         for (const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay } of data) {
-            const row = _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, spell_value, cast_time, delay);
+            // Resolve spell_value from spell_name when missing (text import).
+            // This lets _refresh_selection_boosts filter boosts by spell before
+            // _apply_pending_selection_data runs.
+            let resolved_value = spell_value;
+            if (resolved_value == null && spell_name && this._spell_map_cache) {
+                const name_l = spell_name.toLowerCase();
+                for (const [id, s] of this._spell_map_cache) {
+                    const sn = s._is_powder_special
+                        ? s.name + ' (Powder Special)' : s.name;
+                    if (sn.toLowerCase() === name_l) {
+                        resolved_value = String(id);
+                        break;
+                    }
+                }
+                // Check pseudo-spells
+                if (resolved_value == null) {
+                    if (name_l === 'mana reset') resolved_value = String(MANA_RESET_SPELL_ID);
+                    else if (name_l === 'add flat mana') resolved_value = String(ADD_FLAT_MANA_SPELL_ID);
+                    else if (name_l === 'melee time') resolved_value = String(MELEE_TIME_SPELL_ID);
+                    else if (name_l.startsWith('cancel ')) {
+                        const state_name = spell_name.substring(7);
+                        const cancel_id = get_cancel_spell_id(state_name);
+                        if (cancel_id != null) resolved_value = String(cancel_id);
+                    }
+                }
+            }
+            const row = _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, resolved_value, cast_time, delay);
             if (hits !== undefined && hits !== null) row.dataset.pendingHits = String(hits);
             container.appendChild(row);
         }
