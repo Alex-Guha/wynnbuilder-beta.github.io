@@ -1,0 +1,310 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          SOLVER PAGE ARCHITECTURE                            ║
+║                      wynnbuilder-beta.github.io/solver                       ║
+║                               (AI Generated)                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│   LAYER 1: UI INPUTS  (solver/solver.js + solver/graph/init.js)             │
+│                                                                             │
+│  ┌───────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐  │
+│  │ Equipment │ │  Tomes   │ │  Level   │ │ Aspects  │ │   Ability Tree   │  │
+│  │ 9 slots   │ │ 7 slots  │ │  input   │ │ 4 slots  │ │  (toggle/slider) │  │
+│  └─────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────────┬─────────┘  │
+│        │            │            │            │                │            │
+│  ┌─────┴─────┐      │            │      ┌─────┴──────┐   ┌─────┴────────┐   │
+│  │PowderInput│      │            │      │AspectInput │   │  AtreeNode   │   │
+│  │   Nodes   │      │            │      │   Nodes    │   │              │   │
+│  └─────┬─────┘      │            │      └─────┬──────┘   └──────┬───────┘   │
+│        │            │            │            │                 │           │
+│  ┌─────┴─────┐      │            │      ┌─────┴──────┐   ┌──────┴───────┐   │
+│  │ItemPowder │      │            │      │ AspectTier │   │  AtreeMerge  │   │
+│  │ ingNode   │      │            │      │ InputNode  │   │              │   │
+│  └─────┬─────┘      │            │      └─────┬──────┘   └──────┬───────┘   │
+│        │            │            │            │                 │           │
+│        └────────────┴──────┬─────┴────────────┘                 │           │
+│                            │                                    │           │
+│                            ▼                                    │           │
+│  ┌─────────────────────────────────────────────────────┐        │           │
+│  │ Combo Editor  (solver/combo/ui.js + node.js)        │        │           │
+│  │ ┌────────┐ ┌────────┐ ┌────────┐ ┌──────────────┐   │        │           │
+│  │ │ Row 1  │ │ Row 2  │ │ Row N  │ │ Boost Editor │   │        │           │
+│  │ │spell,  │ │spell,  │ │  ...   │ │ (tokens per  │   │        │           │
+│  │ │qty,    │ │qty,    │ │        │ │  row)        │   │        │           │
+│  │ │boosts  │ │boosts  │ │        │ │              │   │        │           │
+│  │ └────────┘ └────────┘ └────────┘ └──────────────┘   │        │           │
+│  └───────────────────────────┬─────────────────────────┘        │           │
+│                              │                                  │           │
+│  ┌────────────────┐  ┌───────┴──────┐  ┌────────────────────┐   │           │
+│  │ Restrictions   │  │ Scoring      │  │ Active Boosts      │   │           │
+│  │ (≥/≤ targets,  │  │ Target       │  │ (party buffs,      │   │           │
+│  │  level range,  │  │ dropdown     │  │ potions, radiance) │   │           │
+│  │  directions)   │  │              │  │                    │   │           │
+│  └───────┬────────┘  └──────┬───────┘  └─────────┬──────────┘   │           │
+│          │                  │                    │              │           │
+└──────────┼──────────────────┼────────────────────┼──────────────┼───────────┘
+           │                  │                    │              │
+           ▼                  ▼                    ▼              ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│          LAYER 2: REACTIVE COMPUTE GRAPH  (solver/graph/*.js)               │
+│     Push-based DAG of ComputeNodes — changes propagate automatically        │
+│                                                                             │
+│  InputNodes ──► ItemInputNode ──► BuildAssembleNode ──► PlayerClassNode     │
+│                                          │                    │             │
+│                                          ▼                    ▼             │
+│                               SolverBuildStatExtractNode  AspectAggNode     │
+│                                          │                    │             │
+│                                          ▼                    ▼             │
+│                              AggregateStatsNode (pre-scale: build + atree)  │
+│                                          │                                  │
+│                                          ▼                                  │
+│                           solver_radiance_node (apply Radiance scaling)     │
+│                          (anonymous ComputeNode, graph/stat.js)             │
+│                                          │                                  │
+│                                          ▼                                  │
+│                              atree_scaling (conditional bonuses)            │
+│                          (anonymous ComputeNode, game/atree.js)             │
+│                                          │                                  │
+│                                          ▼                                  │
+│                    ┌─────────────────────┴─────────────────┐                │
+│                    ▼                                       ▼                │
+│          AggregateStatsNode                        AggregateStatsNode       │
+│          'solver-final-stats'                   'solver-combo-base-stats'   │
+│          (+ solver_boosts_node)                   (+ solver_boosts_node)    │
+│                    │                                        │               │
+│                    ▼                                        ▼               │
+│          SolverBuildDisplayNode                   SolverComboTotalNode      │
+│          (Summary/Detail tabs)                   (combo damage display)     │
+│                                                                             │
+│    SolverBuildEncodeNode ──► SolverURLUpdateNode                            │
+│    (build + build-stats + atree + aspects + powders → hash + query params)  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+                    ╔═══════════════════════════╗
+                    ║  User clicks [  Solve  ]  ║
+                    ╚═════════════╤═════════════╝
+                                  │
+                                  ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│   LAYER 3: SEARCH ORCHESTRATION  (solver/engine/search.js — main thread)    │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Step 1: SNAPSHOT  (_build_solver_snapshot)                           │   │
+│  │ Freeze all mutable state: weapon, atree, combo, boosts, radiance,    │   │
+│  │ restrictions, blood pact config, spell costs → plain-object snapshot │   │
+│  └──────────────────────────────────┬───────────────────────────────────┘   │
+│                                     ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Step 2: ITEM POOLS  (_build_item_pools)                              │   │
+│  │ Per free slot: filter itemMap by level/majorID/SP direction/         │   │
+│  │ blacklist/roll-mode → prepend NONE item → exclusive-set pruning      │   │
+│  └──────────────────────────────────┬───────────────────────────────────┘   │
+│                                     ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Step 3: SENSITIVITY WEIGHTS  (_compute_sensitivity_weights)          │   │
+│  │                                                                      │   │
+│  │  Baseline build ──► perturb each of ~80 stats ──► measure Δscore     │   │
+│  │       │                                                  │           │   │
+│  │       ▼                                                  ▼           │   │
+│  │  greedy SP alloc                              sensitivity[stat]      │   │
+│  │  + combo eval                                 = Δscore / Δstat       │   │
+│  │                                                                      │   │
+│  │  + SP provision sensitivities (dampened ×0.4)                        │   │
+│  │  + constraint/mana augmentation bonuses                              │   │
+│  └──────────────────────────────────┬───────────────────────────────────┘   │
+│                                     ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Step 4: DOMINANCE PRUNING  (_prune_dominated_items)                  │   │
+│  │ Classify stats by sensitivity sign → remove items dominated on all   │   │
+│  │ monotonic stats + SP reqs/provs  (typically 20-40% pool reduction)   │   │
+│  └──────────────────────────────────┬───────────────────────────────────┘   │
+│                                     ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Step 5: PRIORITY SORT  (_prioritize_pools)                           │   │
+│  │ score = Σ(stat × weight) + Σ(sp_prov × sp_weight) → sort desc        │   │
+│  └──────────────────────────────────┬───────────────────────────────────┘   │
+│                                     ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Step 6: PARTITION  (_partition_work)                                 │   │
+│  │ Split search space into 4×N_workers partitions (work-stealing)       │   │
+│  │                                                                      │   │
+│  │   Both rings free → ring (triangular)                                │   │
+│  │   One ring free   → ring_single (equal chunks)                       │   │
+│  │   No free rings   → slot (largest pool, equal chunks)                │   │
+│  │   No free slots   → full (single partition)                          │   │
+│  └──────────────────────────────────┬───────────────────────────────────┘   │
+│                                     │                                       │
+└─────────────────────────────────────┼───────────────────────────────────────┘
+                                      │
+            ┌─────────────────────────┼─────────────────────────┐
+            │                         │                         │
+            ▼                         ▼                         ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  LAYER 4: WEB WORKERS  (solver/engine/worker.js × N cores)                  │
+│                                                                             │
+│  Each worker receives: pools, locked items, weapon/tome statMaps,           │
+│  atree state, combo config, boost registry, scoring target, restrictions    │
+│                                                                             │
+│  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐     │
+│  │    Worker 0        │  │    Worker 1        │  │    Worker N-1      │     │
+│  │                    │  │                    │  │                    │     │
+│  │ ┌────────────────┐ │  │ ┌────────────────┐ │  │ ┌────────────────┐ │     │
+│  │ │ Level-based    │ │  │ │ Level-based    │ │  │ │ Level-based    │ │     │
+│  │ │ enumeration    │ │  │ │ enumeration    │ │  │ │ enumeration    │ │     │
+│  │ │                │ │  │ │                │ │  │ │                │ │     │
+│  │ │ L=0: best item │ │  │ │ (own partition │ │  │ │ (own partition │ │     │
+│  │ │ L=1: 1 step    │ │  │ │  slice)        │ │  │ │  slice)        │ │     │
+│  │ │ L=2: 2 steps   │ │  │ │                │ │  │ │                │ │     │
+│  │ │ ...            │ │  │ │                │ │  │ │                │ │     │
+│  │ └───────┬────────┘ │  │ └───────┬────────┘ │  │ └───────┬────────┘ │     │
+│  │         │          │  │         │          │  │         │          │     │
+│  │         ▼          │  │         ▼          │  │         ▼          │     │
+│  │ For each candidate:│  │                    │  │                    │     │
+│  │                    │  │                    │  │                    │     │
+│  │ ┌────────────────┐ │  │                    │  │                    │     │
+│  │ │ _place_item    │ │  │   (same pipeline   │  │   (same pipeline   │     │
+│  │ │ (incremental   │ │  │   in parallel)     │  │    in parallel)    │     │
+│  │ │  statMap +=)   │ │  │                    │  │                    │     │
+│  │ └───────┬────────┘ │  │                    │  │                    │     │
+│  │         │          │  │                    │  │                    │     │
+│  │         ▼          │  │                    │  │                    │     │
+│  │ ┌────────────────┐ │  │                    │  │                    │     │
+│  │ │ Mid-tree SP    │ │  │                    │  │                    │     │
+│  │ │ prune? ──no──► │ │  │                    │  │                    │     │
+│  │ │ (suffix-sum    │ │  │                    │  │                    │     │
+│  │ │  upper bound)  │ │  │                    │  │                    │     │
+│  │ └───────┬────────┘ │  │                    │  │                    │     │
+│  │    yes  │          │  │                    │  │                    │     │
+│  │         ▼          │  │                    │  │                    │     │
+│  │   LAYER 5 below    │  │                    │  │                    │     │
+│  └────────────────────┘  └────────────────────┘  └────────────────────┘     │
+│                                                                             │
+│  Communication:                                                             │
+│  ┌──────────┐  postMessage every 5K candidates   ┌──────────────────────┐   │
+│  │ Worker   │ ─────────────────────────────────► │ Main thread          │   │
+│  │          │  {checked, feasible, top5}         │ _on_partition_done   │   │
+│  │          │ ◄───────────────────────────────── │ (work-stealing:      │   │
+│  │          │  {type:'run', next_partition}      │  send next partition)│   │
+│  └──────────┘                                    └──────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│     LAYER 5: LEAF EVALUATION  (_evaluate_leaf — inside each worker)         │
+│                                                                             │
+│    ┌───────────────────────────────────────────────────────────────────┐    │
+│    │ Gate 0: FAST CONSTRAINT PRECHECK                                  │    │
+│    │ running_statMap vs pre-adjusted thresholds (O(1) per constraint)  │    │
+│    │ + optimistic EHP/HP upper-bound check                             │    │
+│    └──────────────────────────┬───────────────────────────REJECT───────┘    │
+│                               ▼                                             │
+│    ┌───────────────────────────────────────────────────────────────────┐    │
+│    │ Gate 1: SP FEASIBILITY  (calculate_skillpoints)                   │    │
+│    │ 8 equips + guild tome + weapon → recursive backtracking solver    │    │
+│    │ → [base_sp, total_sp, assigned_sp] or null                        │    │
+│    └──────────────────────────┬───────────────────────────REJECT───────┘    │
+│                               ▼                                             │
+│    ┌───────────────────────────────────────────────────────────────────┐    │
+│    │ GREEDY SP ALLOCATION  (_greedy_allocate_sp)                       │    │
+│    │ Distribute remaining SP budget to maximize score                  │    │
+│    │ Geometric step-down: 20 → 4 → 1                                   │    │
+│    └──────────────────────────┬────────────────────────────────────────┘    │
+│                               ▼                                             │
+│    ┌───────────────────────────────────────────────────────────────────┐    │
+│    │ STAT ASSEMBLY                                                     │    │
+│    │ _finalize_leaf_statmap: set bonuses, damMult/defMult/healMult     │    │
+│    │ _assemble_combo_stats: + SP + classDef + atree + radiance + boosts│    │
+│    └──────────────────────────┬────────────────────────────────────────┘    │
+│                               ▼                                             │
+│    ┌───────────────────────────────────────────────────────────────────┐    │
+│    │ Gate 2: FULL THRESHOLD CHECK                                      │    │
+│    │ All restrictions checked against fully assembled stats            │    │
+│    │ (EHP via getDefenseStats, spell costs via getSpellCost)           │    │
+│    └──────────────────────────┬───────────────────────────REJECT───────┘    │
+│                               ▼                                             │
+│    ┌───────────────────────────────────────────────────────────────────┐    │
+│    │ Gate 3: MANA / HP CONSTRAINT  (_eval_combo_mana_check)            │    │
+│    │                                                                   │    │
+│    │  Standard: spell costs + regen + steal + Transcendence            │    │
+│    │  Blood Pact: simulate_combo_mana_hp (full HP simulation)          │    │
+│    └──────────────────────────┬───────────────────────────REJECT───────┘    │
+│                               ▼                                             │
+│    ┌───────────────────────────────────────────────────────────────────┐    │
+│    │ SCORING  (_eval_score)                                            │    │
+│    │                                                                   │    │
+│    │  combo_damage → compute_combo_damage_totals() [pure/engine.js]    │    │
+│    │  ehp/ehp_no_agi/total_hp/hpr/ehpr → getDefenseStats()             │    │
+│    │  total_healing → computeSpellHealingTotal()                       │    │
+│    │  spd/poison/lb/xpb → direct stat read                             │    │
+│    └──────────────────────────┬────────────────────────────────────────┘    │
+│                               ▼                                             │
+│    ┌───────────────────────────────────────────────────────────────────┐    │
+│    │ TOP-N HEAP  (insert if score > 15th-best)                         │    │
+│    │ Keeps top 15 per worker; stores item names only for postMessage   │    │
+│    └───────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│        LAYER 6: RESULT AGGREGATION  (search.js — main thread)               │
+│                                                                             │
+│   Interim (every 5s):                                                       │
+│     merge top-5 across all workers → fill best into UI → refresh panel      │
+│                                                                             │
+│   Final (_on_all_workers_done):                                             │
+│     aggregate counts → merge top-5 → reconstruct Item objects from itemMap  │
+│     → load best build into compute graph → display ranked results panel     │
+│     → URL encode (hash + query params)                                      │
+│                                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │  Results Panel                                                      │   │
+│   │  #1  Morph Set + Weapon  ──  score: 1,234,567  [Open link]          │   │
+│   │  #2  ...                                                            │   │
+│   │  #3  ...                                                            │   │
+│   │  #4  ...                                                            │   │
+│   │  #5  ...                                                            │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│   SHARED PURE FUNCTIONS  (loaded by BOTH main thread and workers)           │
+│              (Probably out of date by the time you read this)               │
+│                                                                             │
+│   solver/pure/engine.js:                                                    │
+│     compute_combo_damage_totals()    check_thresholds()                     │
+│                                                                             │
+│   solver/pure/spell.js:                                                     │
+│     computeSpellDisplayAvg/Full()    computeSpellHealingTotal()             │
+│     spell_has_damage/heal()          spell_is_dps()                         │
+│                                                                             │
+│   solver/pure/simulate.js:                                                  │
+│     simulate_combo_mana_hp()         (mana + HP simulation)                 │
+│                                                                             │
+│   solver/pure/utils.js:                                                     │
+│     atree_compute_scaling()          atree_translate()                      │
+│     _deep_clone_statmap()            _merge_into()                          │
+│     _apply_radiance_scale_inplace()  compute_wall_dt()                      │
+│                                                                             │
+│   solver/pure/boost.js:                                                     │
+│     apply_combo_row_boosts()         apply_spell_prop_overrides()           │
+│     find_all_matching_boosts()       inject_blood_pact_boosts()             │
+│     eval_combo_healing()                                                    │
+│                                                                             │
+│   solver/combo/simulate.js:                                                 │
+│     Thin DOM wrapper around pure/simulate.js                                │
+│     extract_health_config()          simulate_spell_by_spell()              │
+│                                                                             │
+│   game/skillpoints.js:   calculate_skillpoints()                            │
+│   game/damage_calc.js:   calculateSpellDamage()                             │
+│   game/build_utils.js:   expandItem()                                       │
+│   game/shared_game_stats.js: getDefenseStats()                              │
+│                                                                             │
+│   solver/engine/worker_shims.js:                                            │
+│     _init_running_statmap()  _incr_add/remove_item()                        │
+│     _finalize_leaf_statmap()                                                │
+└─────────────────────────────────────────────────────────────────────────────┘

@@ -48,7 +48,11 @@ const SANDBOX_FILES = [
     'js/game/shared_constants.js',
     'js/solver/debug_toggles.js',
     'js/solver/constants.js',
-    'js/solver/pure.js',
+    'js/solver/pure/spell.js',
+    'js/solver/pure/boost.js',
+    'js/solver/pure/utils.js',
+    'js/solver/pure/simulate.js',
+    'js/solver/pure/engine.js',
     'js/solver/engine/worker_shims.js',
     'js/solver/engine/item_priority.js',
     'js/game/build.js',
@@ -966,7 +970,18 @@ function computeFileHash(filePath) {
 
 function loadSnapshot(name) {
     const p = path.join(SNAP_DIR, name + '.snap.json');
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+    const snap = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // Default name to filename if missing.
+    if (!snap.name) snap.name = name;
+    return snap;
+}
+
+/**
+ * Check if a snapshot needs its auto-generated fields populated.
+ * Returns true if atree_hash or locked_items are missing/empty.
+ */
+function snapshotNeedsGeneration(snap) {
+    return !snap.atree_hash || !snap.created;
 }
 
 /**
@@ -1069,6 +1084,7 @@ module.exports = {
     TestRunner,
     loadSnapshot,
     saveSnapshot,
+    snapshotNeedsGeneration,
     checkSnapshotFreshness,
     extractLockedItemStats,
     extractEquipmentStats,

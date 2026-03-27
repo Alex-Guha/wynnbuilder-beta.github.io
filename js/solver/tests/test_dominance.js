@@ -193,7 +193,7 @@ function makeNoneItem() {
     const snap = {
         combo_time: 10, allow_downtime: false,
         parsed_combo: [
-            { spell: { base_spell: 1, scaling: 'melee', cost: 60 }, qty: 1, mana_excl: false },
+            { spell: { base_spell: 1, scaling: 'melee', cost: 60 }, qty: 1, sim_qty: 1, mana_excl: false },
         ],
         hp_casting: false,
     };

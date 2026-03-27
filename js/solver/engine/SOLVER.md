@@ -239,7 +239,7 @@ Checks all restrictions against fully assembled stats. EHP, EHP-no-agi, total HP
 
 ### Scoring (`_eval_score`)
 Dispatches based on `scoring_target`:
-- **`combo_damage`**: calls `compute_combo_damage_totals` (unified function in pure.js) with all combo rows, boost registry, and atree. Blood Pact builds inject dynamically-computed blood pact bonus and corruption % tokens per row from the cached simulation.
+- **`combo_damage`**: calls `compute_combo_damage_totals` (unified function in pure/engine.js) with all combo rows, boost registry, and atree. Blood Pact builds inject dynamically-computed blood pact bonus and corruption % tokens per row from the cached simulation.
 - **`total_healing`**: per-row `computeSpellHealingTotal`.
 - **`ehp`**: `getDefenseStats()[1][0]` (agility-weighted).
 - **`ehp_no_agi`**: `getDefenseStats()[1][1]`.
@@ -332,4 +332,4 @@ All default to `false`. Flip in `js/solver/debug_toggles.js`:
 | `SOLVER_DEBUG_DOMINANCE` | item_priority.js (main) | Per-slot pruning counts, dominator/dominatee pairs, stat comparisons |
 | `SOLVER_DEBUG_SENSITIVITY` | item_priority.js (main) | Baseline stats/score, per-stat sensitivities sorted by magnitude, SP sensitivities, constraint/mana bonuses, dominance classification |
 | `SOLVER_DEBUG_WORKER` | worker.js (worker 0) | Leaf breakdown: precheck/ehp/sp/threshold/mana/hp rejection counts, SP prune count, scored count, leaf timing |
-| `SOLVER_DEBUG_COMBO` | node.js, search.js, worker.js, pure.js | Full row-by-row combo damage computation, sim results, per-cast damage, totals. Re-evaluates global top-1 on main thread with debug logging |
+| `SOLVER_DEBUG_COMBO` | node.js, search.js, worker.js, pure/engine.js | Full row-by-row combo damage computation, sim results, per-cast damage, totals. Re-evaluates global top-1 on main thread with debug logging |

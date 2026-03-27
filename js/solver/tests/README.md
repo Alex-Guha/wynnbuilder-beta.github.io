@@ -18,6 +18,7 @@ node js/solver/tests/test_dominance.js
 node js/solver/tests/test_combo_damage.js
 node js/solver/tests/test_solver_search.js
 node js/solver/tests/test_enum_order.js
+node js/solver/tests/test_mana_sim.js
 ```
 
 ## Test Files
@@ -27,6 +28,7 @@ node js/solver/tests/test_enum_order.js
 | `test_dominance.js` | Dominance pruning logic (bidirectional, SP, NONE items) |
 | `test_enum_order.js` | Unified level-based enumeration algorithm |
 | `test_combo_damage.js` | Combo damage/healing cross-validation (builder vs solver paths) |
+| `test_mana_sim.js` | Mana simulation: fast path vs full `simulate_combo_mana_hp` cross-check |
 | `test_solver_search.js` | Full solver pipeline: pools, weights, pruning, worker enumeration |
 
 Supporting files:
@@ -62,7 +64,7 @@ game data updates.
 The test decodes the URL, reconstructs the build (items, SP, atree, spells,
 combo rows with boosts), then for each combo row evaluates damage via:
 - **Builder path**: `calculateSpellDamage` → per-element min/max/crit arrays → crit-weighted average
-- **Solver path**: `computeSpellDisplayAvg` from `pure.js`
+- **Solver path**: `computeSpellDisplayAvg` from `pure/spell.js`
 
 Both receive the same boosted stats and modified spell (after boost application
 and spell prop overrides). The test verifies they produce matching totals at

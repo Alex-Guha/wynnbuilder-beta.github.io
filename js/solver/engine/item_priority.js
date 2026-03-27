@@ -6,10 +6,12 @@
 // Dependencies (loaded before this file):
 //   - worker_shims.js: _init_running_statmap, _incr_add_item, _finalize_leaf_statmap,
 //                      _INCR_STATIC_IDS, _INCR_STATIC_ID_SET
-//   - pure.js: _deep_clone_statmap, _merge_into, _apply_radiance_scale_inplace,
-//              compute_combo_damage_totals, simulate_combo_mana_hp,
-//              atree_compute_scaling, computeSpellHealingTotal,
-//              apply_combo_row_boosts
+//   - pure/spell.js:    computeSpellHealingTotal
+//   - pure/boost.js:    apply_combo_row_boosts
+//   - pure/utils.js:    _deep_clone_statmap, _merge_into,
+//                       _apply_radiance_scale_inplace, atree_compute_scaling
+//   - pure/simulate.js: simulate_combo_mana_hp
+//   - pure/engine.js:   compute_combo_damage_totals
 //   - shared_game_stats.js: getDefenseStats, classDefenseMultipliers
 //   - build_utils.js: skillPointsToPercentage, skp_order, levelToHPBase
 
@@ -35,10 +37,8 @@ const _SP_FEASIBILITY_SCALE = 3;
 
 // Stats that are computed from the full build (not direct item stats) —
 // excluded from constraint weights and dominance check_stats.
-const _INDIRECT_CONSTRAINT_STATS = new Set([
-    'ehp', 'ehp_no_agi', 'total_hp', 'ehpr', 'hpr',
-    'finalSpellCost1', 'finalSpellCost2', 'finalSpellCost3', 'finalSpellCost4',
-]);
+// Shared constant from pure/engine.js: INDIRECT_CONSTRAINT_STATS
+const _INDIRECT_CONSTRAINT_STATS = INDIRECT_CONSTRAINT_STATS;
 
 // Mapping from indirect constraint stats to the direct item stats that contribute to them.
 const _INDIRECT_CONTRIBUTORS = {
@@ -62,18 +62,9 @@ const _INDIRECT_SP_CONTRIBUTORS = {
     // total_hp, hpr: not affected by SP
 };
 
-/**
- * Evaluate an indirect constraint stat from a combo_base statMap.
- * Uses getDefenseStats() to compute derived defensive stats.
- */
-function _eval_indirect_stat(combo_base, stat) {
-    if (stat === 'ehp') return getDefenseStats(combo_base)[1][0];
-    if (stat === 'ehp_no_agi') return getDefenseStats(combo_base)[1][1];
-    if (stat === 'total_hp') return getDefenseStats(combo_base)[0];
-    if (stat === 'hpr') return getDefenseStats(combo_base)[2];
-    if (stat === 'ehpr') return getDefenseStats(combo_base)[3][0];
-    return 0;
-}
+// eval_indirect_stat() — shared from pure/engine.js
+// Local alias for underscore-prefixed call sites.
+const _eval_indirect_stat = eval_indirect_stat;
 
 // ── Item stat helpers ────────────────────────────────────────────────────────
 
@@ -154,88 +145,29 @@ const _DEFAULT_DELTAS = {
  * Mirrors worker's _eval_combo_damage but returns both damage and healing.
  */
 function _eval_sensitivity_combo_damage(combo_base, snap) {
-    const crit = skillPointsToPercentage(combo_base.get('dex') || 0);
-
-    let damage_rows = snap.parsed_combo;
-
-    // If Blood Pact is active, run HP simulation to get per-row boost tokens
-    if (snap.hp_casting && snap.health_config) {
-        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-        const sim = simulate_combo_mana_hp(
-            snap.parsed_combo, combo_base, snap.health_config, has_transcendence, snap.boost_registry);
-
-        const hc = snap.health_config;
-        const bp_name = hc.damage_boost?.slider_name ?? null;
-        const state_slider_names = {};
-        for (const bs of (hc.buff_states ?? [])) {
-            if (bs.slider_name) state_slider_names[bs.state_name] = bs.slider_name;
-        }
-        damage_rows = [];
-        for (let i = 0; i < snap.parsed_combo.length; i++) {
-            const row = snap.parsed_combo[i];
-            const res = sim.row_results[i];
-            const extra = [];
-            const _has_manual = (n) => row.boost_tokens.some(t => t.manual && t.name === n);
-            if (res.blood_pact_bonus > 0 && bp_name && !_has_manual(bp_name)) {
-                extra.push({ name: bp_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
-            }
-            for (const [state_name, slider_name] of Object.entries(state_slider_names)) {
-                const val = res.state_values?.[state_name] ?? 0;
-                if (val > 0 && !_has_manual(slider_name)) extra.push({ name: slider_name, value: Math.round(val), is_pct: false });
-            }
-            if (extra.length === 0) { damage_rows.push(row); continue; }
-            damage_rows.push({ ...row, boost_tokens: [...row.boost_tokens, ...extra] });
-        }
-    }
-
-    const result = compute_combo_damage_totals(
-        combo_base, snap.weapon_sm, damage_rows, crit,
-        snap.boost_registry, snap.atree_mgd,
-        { detailed: false });
-    return { total_damage: result.total_damage, total_healing: result.total_healing };
+    return eval_combo_damage_with_bp(combo_base, snap.weapon_sm, snap.parsed_combo, {
+        hp_casting: snap.hp_casting,
+        health_config: snap.health_config,
+        boost_registry: snap.boost_registry,
+        atree_merged: snap.atree_mgd,
+    });
 }
 
 /**
  * Evaluate combo healing only (for total_healing target).
  */
 function _eval_sensitivity_combo_healing(combo_base, snap) {
-    let total = 0;
-    for (const row of snap.parsed_combo) {
-        if (row.pseudo) continue;
-        const { qty, spell, boost_tokens } = row;
-        const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, snap.boost_registry, null);
-        total += computeSpellHealingTotal(stats, spell) * qty;
-    }
-    return total;
+    return eval_combo_healing(snap.parsed_combo, combo_base, snap.boost_registry, null);
 }
 
 /**
- * Main-thread score evaluator — mirrors worker's _eval_score dispatch.
+ * Main-thread score evaluator — dispatches via shared eval_score_dispatch.
  */
 function _sensitivity_eval_score(combo_base, snap) {
-    const target = snap.scoring_target ?? 'combo_damage';
-    if (target === 'combo_damage') {
-        return _eval_sensitivity_combo_damage(combo_base, snap).total_damage;
-    }
-    if (target === 'total_healing') {
-        return _eval_sensitivity_combo_healing(combo_base, snap);
-    }
-    if (target === 'ehp') {
-        return getDefenseStats(combo_base)[1][0];
-    }
-    if (target === 'ehp_no_agi') {
-        return getDefenseStats(combo_base)[1][1];
-    }
-    if (target === 'total_hp') {
-        return getDefenseStats(combo_base)[0];
-    }
-    if (target === 'hpr') {
-        return getDefenseStats(combo_base)[2];
-    }
-    if (target === 'ehpr') {
-        return getDefenseStats(combo_base)[3][0];
-    }
-    return combo_base.get(target) ?? 0;
+    return eval_score_dispatch(snap.scoring_target, combo_base,
+        () => _eval_sensitivity_combo_damage(combo_base, snap).total_damage,
+        () => _eval_sensitivity_combo_healing(combo_base, snap),
+        null);
 }
 
 // ── Step 4: Baseline statMap construction ───────────────────────────────────
@@ -271,29 +203,19 @@ function _build_baseline_statmap(snap, locked) {
 // ── Step 5: Main-thread combo assembly ──────────────────────────────────────
 
 /**
- * Assemble combo stats from build_sm + total_sp — mirrors worker's _assemble_combo_stats
- * but using fresh Maps (no scratch allocation needed on main thread).
+ * Assemble combo stats from build_sm + total_sp — delegates to shared
+ * assemble_combo_stats (no scratch allocation needed on main thread).
  */
 function _assemble_baseline_combo(build_sm, total_sp, snap) {
-    const combo_base = _deep_clone_statmap(build_sm);
-    for (let i = 0; i < skp_order.length; i++) {
-        combo_base.set(skp_order[i], total_sp[i]);
-    }
-    const weaponType = snap.weapon_sm.get('type');
-    if (weaponType) combo_base.set('classDef', classDefenseMultipliers.get(weaponType) || 1.0);
-    _merge_into(combo_base, snap.atree_raw);
-    _apply_radiance_scale_inplace(combo_base, snap.radiance_boost);
-    const [, atree_scaled_stats] = atree_compute_scaling(
-        snap.atree_mgd, combo_base, snap.button_states, snap.slider_states);
-    _merge_into(combo_base, atree_scaled_stats);
-    _merge_into(combo_base, snap.static_boosts);
-    return combo_base;
+    return assemble_combo_stats(build_sm, total_sp, snap.weapon_sm,
+        snap.atree_raw, snap.radiance_boost, snap.atree_mgd,
+        snap.button_states, snap.slider_states, snap.static_boosts, null);
 }
 
 // ── Step 6: Main-thread greedy SP allocator ─────────────────────────────────
 
 /**
- * Greedy SP allocation — port of worker's _greedy_allocate_sp.
+ * Greedy SP allocation — uses shared greedy_sp_allocate() from pure/engine.js.
  * Returns { total_sp: [5], assigned_sp }.
  */
 function _greedy_sp_alloc_main(build_sm, snap, locked) {
@@ -323,49 +245,14 @@ function _greedy_sp_alloc_main(build_sm, snap, locked) {
     }
     let assigned_sp = sp_result[2];
 
-    // Greedy loop: step-down 20 → 4 → 1
-    let remaining = snap.sp_budget - assigned_sp;
-    if (remaining <= 0) return { total_sp, assigned_sp };
-
-    let any_room = false;
-    for (let i = 0; i < 5; i++) {
-        if (base_sp[i] < 100 && total_sp[i] < 150) { any_room = true; break; }
-    }
-    if (!any_room) return { total_sp, assigned_sp };
-
     function _trial_score() {
         const cb = _assemble_baseline_combo(build_sm, total_sp, snap);
         return _sensitivity_eval_score(cb, snap);
     }
 
-    let cur = _trial_score();
-
-    for (const step of [20, 4, 1]) {
-        let progress = true;
-        while (progress && remaining > 0) {
-            progress = false;
-            let best_i = -1, best_s = cur;
-
-            for (let i = 0; i < 5; i++) {
-                const a = Math.min(step, remaining, 100 - base_sp[i], 150 - total_sp[i]);
-                if (a <= 0) continue;
-                total_sp[i] += a;
-                const s = _trial_score();
-                total_sp[i] -= a;
-                if (s > best_s) { best_s = s; best_i = i; }
-            }
-
-            if (best_i >= 0) {
-                const a = Math.min(step, remaining, 100 - base_sp[best_i], 150 - total_sp[best_i]);
-                base_sp[best_i] += a;
-                total_sp[best_i] += a;
-                remaining -= a;
-                assigned_sp += a;
-                cur = best_s;
-                progress = true;
-            }
-        }
-    }
+    const _default_caps = [150, 150, 150, 150, 150];
+    const remaining = snap.sp_budget - assigned_sp;
+    assigned_sp += greedy_sp_allocate(base_sp, total_sp, remaining, _default_caps, null, _trial_score, null);
 
     return { total_sp, assigned_sp };
 }
@@ -977,7 +864,7 @@ function _prioritize_pools(pools, dmg_weights) {
 
 /**
  * Estimate mana balance from locked items + combo, mirroring worker's
- * simulate_combo_mana_fast (pure.js).  Returns an object with mana budget
+ * simulate_combo_mana_fast (pure/simulate.js).  Returns an object with mana budget
  * breakdown, or null when no mana gate applies (Blood Pact / no combo_time).
  *
  * When combo_base is null/undefined, falls back to worst-case assumptions
@@ -989,7 +876,7 @@ function _estimate_mana_balance(snap, combo_base) {
     const combo_time = snap.combo_time ?? 0;
     if (!combo_time) return null;
 
-    // Start mana: 100 + int bonus + maxMana (matching worker pure.js:1064)
+    // Start mana: 100 + int bonus + maxMana (matching worker pure/simulate.js)
     const int_mana = combo_base
         ? Math.floor(skillPointsToPercentage(combo_base.get('int') ?? 0) * 100)
         : 0;
@@ -997,7 +884,7 @@ function _estimate_mana_balance(snap, combo_base) {
     const start_mana = 100 + int_mana + item_mana;
     const max_mana = start_mana;
 
-    // MR regen (matching worker pure.js:1072)
+    // MR regen (matching worker pure/simulate.js)
     const mr = combo_base ? (combo_base.get('mr') ?? 0) : 0;
     const mr_per_sec = (mr + BASE_MANA_REGEN) / MANA_TICK_SECONDS;
     const regen_mana = mr_per_sec * combo_time;

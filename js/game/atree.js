@@ -861,7 +861,7 @@ const atree_render_active = new (class extends ComputeNode {
     }
 })().link_to(atree_node, 'atree-order').link_to(atree_scaling_tree, 'atree-merged');
 
-// atree_translate moved to pure.js
+// atree_translate moved to pure/utils.js
 
 /**
  * Collect spells from abilities.

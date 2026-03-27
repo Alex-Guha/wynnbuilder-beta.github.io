@@ -51,7 +51,11 @@ const WORKER_DEPS = [
     'js/game/damage_calc.js',
     'js/game/shared_game_stats.js',
     'js/solver/debug_toggles.js',
-    'js/solver/pure.js',
+    'js/solver/pure/spell.js',
+    'js/solver/pure/boost.js',
+    'js/solver/pure/utils.js',
+    'js/solver/pure/simulate.js',
+    'js/solver/pure/engine.js',
     'js/solver/engine/worker_shims.js',
 ];
 

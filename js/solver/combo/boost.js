@@ -1,5 +1,5 @@
 // SpellDamageCalcNode and SpellDisplayNode are defined in shared_spell_nodes.js.
-// computeSpellDisplayAvg, computeSpellDisplayFull are defined in pure.js.
+// computeSpellDisplayAvg, computeSpellDisplayFull are defined in pure/spell.js.
 
 /**
  * Builds the inner HTML for the per-spell damage breakdown popup.
@@ -402,8 +402,9 @@ function build_combo_boost_registry(atree_merged, build = null) {
     return registry;
 }
 
-// find_all_matching_boosts, apply_combo_row_boosts, apply_spell_prop_overrides,
-// spell_has_damage, spell_has_heal, computeSpellHealingTotal are defined in pure.js.
+// find_all_matching_boosts, apply_combo_row_boosts, apply_spell_prop_overrides
+// are defined in pure/boost.js.
+// spell_has_damage, spell_has_heal, computeSpellHealingTotal are defined in pure/spell.js.
 
 /**
  * Parse the boost column of a combo row (comma-separated boost tokens).

@@ -12,15 +12,16 @@
 //   - shared_game_stats.js: classDefenseMultipliers, damageMultipliers,
 //                           specialNames, radiance_affected, getDefenseStats,
 //                           getBaseSpellCost, getSpellCost
-//   - pure.js: computeSpellDisplayAvg, find_all_matching_boosts,
-//                     apply_combo_row_boosts, atree_compute_scaling,
-//                     atree_translate, apply_spell_prop_overrides,
-//                     spell_has_heal, computeSpellHealingTotal,
+//   - pure/spell.js:  computeSpellDisplayAvg, spell_has_heal,
+//                     computeSpellHealingTotal
+//   - pure/boost.js:  find_all_matching_boosts, apply_combo_row_boosts,
+//                     apply_spell_prop_overrides
+//   - pure/utils.js:  atree_compute_scaling, atree_translate,
 //                     _deep_clone_statmap, _merge_into,
 //                     _apply_radiance_scale
 // ══════════════════════════════════════════════════════════════════════════════
 
-// worker_atree_scaling and atree_translate moved to pure.js (atree_compute_scaling)
+// worker_atree_scaling and atree_translate moved to pure/utils.js (atree_compute_scaling)
 
 // ── Build stat assembly (replaces Build.initBuildStats without DOM) ─────────
 

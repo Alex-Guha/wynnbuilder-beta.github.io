@@ -252,61 +252,7 @@ function _build_solver_snapshot(restrictions) {
     // Precompute per-row recast penalty (build-independent, combo-sequence-dependent).
     // Workers need this for accurate mana tracking in both blood pact bonus computation
     // and the non-blood-pact mana budget check (_eval_combo_mana_check).
-    // Replicates the recast penalty logic from simulate_spell_by_spell.
-    {
-        let _rc_last_base = null, _rc_consec = 0, _rc_penalty = 0;
-        for (const row of parsed_combo) {
-            // Pseudo-spell rows: Mana Reset resets recast state, others are skipped.
-            if (row.pseudo) {
-                if (row.pseudo === 'mana_reset' && !row.mana_excl) {
-                    _rc_last_base = null; _rc_consec = 0; _rc_penalty = 0;
-                }
-                continue;
-            }
-            const { sim_qty, spell, mana_excl } = row;
-            row.recast_penalty_per_cast = 0;
-            if (!spell || sim_qty <= 0 || mana_excl || spell.cost == null) continue;
-            const rc_base = spell.mana_derived_from ?? spell.base_spell;
-            if (rc_base === 0) continue; // melee spells have no recast penalty
-
-            let row_penalty = 0;
-            let is_switch = false;
-            if (rc_base !== _rc_last_base) {
-                is_switch = true;
-                if (_rc_consec <= 1) { _rc_penalty = 0; } else { _rc_penalty += 1; }
-                _rc_consec = 0;
-                _rc_last_base = rc_base;
-            }
-            if (is_switch && _rc_penalty > 0) {
-                row_penalty = _rc_penalty * RECAST_MANA_PENALTY;
-                _rc_penalty = 0;
-                _rc_consec = 1;
-                const remaining = sim_qty - 1;
-                if (remaining > 0) {
-                    const free_remaining = Math.min(remaining, 1);
-                    const penalty_remaining = remaining - free_remaining;
-                    if (penalty_remaining > 0) {
-                        row_penalty += RECAST_MANA_PENALTY * penalty_remaining * (penalty_remaining + 1) / 2;
-                        _rc_penalty = penalty_remaining;
-                    }
-                    _rc_consec += remaining;
-                }
-            } else if (_rc_penalty > 0) {
-                row_penalty = RECAST_MANA_PENALTY * (sim_qty * _rc_penalty + sim_qty * (sim_qty + 1) / 2);
-                _rc_penalty += sim_qty;
-                _rc_consec += sim_qty;
-            } else {
-                const free_casts = Math.max(0, Math.min(sim_qty, 2 - _rc_consec));
-                const penalty_casts = sim_qty - free_casts;
-                if (penalty_casts > 0) {
-                    row_penalty = RECAST_MANA_PENALTY * penalty_casts * (penalty_casts + 1) / 2;
-                    _rc_penalty = penalty_casts;
-                }
-                _rc_consec += sim_qty;
-            }
-            row.recast_penalty_per_cast = sim_qty > 0 ? row_penalty / sim_qty : 0;
-        }
-    }
+    compute_recast_penalties(parsed_combo);
 
     // Build set of auto-filled slider names that must be stripped from parsed_combo
     // rows — workers compute these dynamically per candidate build.
@@ -452,46 +398,26 @@ function _eval_current_build(snap, restrictions) {
     // Threshold check
     if (restrictions.stat_thresholds?.length > 0) {
         const thresh_stats = _deep_clone_statmap(combo_base);
-        let _def_cache = null;
-        const _get_def = () => _def_cache ?? (_def_cache = getDefenseStats(thresh_stats));
-        for (const { stat, op, value } of restrictions.stat_thresholds) {
-            let v;
-            if (stat === 'ehp') v = _get_def()[1]?.[0] ?? 0;
-            else if (stat === 'ehp_no_agi') v = _get_def()[1]?.[1] ?? 0;
-            else if (stat === 'total_hp') v = _get_def()[0] ?? 0;
-            else if (stat === 'ehpr') v = _get_def()[3]?.[0] ?? 0;
-            else if (stat === 'hpr') v = _get_def()[2] ?? 0;
-            else if (stat.startsWith('finalSpellCost')) {
-                const spell_num = parseInt(stat.charAt(stat.length - 1));
-                const base_cost = snap.spell_base_costs?.[spell_num];
-                if (base_cost == null) continue;
-                v = getSpellCost(thresh_stats, { cost: base_cost, base_spell: spell_num });
-            } else {
-                v = thresh_stats.get(stat) ?? 0;
-            }
-            if (op === 'ge' && v < value) { console.warn(`[seed] rejected: threshold ${stat} ${op} ${value}, got ${v}`); return null; }
-            if (op === 'le' && v > value) { console.warn(`[seed] rejected: threshold ${stat} ${op} ${value}, got ${v}`); return null; }
+        if (!check_thresholds(thresh_stats, restrictions.stat_thresholds, snap.spell_base_costs)) {
+            console.warn('[seed] rejected: threshold check failed');
+            return null;
         }
     }
 
-    // Mana / HP check (mirrors worker's _eval_combo_mana_check)
-    const has_combo_time = (snap.combo_time ?? 0) > 0;
-    if (snap.hp_casting || has_combo_time) {
-        const hc = snap.health_config ?? DEFAULT_HEALTH_CONFIG;
-        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-        const sim = simulate_combo_mana_hp(
-            snap.parsed_combo, combo_base, hc, has_transcendence,
-            snap.boost_registry);
-        if (sim.row_results.some(r => r.hp_warning)) {
-            console.warn('[seed] rejected: HP sim has hp_warning');
+    // Mana / HP check (shared with worker via eval_combo_mana_check)
+    {
+        const mana_result = eval_combo_mana_check({
+            parsed_combo: snap.parsed_combo,
+            combo_base,
+            hp_casting: snap.hp_casting,
+            combo_time: snap.combo_time ?? 0,
+            allow_downtime: snap.allow_downtime,
+            health_config: snap.health_config ?? DEFAULT_HEALTH_CONFIG,
+            boost_registry: snap.boost_registry,
+        });
+        if (!mana_result.passed) {
+            console.warn('[seed] rejected: mana/HP check failed');
             return null;
-        }
-        if (hc.health_cost > 0) {
-            // Blood Pact: skip mana gating, spells paid with HP.
-        } else if (snap.allow_downtime) {
-            if (sim.end_mana <= 0) { console.warn('[seed] rejected: mana depleted, end_mana:', sim.end_mana); return null; }
-        } else {
-            if ((sim.start_mana - sim.end_mana) > 5) { console.warn('[seed] rejected: mana deficit:', sim.start_mana - sim.end_mana); return null; }
         }
     }
 
@@ -751,11 +677,7 @@ function _fill_build_into_ui(result) {
     for (let i = 0; i < 8; i++) {
         const slot = equipment_fields[i];
         const item = result.items[i];
-        const hash = item.statMap.get('hash');
-        const name = item.statMap.has('NONE') ? '' :
-            (hash && (hash.slice(0, 3) === 'CI-' || hash.slice(0, 3) === 'CR-'))
-                ? hash
-                : (item.statMap.get('displayName') ?? item.statMap.get('name') ?? '');
+        const name = get_item_display_name(item.statMap);
         const input = document.getElementById(slot + '-choice');
         if (input) {
             if (input.value !== name) {
@@ -1218,51 +1140,22 @@ function _debug_reeval_top1() {
     console.log('[COMBO-DEBUG][SOLVER] items:', item_names.join(', '));
     console.log('[COMBO-DEBUG][SOLVER] score:', top1.score);
 
-    const crit = skillPointsToPercentage(combo_base.get('dex') || 0);
-    let damage_rows = snap.parsed_combo;
+    const result = eval_combo_damage_with_bp(combo_base, snap.weapon.statMap, snap.parsed_combo, {
+        hp_casting: snap.hp_casting,
+        health_config: snap.health_config,
+        boost_registry: snap.boost_registry,
+        atree_merged: snap.atree_mgd,
+    }, { debug: true, debug_label: '[SOLVER]' });
 
-    if (snap.hp_casting && snap.health_config) {
-        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-        const sim = simulate_combo_mana_hp(
-            snap.parsed_combo, combo_base, snap.health_config, has_transcendence, snap.boost_registry);
-
-        console.log('[COMBO-DEBUG][SOLVER] sim results:', JSON.stringify(sim.row_results.map((r, i) => ({
+    if (result.hp_sim) {
+        console.log('[COMBO-DEBUG][SOLVER] sim results:', JSON.stringify(result.hp_sim.row_results.map((r, i) => ({
             row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
             states: r.state_values, hp_warn: r.hp_warning,
         }))));
-        console.log('[COMBO-DEBUG][SOLVER] sim end_mana:', sim.end_mana,
-            'end_hp:', Math.round(sim.end_hp), 'max_hp:', sim.max_hp,
-            'start_mana:', sim.start_mana);
-
-        const hc = snap.health_config;
-        const bp_name = hc.damage_boost?.slider_name ?? null;
-        const state_slider_names = {};
-        for (const bs of (hc.buff_states ?? [])) {
-            if (bs.slider_name) state_slider_names[bs.state_name] = bs.slider_name;
-        }
-
-        damage_rows = [];
-        for (let i = 0; i < snap.parsed_combo.length; i++) {
-            const row = snap.parsed_combo[i];
-            const res = sim.row_results[i];
-            const extra = [];
-            const _has_manual = (n) => row.boost_tokens.some(t => t.manual && t.name === n);
-            if (res.blood_pact_bonus > 0 && bp_name && !_has_manual(bp_name)) {
-                extra.push({ name: bp_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
-            }
-            for (const [state_name, slider_name] of Object.entries(state_slider_names)) {
-                const val = res.state_values?.[state_name] ?? 0;
-                if (val > 0 && !_has_manual(slider_name)) extra.push({ name: slider_name, value: Math.round(val), is_pct: false });
-            }
-            if (extra.length === 0) { damage_rows.push(row); continue; }
-            damage_rows.push({ ...row, boost_tokens: [...row.boost_tokens, ...extra] });
-        }
+        console.log('[COMBO-DEBUG][SOLVER] sim end_mana:', result.hp_sim.end_mana,
+            'end_hp:', Math.round(result.hp_sim.end_hp), 'max_hp:', result.hp_sim.max_hp,
+            'start_mana:', result.hp_sim.start_mana);
     }
-
-    compute_combo_damage_totals(
-        combo_base, snap.weapon.statMap, damage_rows, crit,
-        snap.boost_registry, snap.atree_mgd,
-        { detailed: false, debug: true, debug_label: '[SOLVER]' });
 }
 
 function _on_all_workers_done(workers_snapshot) {

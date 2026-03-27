@@ -24,7 +24,8 @@
 const {
     createSandbox, loadGameData, decodeSolverUrl, decodeActiveNodes,
     buildAtreeMerged, collectSpells, collectRawStats,
-    TestRunner, loadSnapshot, checkSnapshotFreshness, extractEquipmentStats,
+    TestRunner, loadSnapshot, saveSnapshot, snapshotNeedsGeneration,
+    checkSnapshotFreshness, extractEquipmentStats,
     REPO_ROOT,
 } = require('./harness');
 const fs = require('fs');
@@ -161,7 +162,7 @@ function evalSpellBuilderAvg(spell, stats, weaponSM, crit_chance, displayPartNam
     delete ctx.__stats_tmp;
     delete ctx.__weapon_tmp;
 
-    // Find the display result (same logic as _find_display_result in pure.js).
+    // Find the display result (same logic as _find_display_result in pure/spell.js).
     const target = displayPartName || spell.display;
     let display_result = target
         ? results.find(r => r?.name === target)
@@ -284,8 +285,16 @@ function runComboTest(snapName) {
 
     // 1. Decode URL hash.
     const decoded = decodeSolverUrl(ctx, snap.url_hash);
-    checkSnapshotFreshness(snap, t, extractEquipmentStats(decoded, ctx), false);
     t.assert(decoded.playerClass !== null, `${snapName}: decoded class = ${decoded.playerClass}`);
+
+    // Auto-generate snapshot freshness data on first run.
+    const currentEquipStats = extractEquipmentStats(decoded, ctx);
+    if (snapshotNeedsGeneration(snap)) {
+        console.log(`  [${snapName}] First run — generating snapshot data...`);
+        snap.locked_items = currentEquipStats;
+        saveSnapshot(snapName, snap);
+    }
+    checkSnapshotFreshness(snap, t, currentEquipStats, false);
 
     // 2. Resolve items (raw item data from itemMap).
     const equipNames = decoded.equipment;

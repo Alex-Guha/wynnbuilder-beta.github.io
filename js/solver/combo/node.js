@@ -765,7 +765,8 @@ class SolverComboTotalNode extends ComputeNode {
         const deficit = sim_result.start_mana - end_mana;
 
         let text = `Mana: ${Math.round(end_mana)}/${display_start_mana}`;
-        if (!allow_down && deficit > 5) {
+        const has_blood_pact = this._health_config?.hp_casting ?? false;
+        if (!allow_down && !has_blood_pact && deficit > 5) {
             text += ' \u26a0 not sustainable (\u2212' + Math.round(deficit) + ')';
             mana_elem.className = 'small text-warning';
         } else {

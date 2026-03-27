@@ -13,7 +13,7 @@ const t = new TestRunner('Mana Simulation Divergence');
 const simulate_combo_mana_hp = ctx.simulate_combo_mana_hp;
 const simulate_combo_mana_fast = ctx.simulate_combo_mana_fast;
 
-// DEFAULT_HEALTH_CONFIG is a const in pure.js and not accessible from outside
+// DEFAULT_HEALTH_CONFIG is a const in pure/simulate.js and not accessible from outside
 // the VM sandbox, so we replicate it here for the test.
 const DEFAULT_HEALTH_CONFIG = Object.freeze({
     hp_casting: false, health_cost: 0, damage_boost: null,

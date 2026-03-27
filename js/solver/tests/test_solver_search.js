@@ -15,7 +15,8 @@ const { Worker } = require('worker_threads');
 const {
     createSandbox, loadGameData, decodeSolverUrl, decodeActiveNodes,
     buildAtreeMerged, collectSpells, collectRawStats, extractAtreeInteractiveDefaults,
-    TestRunner, loadSnapshot, checkSnapshotFreshness, extractLockedItemStats,
+    TestRunner, loadSnapshot, saveSnapshot, snapshotNeedsGeneration,
+    checkSnapshotFreshness, extractLockedItemStats,
     REPO_ROOT,
 } = require('./harness');
 const fs = require('fs');
@@ -63,6 +64,7 @@ vm.runInContext(`
     globalThis.node_ref_to_boost_name = typeof node_ref_to_boost_name !== 'undefined' ? node_ref_to_boost_name : null;
     globalThis.node_id_to_spell_value = typeof node_id_to_spell_value !== 'undefined' ? node_id_to_spell_value : null;
     globalThis.extract_health_config = typeof extract_health_config !== 'undefined' ? extract_health_config : null;
+    globalThis.compute_recast_penalties = typeof compute_recast_penalties !== 'undefined' ? compute_recast_penalties : null;
     globalThis.compute_dps_spell_hits_info = typeof compute_dps_spell_hits_info !== 'undefined' ? compute_dps_spell_hits_info : null;
 `, ctx);
 
@@ -222,6 +224,7 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
 
         const entry = {
             qty: row.qty,
+            sim_qty: Math.round(row.qty),
             spell,
             boost_tokens: (row.boosts || []).map(b => ({
                 name: ctx.node_ref_to_boost_name
@@ -254,60 +257,9 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
     // double-counting bug documented in TOGGLE_DOUBLE_COUNT_BUG.md.
     // Snapshots can override via explicit button_states / slider_states fields.
 
-    // ── 9. Recast penalties (mirrors search.js:245-297) ─────────────────────
-    {
-        const PENALTY = ctx.RECAST_MANA_PENALTY ?? 5;
-        let _rc_last_base = null, _rc_consec = 0, _rc_penalty = 0;
-        for (const row of parsedCombo) {
-            if (row.pseudo) {
-                if (row.pseudo === 'mana_reset' && !row.mana_excl) {
-                    _rc_last_base = null; _rc_consec = 0; _rc_penalty = 0;
-                }
-                continue;
-            }
-            const { qty, spell, mana_excl } = row;
-            row.recast_penalty_per_cast = 0;
-            if (!spell || qty <= 0 || mana_excl || spell.cost == null) continue;
-            const rc_base = spell.mana_derived_from ?? spell.base_spell;
-            if (rc_base === 0) continue;
-
-            let row_penalty = 0;
-            let is_switch = false;
-            if (rc_base !== _rc_last_base) {
-                is_switch = true;
-                if (_rc_consec <= 1) { _rc_penalty = 0; } else { _rc_penalty += 1; }
-                _rc_consec = 0;
-                _rc_last_base = rc_base;
-            }
-            if (is_switch && _rc_penalty > 0) {
-                row_penalty = _rc_penalty * PENALTY;
-                _rc_penalty = 0;
-                _rc_consec = 1;
-                const remaining = qty - 1;
-                if (remaining > 0) {
-                    const free_remaining = Math.min(remaining, 1);
-                    const penalty_remaining = remaining - free_remaining;
-                    if (penalty_remaining > 0) {
-                        row_penalty += PENALTY * penalty_remaining * (penalty_remaining + 1) / 2;
-                        _rc_penalty = penalty_remaining;
-                    }
-                    _rc_consec += remaining;
-                }
-            } else if (_rc_penalty > 0) {
-                row_penalty = PENALTY * (qty * _rc_penalty + qty * (qty + 1) / 2);
-                _rc_penalty += qty;
-                _rc_consec += qty;
-            } else {
-                const free_casts = Math.max(0, Math.min(qty, 2 - _rc_consec));
-                const penalty_casts = qty - free_casts;
-                if (penalty_casts > 0) {
-                    row_penalty = PENALTY * penalty_casts * (penalty_casts + 1) / 2;
-                    _rc_penalty = penalty_casts;
-                }
-                _rc_consec += qty;
-            }
-            row.recast_penalty_per_cast = qty > 0 ? row_penalty / qty : 0;
-        }
+    // ── 9. Recast penalties (shared pure function) ──────────────────────────
+    if (ctx.compute_recast_penalties) {
+        ctx.compute_recast_penalties(parsedCombo);
     }
 
     // ── 10. Auto-slider stripping (mirrors search.js:300-315) ───────────────
@@ -644,6 +596,14 @@ async function runSolverTest(snapName) {
     // Freshness check: locked item stats + compress hash (has free slots).
     const currentLockedStats = extractLockedItemStats(locked);
     const hasFreeSlots = Object.keys(freePools).length > 0;
+
+    // Auto-generate snapshot freshness data on first run.
+    if (snapshotNeedsGeneration(snap)) {
+        console.log(`  [${snapName}] First run — generating snapshot data...`);
+        snap.locked_items = currentLockedStats;
+        if (!snap.scoring_target) snap.scoring_target = 'combo_damage';
+        saveSnapshot(snapName, snap);
+    }
     checkSnapshotFreshness(snap, t, currentLockedStats, hasFreeSlots);
 
     // Log pool sizes

@@ -15,7 +15,11 @@ importScripts(
     '../../game/damage_calc.js',
     '../../game/shared_game_stats.js',
     '../debug_toggles.js',
-    '../pure.js',
+    '../pure/spell.js',
+    '../pure/boost.js',
+    '../pure/utils.js',
+    '../pure/simulate.js',
+    '../pure/engine.js',
     './worker_shims.js'
 );
 
@@ -34,10 +38,10 @@ let _cancelled = false;
 // set bonuses — all of which can only increase the stat for ge constraints).
 //
 // Stats excluded from simple precheck:
-//   - 'ehp','ehp_no_agi','total_hp': derived from HP + def% + agi% + classDef + defMult (has special handling)
+//   - INDIRECT_CONSTRAINT_STATS (from pure/engine.js): derived stats needing full build context
 //   - 'str','dex','int','def','agi': overwritten by total_sp from SP assignment
-const _PRECHECK_EXCLUDED = new Set(['ehp', 'ehp_no_agi', 'total_hp', 'ehpr', 'hpr', 'str', 'dex', 'int', 'def', 'agi',
-    'finalSpellCost1', 'finalSpellCost2', 'finalSpellCost3', 'finalSpellCost4']);
+const _PRECHECK_EXCLUDED = new Set(INDIRECT_CONSTRAINT_STATS);
+for (const sp of ['str', 'dex', 'int', 'def', 'agi']) _PRECHECK_EXCLUDED.add(sp);
 let _constraint_prechecks = [];  // [{stat, adjusted_threshold}]
 let _ehp_precheck = null;        // {threshold, fixed_hp, ehp_divisor} or null
 let _ehp_no_agi_precheck = null; // {threshold, fixed_hp, ehp_divisor} or null
@@ -226,20 +230,12 @@ function _fast_ehp_precheck(running_sm) {
 // ── Per-candidate stat assembly ─────────────────────────────────────────────
 
 function _assemble_combo_stats(build_sm, total_sp, weapon_sm) {
-    _deep_clone_statmap_into(_scratch_pre_scale, build_sm, _scratch_pre_scale_nested);
-    for (let i = 0; i < skp_order.length; i++) {
-        _scratch_pre_scale.set(skp_order[i], total_sp[i]);
-    }
-    const weaponType = weapon_sm.get('type');
-    if (weaponType) _scratch_pre_scale.set('classDef', classDefenseMultipliers.get(weaponType) || 1.0);
-    _merge_into(_scratch_pre_scale, _cfg.atree_raw);
-    _apply_radiance_scale_inplace(_scratch_pre_scale, _cfg.radiance_boost);
-    const [, atree_scaled_stats] = atree_compute_scaling(
-        _cfg.atree_merged, _scratch_pre_scale, _cfg.button_states, _cfg.slider_states, _scratch_atree);
-    _deep_clone_statmap_into(_scratch_combo_base, _scratch_pre_scale, _scratch_combo_base_nested);
-    _merge_into(_scratch_combo_base, atree_scaled_stats);
-    _merge_into(_scratch_combo_base, _cfg.static_boosts);
-    return _scratch_combo_base;
+    return assemble_combo_stats(build_sm, total_sp, weapon_sm,
+        _cfg.atree_raw, _cfg.radiance_boost, _cfg.atree_merged,
+        _cfg.button_states, _cfg.slider_states, _cfg.static_boosts,
+        { pre_scale: _scratch_pre_scale, pre_scale_nested: _scratch_pre_scale_nested,
+          combo_base: _scratch_combo_base, combo_base_nested: _scratch_combo_base_nested,
+          atree: _scratch_atree });
 }
 
 function _assemble_threshold_stats(combo_base) {
@@ -248,144 +244,47 @@ function _assemble_threshold_stats(combo_base) {
 }
 
 function _check_thresholds(stats, thresholds) {
-    let _def_cache = null;
-    const _get_def = () => _def_cache ?? (_def_cache = getDefenseStats(stats));
-    for (const { stat, op, value } of thresholds) {
-        let v;
-        if (stat === 'ehp') {
-            v = _get_def()[1]?.[0] ?? 0;
-        } else if (stat === 'ehp_no_agi') {
-            v = _get_def()[1]?.[1] ?? 0;
-        } else if (stat === 'total_hp') {
-            v = _get_def()[0] ?? 0;
-        } else if (stat === 'ehpr') {
-            v = _get_def()[3]?.[0] ?? 0;
-        } else if (stat === 'hpr') {
-            v = _get_def()[2] ?? 0;
-        } else if (stat.startsWith('finalSpellCost')) {
-            const spell_num = parseInt(stat.charAt(stat.length - 1));
-            const base_cost = _cfg.spell_base_costs?.[spell_num];
-            if (base_cost == null) continue; // spell not available for this class
-            v = getSpellCost(stats, { cost: base_cost, base_spell: spell_num });
-        } else {
-            v = stats.get(stat) ?? 0;
-        }
-        if (op === 'ge' && v < value) return false;
-        if (op === 'le' && v > value) return false;
-    }
-    return true;
+    return check_thresholds(stats, thresholds, _cfg.spell_base_costs);
 }
 
 function _eval_combo_damage(combo_base, debug) {
-    const crit = skillPointsToPercentage(combo_base.get('dex') || 0);
-
-    // If Blood Pact is active, run shared mana+HP simulation kernel.
-    // This fixes 4 bugs vs the old inline tracking:
-    //   1. Uses boosted stats for spell cost (via apply_combo_row_boosts)
-    //   2. Tracks HP pool (max_hp, HP cost deduction, HP death detection)
-    //   3. Tracks HP regen ticks (elapsed time, HPR_TICK_SECONDS)
-    //   4. Applies Exhilarate heal on Cancel Bak'al
-    const hc = _cfg.health_config;
-    const hp_tracking = _cfg.hp_casting && hc;
-    let damage_rows = _cfg.parsed_combo;
-
-    if (hp_tracking) {
-        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-        const sim = _cached_hp_sim ?? simulate_combo_mana_hp(
-            _cfg.parsed_combo, combo_base, hc, has_transcendence, _cfg.boost_registry, _scratch_row);
-        _cached_hp_sim = null;  // consume cache
-
-        if (debug) {
-            console.log('[COMBO-DEBUG][WORKER] sim results:', JSON.stringify(sim.row_results.map((r, i) => ({
-                row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
-                states: r.state_values, hp_warn: r.hp_warning,
-            }))));
-            console.log('[COMBO-DEBUG][WORKER] sim end_mana:', sim.end_mana,
-                'end_hp:', Math.round(sim.end_hp), 'max_hp:', sim.max_hp,
-                'start_mana:', sim.start_mana);
-        }
-
-        // Inject simulation-derived boost tokens (blood pact bonus, state values)
-        damage_rows = [];
-        for (let i = 0; i < _cfg.parsed_combo.length; i++) {
-            const row = _cfg.parsed_combo[i];
-            const res = sim.row_results[i];
-            const extra = [];
-            const _has_manual = (n) => row.boost_tokens.some(t => t.manual && t.name === n);
-            if (res.blood_pact_bonus > 0 && _cfg.bp_slider_name && !_has_manual(_cfg.bp_slider_name)) {
-                extra.push({ name: _cfg.bp_slider_name, value: Math.round(res.blood_pact_bonus * 10) / 10, is_pct: true });
-            }
-            for (const [state_name, slider_name] of Object.entries(_cfg.state_slider_names)) {
-                const val = res.state_values?.[state_name] ?? 0;
-                if (val > 0 && !_has_manual(slider_name)) extra.push({ name: slider_name, value: Math.round(val), is_pct: false });
-            }
-            if (extra.length === 0) {
-                damage_rows.push(row);
-                continue;
-            }
-            damage_rows.push({ ...row, boost_tokens: [...row.boost_tokens, ...extra] });
-        }
-    }
-
-    const result = compute_combo_damage_totals(
-        combo_base, _cfg.weapon_sm, damage_rows, crit,
-        _cfg.boost_registry, _cfg.atree_merged,
-        { detailed: false, scratch_row: _scratch_row, debug, debug_label: '[WORKER]' });
+    const result = eval_combo_damage_with_bp(combo_base, _cfg.weapon_sm, _cfg.parsed_combo, {
+        hp_casting: _cfg.hp_casting,
+        health_config: _cfg.health_config,
+        boost_registry: _cfg.boost_registry,
+        atree_merged: _cfg.atree_merged,
+        bp_slider_name: _cfg.bp_slider_name,
+        state_slider_names: _cfg.state_slider_names,
+    }, {
+        scratch_row: _scratch_row,
+        debug,
+        debug_label: '[WORKER]',
+        cached_hp_sim: _cached_hp_sim,
+    });
+    _cached_hp_sim = null;  // consume cache
     return result.total_damage;
 }
 
-/**
- * Returns false if the combo mana budget is violated, per the configured constraint:
- *  - No combo_time set → always passes (no mana constraint).
- *  - combo_time set, allow_downtime=true  → end_mana must be > 0 (net positive).
- *  - combo_time set, allow_downtime=false → deficit must be ≤ 5 (sustainable).
- *
- * Mirrors _update_mana_display() in solver_combo_node.js.
- */
+/** Mana/HP feasibility gate — delegates to shared eval_combo_mana_check(). */
 function _eval_combo_mana_check(combo_base) {
     _cached_hp_sim = null;
-    const combo_time = _cfg.combo_time ?? 0;
-    if (!combo_time && !_cfg.hp_casting) return true;
-
-    const hc = _cfg.health_config ?? DEFAULT_HEALTH_CONFIG;
-    const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-
-    // BP builds: full simulation (damage calc reuses row_results via _cached_hp_sim).
-    // Non-BP builds: fast mana-only check (no per-row object allocations).
-    if (_cfg.hp_casting && hc.health_cost > 0) {
-        const sim = simulate_combo_mana_hp(
-            _cfg.parsed_combo, combo_base, hc, has_transcendence,
-            _cfg.boost_registry, _scratch_row);
-        _cached_hp_sim = sim;
-        if (sim.row_results.some(r => r.hp_warning)) return false;
-        return true;  // BP: skip mana gating, spells paid with HP
-    }
-
-    const sim = simulate_combo_mana_fast(
-        _cfg.parsed_combo, combo_base, hc, has_transcendence,
-        _cfg.boost_registry, _scratch_row);
-
-    if (sim.has_hp_warning) return false;
-
-    if (_cfg.allow_downtime) {
-        return sim.end_mana > 0;
-    } else {
-        return (sim.start_mana - sim.end_mana) <= 5;
-    }
+    const result = eval_combo_mana_check({
+        parsed_combo: _cfg.parsed_combo,
+        combo_base,
+        hp_casting: _cfg.hp_casting,
+        combo_time: _cfg.combo_time ?? 0,
+        allow_downtime: _cfg.allow_downtime,
+        health_config: _cfg.health_config ?? DEFAULT_HEALTH_CONFIG,
+        boost_registry: _cfg.boost_registry,
+        scratch_row: _scratch_row,
+        use_fast_sim: true,
+    });
+    _cached_hp_sim = result.sim;
+    return result.passed;
 }
 
 function _eval_combo_healing(combo_base) {
-    let total = 0;
-    for (const row of _cfg.parsed_combo) {
-        if (row.pseudo) continue;
-        const { qty, spell, boost_tokens } = row;
-        const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, _cfg.boost_registry, _scratch_row);
-        const eff_qty = row.is_melee_time
-            ? compute_melee_time_hits(qty, combo_base, SPELL_CAST_DELAY)
-            : qty;
-        total += computeSpellHealingTotal(stats, spell) * eff_qty;
-    }
-    return total;
+    return eval_combo_healing(_cfg.parsed_combo, combo_base, _cfg.boost_registry, _scratch_row);
 }
 
 /**
@@ -394,35 +293,14 @@ function _eval_combo_healing(combo_base) {
  * @param {Map} thresh_stats - deep clone of combo_base (may be null; computed lazily)
  */
 function _eval_score(combo_base, thresh_stats) {
-    const target = _cfg.scoring_target ?? 'combo_damage';
-    if (target === 'combo_damage') {
-        return _eval_combo_damage(combo_base);
-    }
-    if (target === 'total_healing') {
-        return _eval_combo_healing(combo_base);
-    }
-    const stats = thresh_stats ?? _assemble_threshold_stats(combo_base);
-    if (target === 'ehp') {
-        return getDefenseStats(stats)[1][0];   // EHP weighted by agility
-    }
-    if (target === 'ehp_no_agi') {
-        return getDefenseStats(stats)[1][1];   // EHP without agility dodge
-    }
-    if (target === 'ehpr') {
-        return getDefenseStats(stats)[3][0];   // EHPR weighted by agility
-    }
-    return stats.get(target) ?? 0;
+    return eval_score_dispatch(_cfg.scoring_target, combo_base,
+        () => _eval_combo_damage(combo_base),
+        () => _eval_combo_healing(combo_base),
+        thresh_stats ?? _assemble_threshold_stats(combo_base));
 }
 
-// ── Helper: get item display name from a statMap ────────────────────────────
-
-function _get_item_name(sm) {
-    if (sm.has('NONE')) return '';
-    // Custom/crafted items: return the CI-/CR- hash so the main thread can decode them
-    const hash = sm.get('hash');
-    if (hash && (hash.slice(0, 3) === 'CI-' || hash.slice(0, 3) === 'CR-')) return hash;
-    return sm.get('displayName') ?? sm.get('name') ?? '';
-}
+// get_item_display_name() — shared from pure/engine.js
+const _get_item_name = get_item_display_name;
 
 // ── Illegal-set tracking ────────────────────────────────────────────────────
 
@@ -621,52 +499,7 @@ function _run_level_enum() {
     // Uses geometric step-down (20 → 4 → 1) for O(50-95) trials worst case.
 
     function _greedy_allocate_sp(build_sm, base_sp, total_sp, assigned_sp, weapon_sm) {
-        let remaining = sp_budget - assigned_sp;
-        if (remaining <= 0) {
-            _scratch_orig_base_sp.set(base_sp);
-            return assigned_sp;
-        }
-
-        // Quick check: any attribute still has room?
-        let any_room = false;
-        for (let i = 0; i < 5; i++) {
-            if (base_sp[i] < 100 && total_sp[i] < 150) { any_room = true; break; }
-        }
-        if (!any_room) {
-            _scratch_orig_base_sp.set(base_sp);
-            return assigned_sp;
-        }
-
-        // Phase 1: Enforce SP floors from ge restrictions (e.g. Int >= 40).
-        // Force-allocate to meet each floor before score-based greedy begins.
-        if (_sp_floors) {
-            for (let i = 0; i < 5; i++) {
-                const deficit = _sp_floors[i] - total_sp[i];
-                if (deficit <= 0) continue;
-                const add = Math.min(deficit, remaining, 100 - base_sp[i], 150 - total_sp[i]);
-                if (add <= 0) continue;
-                base_sp[i] += add;
-                total_sp[i] += add;
-                remaining -= add;
-                assigned_sp += add;
-            }
-            if (remaining <= 0) {
-                _scratch_orig_base_sp.set(base_sp);
-                return assigned_sp;
-            }
-            // Re-check room after floor enforcement
-            any_room = false;
-            for (let i = 0; i < 5; i++) {
-                if (base_sp[i] < 100 && total_sp[i] < 150) { any_room = true; break; }
-            }
-            if (!any_room) {
-                _scratch_orig_base_sp.set(base_sp);
-                return assigned_sp;
-            }
-        }
-
-        // Snapshot post-floor base_sp for mana rescue (stealable = post_greedy - post_floor)
-        _scratch_orig_base_sp.set(base_sp);
+        const remaining = sp_budget - assigned_sp;
 
         const target = _cfg.scoring_target ?? 'combo_damage';
         const need_thresh = (target !== 'combo_damage' && target !== 'total_healing');
@@ -677,38 +510,12 @@ function _run_level_enum() {
             return _eval_score(cb, ts);
         }
 
-        let cur = _trial_score();
-
-        // Precompute per-attribute cap for the greedy loop.
-        // Incorporates le restrictions (e.g. Int <= 80) if set.
         const cap_total = _sp_caps ?? _default_sp_caps;
-
-        for (const step of [20, 4, 1]) {
-            let progress = true;
-            while (progress && remaining > 0) {
-                progress = false;
-                let best_i = -1, best_s = cur;
-
-                for (let i = 0; i < 5; i++) {
-                    const a = Math.min(step, remaining, 100 - base_sp[i], cap_total[i] - total_sp[i]);
-                    if (a <= 0) continue;
-                    total_sp[i] += a;
-                    const s = _trial_score();
-                    total_sp[i] -= a;
-                    if (s > best_s) { best_s = s; best_i = i; }
-                }
-
-                if (best_i >= 0) {
-                    const a = Math.min(step, remaining, 100 - base_sp[best_i], cap_total[best_i] - total_sp[best_i]);
-                    base_sp[best_i] += a;
-                    total_sp[best_i] += a;
-                    remaining -= a;
-                    assigned_sp += a;
-                    cur = best_s;
-                    progress = true;
-                }
-            }
-        }
+        // Snapshot base_sp for mana rescue. on_post_floor re-snapshots after
+        // floor enforcement so rescue sees post-floor (not post-greedy) state.
+        _scratch_orig_base_sp.set(base_sp);
+        assigned_sp += greedy_sp_allocate(base_sp, total_sp, remaining, cap_total,
+            _sp_floors, _trial_score, () => _scratch_orig_base_sp.set(base_sp));
 
         return assigned_sp;
     }
@@ -1212,11 +1019,9 @@ self.onmessage = function (e) {
         _cfg = msg;
         _cancelled = false;
         // Precompute generic slider names for boost token injection
-        _cfg.bp_slider_name = _cfg.health_config?.damage_boost?.slider_name ?? null;
-        _cfg.state_slider_names = {};
-        for (const bs of (_cfg.health_config?.buff_states ?? [])) {
-            if (bs.slider_name) _cfg.state_slider_names[bs.state_name] = bs.slider_name;
-        }
+        const _sn = extract_slider_names(_cfg.health_config);
+        _cfg.bp_slider_name = _sn.bp_slider_name;
+        _cfg.state_slider_names = _sn.state_slider_names;
         try {
             _build_constraint_prechecks();
             _build_sp_constraints();
