@@ -49,14 +49,17 @@ function _wire_encoding_cap(input, min_val, max_val) {
         if (raw === '') { input.classList.remove('encoding-capped'); input.title = ''; return; }
         const num = parseFloat(raw);
         if (isNaN(num)) return;
-        if (num > max_val) {
-            input.value = max_val;
+        // Read limits from DOM attributes so callers can update them dynamically.
+        const cur_max = parseFloat(input.max);
+        const cur_min = parseFloat(input.min);
+        if (num > cur_max) {
+            input.value = cur_max;
             input.classList.add('encoding-capped');
-            input.title = `Capped at ${max_val.toLocaleString()} (encoding limit)`;
-        } else if (num < min_val) {
-            input.value = min_val;
+            input.title = `Capped at ${cur_max.toLocaleString()} (encoding limit)`;
+        } else if (num < cur_min) {
+            input.value = cur_min;
             input.classList.add('encoding-capped');
-            input.title = `Capped at ${min_val.toLocaleString()} (encoding limit)`;
+            input.title = `Capped at ${cur_min.toLocaleString()} (encoding limit)`;
         } else {
             input.classList.remove('encoding-capped');
             input.title = '';

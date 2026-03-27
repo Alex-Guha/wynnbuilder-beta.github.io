@@ -36,11 +36,12 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     qty_inp.type = 'number';
     qty_inp.className = 'combo-row-input combo-row-qty flex-shrink-0';
     qty_inp.value = String(qty_val);
-    qty_inp.min = '0';
-    qty_inp.max = String(COMBO_QTY_MAX);
     qty_inp.step = 'any';
     qty_inp.style.cssText = 'width:3em; text-align:center;';
     _wire_encoding_cap(qty_inp, 0, COMBO_QTY_MAX);
+    // Override min after _wire_encoding_cap: Add Flat Mana allows negative qty.
+    const is_flat_mana_init = parseInt(pending_spell_value) === ADD_FLAT_MANA_SPELL_ID;
+    if (is_flat_mana_init) qty_inp.min = String(-COMBO_QTY_MAX);
     qty_inp.addEventListener('input', () => {
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     });
@@ -49,6 +50,9 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     spell_sel.className = 'form-select form-select-sm text-light bg-dark combo-row-spell';
     spell_sel.innerHTML = '<option value="">— Select Attack —</option>';
     spell_sel.addEventListener('change', () => {
+        // Add Flat Mana allows negative qty (mana drain); others don't.
+        const is_flat_mana = parseInt(spell_sel.value) === ADD_FLAT_MANA_SPELL_ID;
+        qty_inp.min = is_flat_mana ? String(-COMBO_QTY_MAX) : '0';
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     });
 

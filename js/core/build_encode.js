@@ -597,7 +597,7 @@ const _SOLVER_DEFAULTS = {
  * Version 1 binary format — compact binary with default elision.
  *
  * Binary layout (EncodingBitVector):
- *   [3]   version (110 = v6)
+ *   [3]   version (111 = v7)
  *   [10]  field_present bitmask (1 = non-default, field encoded below)
  *          bit 0: roll_groups (default {85,100,85,85})
  *          bit 1: sfree      (default 0)
@@ -635,7 +635,11 @@ const _SOLVER_DEFAULTS = {
  *       [7]   spell_node_id
  *       [7]   qty (0-127)
  *       [1]   mana_excl
- *       [1]   dmg_excl
+ *       [1]   dmg_excl  (v7: reused as sign bit for Add Flat Mana rows)
+ *       --- If spell_node_id == 117 (Add Flat Mana) AND version >= 7:
+ *           Row ends here (16 bits total). dmg_excl = sign (1 = negative qty).
+ *           No has_hits / boosts / timing fields.
+ *       --- Otherwise:
  *       [1]   has_hits
  *       [16]  hits×100 (only if has_hits=1, 0-655.35 hits)
  *       [4]   boost_count (0-15)
@@ -667,8 +671,8 @@ function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
     const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-    // Version: 3 bits (v6 = 110)
-    bv.append(6, 3);
+    // Version: 3 bits (v7 = 111)
+    bv.append(7, 3);
 
     // ── Presence bitmask (10 bits) ──
     // v3: bit 0 → roll_groups (4×7 bits), replaces v2's single roll field
@@ -738,7 +742,19 @@ function encodeSolverParams(params) {
     bv.append(Math.min(255, combo_rows.length), 8);
     for (let i = 0; i < Math.min(255, combo_rows.length); i++) {
         const row = combo_rows[i];
-        bv.append(row.spell_node_id & 0x7F, 7);
+        const node_id = row.spell_node_id & 0x7F;
+        bv.append(node_id, 7);
+
+        // v7: Add Flat Mana short row — qty can be negative, dmg_excl bit = sign.
+        const _ADD_FLAT_MANA_NID = 117;  // ADD_FLAT_MANA_NODE_ID from solver/constants.js
+        if (node_id === _ADD_FLAT_MANA_NID) {
+            const raw_qty = row.qty || 0;
+            bv.append(Math.min(127, Math.abs(raw_qty)), 7);
+            bv.append(row.mana_excl ? 1 : 0, 1);
+            bv.append(raw_qty < 0 ? 1 : 0, 1);  // sign bit (reuse dmg_excl position)
+            continue;
+        }
+
         bv.append(Math.min(127, row.qty || 0), 7);
         bv.append(row.mana_excl ? 1 : 0, 1);
         bv.append(row.dmg_excl ? 1 : 0, 1);

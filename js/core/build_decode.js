@@ -679,7 +679,7 @@ function decodeSolverParams(b64_str) {
             console.warn('[decode] decodeSolverParams: version 0 (extension signal) not supported');
             return null;
         }
-        if (version > 6) {
+        if (version > 7) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -697,10 +697,10 @@ function decodeSolverParams(b64_str) {
                 roll_groups = { damage: r, mana: r, healing: r, misc: r };
             } else {
                 roll_groups = {
-                    damage:  cursor.advanceBy(7),
-                    mana:    cursor.advanceBy(7),
+                    damage: cursor.advanceBy(7),
+                    mana: cursor.advanceBy(7),
                     healing: cursor.advanceBy(7),
-                    misc:    cursor.advanceBy(7),
+                    misc: cursor.advanceBy(7),
                 };
             }
         } else {
@@ -743,6 +743,21 @@ function decodeSolverParams(b64_str) {
         const combo_rows = [];
         for (let i = 0; i < combo_row_count; i++) {
             const spell_node_id = cursor.advanceBy(7);
+
+            // v7: Add Flat Mana short row — 16 bits total, dmg_excl bit = sign.
+            const _ADD_FLAT_MANA_NID = 117;  // ADD_FLAT_MANA_NODE_ID from solver/constants.js
+            if (version >= 7 && spell_node_id === _ADD_FLAT_MANA_NID) {
+                const abs_qty = cursor.advanceBy(7);
+                const mana_excl = cursor.advanceBy(1) === 1;
+                const sign = cursor.advanceBy(1);  // 1 = negative
+                combo_rows.push({
+                    spell_node_id, qty: sign ? -abs_qty : abs_qty,
+                    mana_excl, dmg_excl: false, has_hits: false, hits: 0,
+                    boosts: [], cast_time: undefined, delay: undefined
+                });
+                continue;
+            }
+
             const qty = cursor.advanceBy(7);
             const mana_excl = cursor.advanceBy(1) === 1;
             const dmg_excl = cursor.advanceBy(1) === 1;

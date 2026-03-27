@@ -896,10 +896,10 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
             continue;
         }
 
-        // Add Flat Mana pseudo-spell: inject qty mana at this point
+        // Add Flat Mana pseudo-spell: inject (or drain) qty mana at this point
         if (pseudo === 'add_flat_mana') {
-            if (!mana_excl && qty > 0) {
-                mana = Math.min(max_mana, mana + qty);
+            if (!mana_excl && qty !== 0) {
+                mana = Math.max(0, Math.min(max_mana, mana + qty));
             }
             row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
             continue;
@@ -1144,9 +1144,9 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
         const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0,
                 cast_time: row_cast_time, delay: row_delay } = row;
 
-        // Add Flat Mana: inject qty mana at this point
+        // Add Flat Mana: inject (or drain) qty mana at this point
         if (pseudo === 'add_flat_mana') {
-            if (!mana_excl && qty > 0) mana = Math.min(max_mana, mana + qty);
+            if (!mana_excl && qty !== 0) mana = Math.max(0, Math.min(max_mana, mana + qty));
             continue;
         }
         if (pseudo || qty <= 0 || !spell) continue;

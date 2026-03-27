@@ -20,8 +20,10 @@ function combo_text_to_data(text) {
         const line = raw.trim();
         if (!line || line.startsWith('#')) continue;
         const parts = line.split('|');
-        const qty             = Math.max(0, parseFloat(parts[0]?.trim()) || 1);
+        const raw_qty         = parseFloat(parts[0]?.trim()) || 1;
         const spell_name      = (parts[1] ?? '').trim();
+        // Add Flat Mana allows negative qty (mana drain); others clamp to 0.
+        const qty             = spell_name === 'Add Flat Mana' ? raw_qty : Math.max(0, raw_qty);
         if (!spell_name) continue;
         const boost_tokens_text = (parts[2] ?? '').trim();
         const mana_excl = (parts[3] ?? '').trim() === '1';
