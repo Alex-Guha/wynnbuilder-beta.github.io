@@ -381,6 +381,34 @@ function loadGameData(ctx) {
         }
     }
 
+    // ── Aspects ──
+    const aspectPath = path.join(REPO_ROOT, 'data', LATEST_VERSION, 'aspects.json');
+    let aspects_raw = {};
+    if (fs.existsSync(aspectPath)) {
+        aspects_raw = JSON.parse(fs.readFileSync(aspectPath, 'utf8'));
+    } else {
+        const altPath = path.join(REPO_ROOT, 'data', 'baseline', 'aspects.json');
+        if (fs.existsSync(altPath)) {
+            aspects_raw = JSON.parse(fs.readFileSync(altPath, 'utf8'));
+        }
+    }
+
+    // Build aspect_map and aspect_id_map (mirrors load_aspect.js init_maps)
+    const none_aspect = { displayName: 'No Aspect', id: 256, tier: 'Normal', tiers: [], NONE: true };
+    const aspect_map = new Map();
+    const aspect_id_map = new Map();
+    for (const c of Object.keys(aspects_raw)) {
+        aspect_map.set(c, new Map());
+        aspect_id_map.set(c, new Map());
+        aspect_map.get(c).set(none_aspect.displayName, none_aspect);
+        aspect_id_map.get(c).set(none_aspect.id, none_aspect);
+        for (const aspect of aspects_raw[c]) {
+            aspect.NONE = false;
+            aspect_id_map.get(c).set(aspect.id, aspect);
+            aspect_map.get(c).set(aspect.displayName, aspect);
+        }
+    }
+
     // ── Inject into sandbox ──
     ctx.itemMap = itemMap;
     ctx.idMap = idMap;
@@ -395,8 +423,11 @@ function loadGameData(ctx) {
     ctx.ENC = enc_data;
     ctx.ATREES = atrees;
     ctx.MAJOR_IDS = major_ids;
+    ctx.aspect_map = aspect_map;
+    ctx.aspect_id_map = aspect_id_map;
+    ctx.aspectMap = aspect_map;  // alias used by some code paths
 
-    return { itemMap, sets, tomeMap, none_items, none_tomes };
+    return { itemMap, sets, tomeMap, none_items, none_tomes, aspect_map, aspect_id_map };
 }
 
 // ── URL Hash Decoding ────────────────────────────────────────────────────────
@@ -575,10 +606,17 @@ function buildAtreeMerged(ctx, playerClass, activeNodes, buildStatMap, aspects) 
     }
 
     // Apply aspects.
-    if (aspects && ctx.aspectMap) {
+    // Decoded aspects are [displayName, tier] pairs — resolve to aspect specs
+    // via aspect_map (Map<className, Map<displayName, aspectSpec>>).
+    if (aspects && ctx.aspect_map) {
+        const classAspects = ctx.aspect_map.get(playerClass);
         for (const entry of aspects) {
             if (!entry) continue;
-            const [aspect, tier] = entry;
+            const [aspectNameOrSpec, tier] = entry;
+            // Resolve display name to aspect spec if needed.
+            const aspect = (typeof aspectNameOrSpec === 'string' && classAspects)
+                ? classAspects.get(aspectNameOrSpec)
+                : aspectNameOrSpec;
             if (!aspect || aspect.NONE || !aspect.tiers || !aspect.tiers[tier - 1]) continue;
             const tierData = aspect.tiers[tier - 1];
             if (!tierData.abilities) continue;

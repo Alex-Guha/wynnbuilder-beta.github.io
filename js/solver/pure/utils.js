@@ -230,6 +230,51 @@ function compute_wall_dt(is_melee, is_spell, melee_cd, melee_period, cast_time, 
 }
 
 /**
+ * Compute combo cycle time from parsed combo rows and weapon stats.
+ * Mirrors the logic in combo/node.js:56-92 but without DOM access, so it
+ * can be used by both the solver snapshot (search.js) and tests.
+ *
+ * @param {Array} rows - Parsed combo rows (from _parse_combo_for_search or similar).
+ *     Each row needs: { spell, qty, sim_qty, mana_excl, cast_time, delay, is_melee_time, pseudo? }
+ * @param {Map} weapon_statmap - Weapon statMap (needs 'atkSpd', 'atkTier')
+ * @returns {number} Cycle time in seconds (rounded to 2 decimal places), or 0
+ */
+function compute_combo_cycle_time(rows, weapon_statmap) {
+    let adjAtkSpd_t = attackSpeeds.indexOf(weapon_statmap.get('atkSpd') || 'NORMAL')
+        + (weapon_statmap.get('atkTier') ?? 0);
+    adjAtkSpd_t = Math.max(0, Math.min(6, adjAtkSpd_t));
+    const melee_period = 1 / baseDamageMultiplier[adjAtkSpd_t];
+
+    let auto_time = 0;
+    let melee_cd = 0;
+    for (const row of rows) {
+        if (row.pseudo) continue;
+        if (!row.spell) continue;
+        if (row.mana_excl) continue;
+        // Melee Time: fixed time contribution
+        if (row.is_melee_time) {
+            auto_time += row.qty;
+            melee_cd = 0;
+            continue;
+        }
+        const recast_base = row.spell.mana_derived_from ?? row.spell.base_spell;
+        const is_melee = recast_base === 0;
+        const is_spell = row.spell.cost != null;
+        const eff_cast_time = is_melee ? 0 : (row.cast_time ?? SPELL_CAST_TIME);
+        const eff_delay = row.delay ?? SPELL_CAST_DELAY;
+        const sim_qty = row.sim_qty ?? Math.round(row.qty);
+        for (let i = 0; i < sim_qty; i++) {
+            const dt = compute_wall_dt(is_melee, is_spell, melee_cd, melee_period, eff_cast_time, eff_delay);
+            auto_time += dt.wall_dt;
+            melee_cd = dt.melee_cd;
+        }
+    }
+    // Flush remaining melee cooldown at end of combo
+    auto_time += melee_cd;
+    return auto_time > 0 ? Math.round(auto_time * 100) / 100 : 0;
+}
+
+/**
  * Compute effective melee hit count for a "Melee Time" row.
  * @param {number} qty_seconds - Duration in seconds
  * @param {Map} base_stats - Build stats (needs atkSpd, atkTier)

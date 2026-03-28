@@ -214,18 +214,35 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
             continue;
         }
 
+        // Pseudo-spell: Add Flat Mana (adjusts mana budget directly)
+        const ADD_FLAT_MANA_NID = vm.runInContext('ADD_FLAT_MANA_NODE_ID', ctx);
+        if (node_id === ADD_FLAT_MANA_NID) {
+            parsedCombo.push({ pseudo: 'add_flat_mana', qty: row.qty, mana_excl: row.mana_excl });
+            continue;
+        }
+
+        // Melee Time pseudo-spell: resolve to the melee spell (key 0) and flag
+        // is_melee_time so downstream qty computation uses time-based hits.
+        const is_melee_time = (node_id === ctx.MELEE_TIME_NODE_ID);
+
         // Regular spell or powder special: resolve to spell map key
-        const spell_value_str = ctx.node_id_to_spell_value
-            ? ctx.node_id_to_spell_value(node_id)
-            : String(node_id);
-        const spell_key = parseInt(spell_value_str);
-        const spell = augSpellMap.get(spell_key);
+        let spell;
+        if (is_melee_time) {
+            spell = augSpellMap.get(0) ?? null;
+        } else {
+            const spell_value_str = ctx.node_id_to_spell_value
+                ? ctx.node_id_to_spell_value(node_id)
+                : String(node_id);
+            const spell_key = parseInt(spell_value_str);
+            spell = augSpellMap.get(spell_key);
+        }
         if (!spell) continue;
 
         const entry = {
             qty: row.qty,
             sim_qty: Math.round(row.qty),
             spell,
+            is_melee_time,
             boost_tokens: (row.boosts || []).map(b => ({
                 name: ctx.node_ref_to_boost_name
                     ? ctx.node_ref_to_boost_name(b.node_id, b.effect_pos, atreeMerged)
@@ -235,6 +252,8 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
             })),
             mana_excl: row.mana_excl,
             dmg_excl: row.dmg_excl,
+            cast_time: row.cast_time,
+            delay: row.delay,
         };
 
         // DPS spell info
@@ -273,7 +292,7 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
     if (auto_slider_names_set.size > 0) {
         for (const row of parsedCombo) {
             if (row.boost_tokens) {
-                row.boost_tokens = row.boost_tokens.filter(t => !auto_slider_names_set.has(t.name));
+                row.boost_tokens = row.boost_tokens.filter(t => t.manual || !auto_slider_names_set.has(t.name));
             }
         }
     }
@@ -302,6 +321,9 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
         }
     }
 
+    // ── 13. Combo cycle time ─────────────────────────────────────────────────
+    const combo_time = sp.mana_disabled ? 0 : ctx.compute_combo_cycle_time(parsedCombo, weaponSM);
+
     return {
         weapon: { statMap: weaponSM },
         weapon_sm: weaponSM,
@@ -318,7 +340,7 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
         parsed_combo: parsedCombo,
         boost_registry: boostRegistry,
         scoring_target: snap.scoring_target || 'combo_damage',
-        combo_time: sp.ctime || 0,
+        combo_time,
         allow_downtime: sp.dtime || false,
         hp_casting,
         health_config,
@@ -337,7 +359,7 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
 
 // ── Run solver with worker_threads ───────────────────────────────────────────
 
-function runSolverWorkers(initMsgBase, ringPoolSer, partitions, numWorkers, timeLimitMs) {
+function runSolverWorkers(initMsgBase, ringPoolSer, partitions, numWorkers, timeLimitMs, targetScore) {
     return new Promise((resolve) => {
         const workers = [];
         const allTop = [];
@@ -351,12 +373,17 @@ function runSolverWorkers(initMsgBase, ringPoolSer, partitions, numWorkers, time
         function dispatchNext(worker, workerId) {
             if (timedOut || partitionIdx >= partitions.length) return false;
             const partition = partitions[partitionIdx++];
-            if (workerId === -1) {
-                // First init message
-                const msg = { ...initMsgBase, partition, worker_id: worker._workerId };
-                worker.postMessage(msg);
-            } else {
-                worker.postMessage({ type: 'run', partition, worker_id: workerId });
+            try {
+                if (workerId === -1) {
+                    // First init message
+                    const msg = { ...initMsgBase, partition, worker_id: worker._workerId };
+                    worker.postMessage(msg);
+                } else {
+                    worker.postMessage({ type: 'run', partition, worker_id: workerId });
+                }
+            } catch (err) {
+                console.error(`  [dispatch] postMessage failed for worker ${worker._workerId}:`, err.message);
+                return false;
             }
             return true;
         }
@@ -371,6 +398,15 @@ function runSolverWorkers(initMsgBase, ringPoolSer, partitions, numWorkers, time
             if (msg.top5_names) {
                 for (const entry of msg.top5_names) {
                     progressTop.push(entry);
+                }
+                // Early termination: if any worker found a build meeting the target,
+                // stop all workers immediately instead of waiting for the full timeout.
+                if (targetScore != null && !timedOut) {
+                    const best = msg.top5_names[0];
+                    if (best && best.score >= targetScore) {
+                        timedOut = true;
+                        cleanup();
+                    }
                 }
             }
         }
@@ -438,7 +474,7 @@ function runSolverWorkers(initMsgBase, ringPoolSer, partitions, numWorkers, time
             w.on('message', (msg) => {
                 if (msg.type === 'done') onDone(msg);
                 else if (msg.type === 'progress') onProgress(msg);
-                // Ignore ready messages
+                else if (msg.type === 'worker_error') console.error(`  Worker ${i} error:`, msg.message);
             });
             w.on('error', (err) => {
                 console.error(`  Worker ${i} error:`, err.message);
@@ -663,7 +699,7 @@ async function runSolverTest(snapName) {
     console.log(`  [${snapName}] ${partitions.length} partitions, ${numWorkers} workers, ${timeLimitMs / 1000}s limit`);
 
     const t0 = Date.now();
-    const result = await runSolverWorkers(initMsgBase, ringPoolSer, partitions, numWorkers, timeLimitMs);
+    const result = await runSolverWorkers(initMsgBase, ringPoolSer, partitions, numWorkers, timeLimitMs, snap.expected_min_score);
     const elapsed = Date.now() - t0;
 
     console.log(`  [${snapName}] checked: ${result.checked}, feasible: ${result.feasible}, top5: ${result.top5?.length}, time: ${elapsed}ms${result.timedOut ? ' (timed out)' : ''}`);

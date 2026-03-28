@@ -241,8 +241,7 @@ function _build_solver_snapshot(restrictions) {
     const scoring_target = document.getElementById('solver-target')?.value ?? 'combo_damage';
 
     const mana_enabled = document.getElementById('combo-mana-btn')?.classList.contains('toggleOn') ?? true;
-    const combo_time_text = document.getElementById('combo-cycle-time-display')?.textContent ?? '';
-    const combo_time = mana_enabled ? (parseFloat(combo_time_text.replace(/[^0-9.]/g, '')) || 0) : 0;
+    const combo_time = mana_enabled ? compute_combo_cycle_time(parsed_combo, weapon.statMap) : 0;
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
 
     // Extract health_config so workers can dynamically compute per-candidate

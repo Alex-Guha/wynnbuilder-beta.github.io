@@ -64,9 +64,17 @@ for (const relPath of WORKER_DEPS) {
     vm.runInContext(fs.readFileSync(absPath, 'utf8'), ctx, { filename: absPath });
 }
 
-// Load worker.js itself.
+// Load worker.js with patched progress interval for faster reporting in tests.
+// In the browser, PROGRESS_INTERVAL=5000 is fine (workers check millions of builds).
+// In tests, leaf evaluation is much slower (VM overhead), so we report more often
+// to ensure top5 results reach the parent before timeout.
 const workerPath = path.join(REPO_ROOT, 'js', 'solver', 'engine', 'worker.js');
-vm.runInContext(fs.readFileSync(workerPath, 'utf8'), ctx, { filename: workerPath });
+let workerCode = fs.readFileSync(workerPath, 'utf8');
+workerCode = workerCode.replace(
+    'const PROGRESS_INTERVAL = 5000;',
+    'const PROGRESS_INTERVAL = 50;'
+);
+vm.runInContext(workerCode, ctx, { filename: workerPath });
 
 // Relay messages from parent to the worker's self.onmessage.
 parentPort.on('message', (msg) => {
@@ -74,7 +82,7 @@ parentPort.on('message', (msg) => {
         try {
             ctx.self.onmessage({ data: msg });
         } catch (err) {
-            console.error('[worker_thread] onmessage error:', err.message, err.stack);
+            parentPort.postMessage({ type: 'worker_error', message: `[worker_thread] ${err.message}\n${err.stack}` });
             parentPort.postMessage({ type: 'done', worker_id: msg.worker_id ?? 0, checked: 0, feasible: 0, top5: [] });
         }
     }

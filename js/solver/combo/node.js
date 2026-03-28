@@ -54,38 +54,13 @@ class SolverComboTotalNode extends ComputeNode {
         let rows = this._read_combo_rows(aug_spell_map);
 
         // Auto-compute cycle time from spell sequence.
+        // Annotate rows with mana_excl so the shared helper can process them.
+        for (const r of rows) {
+            r.mana_excl = r.dom_row?.querySelector('.combo-mana-toggle')
+                ?.classList.contains('mana-excluded') ?? false;
+        }
+        this._auto_cycle_time = compute_combo_cycle_time(rows, base_stats);
         {
-            let adjAtkSpd_t = attackSpeeds.indexOf(base_stats.get('atkSpd'))
-                + (base_stats.get('atkTier') ?? 0);
-            adjAtkSpd_t = Math.max(0, Math.min(6, adjAtkSpd_t));
-            const melee_period = 1 / baseDamageMultiplier[adjAtkSpd_t];
-
-            let auto_time = 0;
-            let melee_cd = 0;
-            for (const { qty, sim_qty, spell, dom_row, cast_time, delay, is_melee_time } of rows) {
-                if (!spell) continue;
-                const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
-                    ?.classList.contains('mana-excluded') ?? false;
-                if (mana_excl) continue;
-                // Melee Time: fixed time contribution
-                if (is_melee_time) {
-                    auto_time += qty;
-                    melee_cd = 0;
-                    continue;
-                }
-                const recast_base = spell.mana_derived_from ?? spell.base_spell;
-                const is_melee = recast_base === 0;
-                const is_spell = spell.cost != null;
-                const eff_cast_time = is_melee ? 0 : cast_time;
-                for (let i = 0; i < sim_qty; i++) {
-                    const dt = compute_wall_dt(is_melee, is_spell, melee_cd, melee_period, eff_cast_time, delay);
-                    auto_time += dt.wall_dt;
-                    melee_cd = dt.melee_cd;
-                }
-            }
-            // Flush any remaining melee cooldown at end of combo
-            auto_time += melee_cd;
-            this._auto_cycle_time = auto_time > 0 ? Math.round(auto_time * 100) / 100 : 0;
             const ct_display = document.getElementById('combo-cycle-time-display');
             if (ct_display) ct_display.textContent = this._auto_cycle_time > 0
                 ? `Cycle Time: ${this._auto_cycle_time}s` : '';
@@ -336,7 +311,8 @@ class SolverComboTotalNode extends ComputeNode {
                 && spell_id !== 0 && spell_id !== MELEE_TIME_SPELL_ID
                 && spell_id !== MANA_RESET_SPELL_ID
                 && ![...STATE_CANCEL_IDS.values()].includes(spell_id);
-            const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID;
+            const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID
+                || (spell && spell._is_powder_special);
             if (is_cast_spell) {
                 const ct_inp = row.querySelector('.combo-row-cast-time');
                 const dl_inp = row.querySelector('.combo-row-delay');
@@ -481,6 +457,8 @@ class SolverComboTotalNode extends ComputeNode {
                     row.querySelector('.combo-dmg-toggle')?.classList.add('dmg-excluded');
                 }
             }
+            // Re-evaluate timing button highlight for URL-restored overrides.
+            _update_timing_btn_highlight(row);
         }
     }
 
@@ -753,7 +731,8 @@ class SolverComboTotalNode extends ComputeNode {
                 && spell_id !== 0 && spell_id !== MELEE_TIME_SPELL_ID
                 && spell_id !== MANA_RESET_SPELL_ID
                 && ![...STATE_CANCEL_IDS.values()].includes(spell_id);
-            const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID;
+            const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID
+                || (spell && spell._is_powder_special);
             btn.disabled = !(is_cast_spell || is_melee);
             // Melee ignores cast time — grey out that field.
             const ct_field = row.querySelector('.timing-cast-time');
