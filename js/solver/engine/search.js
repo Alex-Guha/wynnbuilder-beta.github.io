@@ -155,6 +155,7 @@ function _parse_combo_for_search(spell_map, weapon) {
                     ?.classList.contains('mana-excluded') ?? false,
                 cast_time: r.cast_time,
                 delay: r.delay,
+                auto_delay: r.auto_delay,
                 is_melee_time: r.is_melee_time || false,
             };
             // DPS spells with a Total/Max part: pass per-hit display name and
@@ -248,6 +249,10 @@ function _build_solver_snapshot(restrictions) {
     // blood pact bonuses, corruption state, etc.
     const health_config = atree_mgd ? extract_health_config(atree_mgd) : null;
     const hp_casting = health_config?.hp_casting ?? false;
+    const has_dynamic_sliders = !!(
+        health_config?.damage_boost?.slider_name ||
+        health_config?.buff_states?.some(bs => bs.slider_name)
+    );
     // Precompute per-row recast penalty (build-independent, combo-sequence-dependent).
     // Workers need this for accurate mana tracking in both blood pact bonus computation
     // and the non-blood-pact mana budget check (_eval_combo_mana_check).
@@ -256,7 +261,7 @@ function _build_solver_snapshot(restrictions) {
     // Build set of auto-filled slider names that must be stripped from parsed_combo
     // rows — workers compute these dynamically per candidate build.
     const auto_slider_names = new Set();
-    if (hp_casting && health_config) {
+    if ((hp_casting || has_dynamic_sliders) && health_config) {
         if (health_config.damage_boost?.slider_name)
             auto_slider_names.add(health_config.damage_boost.slider_name);
         for (const bs of health_config.buff_states)
@@ -304,7 +309,7 @@ function _build_solver_snapshot(restrictions) {
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
         restrictions, button_states, slider_states, scoring_target,
-        combo_time, allow_downtime, hp_casting, health_config, auto_slider_names: [...auto_slider_names], spell_base_costs,
+        combo_time, allow_downtime, hp_casting, has_dynamic_sliders, health_config, auto_slider_names: [...auto_slider_names], spell_base_costs,
     };
 }
 
@@ -379,14 +384,14 @@ function _eval_current_build(snap, restrictions) {
     // Falling back to calculate_skillpoints only when no override exists.
     let base_sp, total_sp, assigned_sp;
     if (_solver_sp_override?.total_sp) {
-        base_sp  = [..._solver_sp_override.base_sp];
+        base_sp = [..._solver_sp_override.base_sp];
         total_sp = [..._solver_sp_override.total_sp];
         assigned_sp = _solver_sp_override.assigned_sp ?? base_sp.reduce((a, b) => a + b, 0);
     } else {
         const sp_equip = [...equip_sms, snap.guild_tome_item.statMap];
         const sp_result = calculate_skillpoints(sp_equip, snap.weapon_sm, snap.sp_budget);
         if (!sp_result) { console.warn('[seed] rejected: SP infeasible'); return null; }
-        base_sp  = sp_result[0];
+        base_sp = sp_result[0];
         total_sp = sp_result[1];
         assigned_sp = sp_result[2];
     }
@@ -991,6 +996,7 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         combo_time: snap.combo_time,
         allow_downtime: snap.allow_downtime,
         hp_casting: snap.hp_casting,
+        has_dynamic_sliders: snap.has_dynamic_sliders,
         health_config: snap.health_config,
         auto_slider_names: snap.auto_slider_names,
         spell_base_costs: snap.spell_base_costs,
@@ -1141,19 +1147,32 @@ function _debug_reeval_top1() {
 
     const result = eval_combo_damage_with_bp(combo_base, snap.weapon.statMap, snap.parsed_combo, {
         hp_casting: snap.hp_casting,
+        has_dynamic_sliders: snap.has_dynamic_sliders,
         health_config: snap.health_config,
         boost_registry: snap.boost_registry,
         atree_merged: snap.atree_mgd,
     }, { debug: true, debug_label: '[SOLVER]' });
 
     if (result.hp_sim) {
-        console.log('[COMBO-DEBUG][SOLVER] sim results:', JSON.stringify(result.hp_sim.row_results.map((r, i) => ({
+        console.log('[COMBO-DEBUG][SOLVER] sim rows:', JSON.stringify(result.hp_sim.row_results.map((r, i) => ({
             row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
-            states: r.state_values, hp_warn: r.hp_warning,
+            states: r.state_values, hp_warn: r.hp_warning, mana_warn: r.mana_warning,
+            computed_delay: r.computed_delay,
+            mana_lost: Math.round(r.mana_lost * 100) / 100,
+            elapsed_t: Math.round((r.elapsed_time ?? 0) * 1000) / 1000,
+            row_dt: Math.round((r.row_dt ?? 0) * 1000) / 1000,
+            cast_time: r.cast_time, delay: r.delay,
         }))));
-        console.log('[COMBO-DEBUG][SOLVER] sim end_mana:', result.hp_sim.end_mana,
-            'end_hp:', Math.round(result.hp_sim.end_hp), 'max_hp:', result.hp_sim.max_hp,
-            'start_mana:', result.hp_sim.start_mana);
+        console.log('[COMBO-DEBUG][SOLVER] sim mana:', JSON.stringify({
+            start: result.hp_sim.start_mana, end: result.hp_sim.end_mana, max: result.hp_sim.max_mana,
+            total_cost: Math.round(result.hp_sim.total_mana_cost * 100) / 100,
+            recast_penalty: Math.round(result.hp_sim.recast_penalty_total * 100) / 100,
+            wasted: Math.round((result.hp_sim.mana_wasted ?? 0) * 100) / 100,
+        }));
+        console.log('[COMBO-DEBUG][SOLVER] sim hp:', JSON.stringify({
+            end: Math.round(result.hp_sim.end_hp), max: result.hp_sim.max_hp,
+            melee_hits: result.hp_sim.melee_hits,
+        }));
     }
 }
 
@@ -1305,7 +1324,7 @@ function _run_solver_search_workers(pools, locked, snap) {
     // Spawn workers: send heavy 'init' with first partition, then 'run' for subsequent
     const actual_workers = Math.min(num_workers, partitions.length);
     for (let i = 0; i < actual_workers; i++) {
-        const w = new Worker('../js/solver/engine/worker.js?v=4');
+        const w = new Worker('../js/solver/engine/worker.js?v=5');
         const wstate = {
             worker: w, done: true, checked: 0, feasible: 0, met_req: 0, top5: [],
             _cur_checked: 0, _cur_feasible: 0, _cur_met_req: 0, _cur_top5: [],

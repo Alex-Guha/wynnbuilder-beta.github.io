@@ -25,7 +25,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
 
     // ── Pre-pass: serialize DOM state into pure rows ──
     const pure_rows = [];
-    for (const { qty, sim_qty, spell, boost_tokens, dom_row, cast_time, delay, is_melee_time } of rows) {
+    for (const { qty, sim_qty, spell, boost_tokens, dom_row, cast_time, delay, auto_delay, is_melee_time } of rows) {
         const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
         const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
             ?.classList.contains('mana-excluded') ?? false;
@@ -41,7 +41,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
         }
 
         pure_rows.push({ qty, sim_qty, spell, boost_tokens, mana_excl, pseudo,
-            recast_penalty_per_cast: 0, cast_time, delay, is_melee_time });
+            recast_penalty_per_cast: 0, cast_time, delay, is_melee_time, auto_delay });
     }
 
     // Compute recast penalties via shared pure function
@@ -67,6 +67,22 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
                 }
             }
         }
+        // Auto-fill cast delay when any buff_state computed a delay override
+        if (res.computed_delay != null) {
+            const dl_inp = dom_row.querySelector('.combo-row-delay');
+            if (dl_inp) {
+                if (dl_inp.dataset.auto === undefined) dl_inp.dataset.auto = 'true';
+                if (dl_inp.dataset.auto === 'true') {
+                    const val = String(Math.round(res.computed_delay * 1000) / 1000);
+                    dl_inp.value = val;
+                    // Sync the visible timing popup input if it exists
+                    const popup_inp = dom_row.querySelector('.timing-cast-delay');
+                    if (popup_inp) popup_inp.value = val;
+                }
+            }
+            _update_timing_btn_highlight(dom_row);
+        }
+
         // Generic: auto-fill damage boost slider (Blood Pact)
         const db = health_config.damage_boost;
         if (db?.slider_name) {

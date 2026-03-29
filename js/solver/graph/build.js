@@ -347,7 +347,8 @@ function _collect_solver_params() {
                 hits = qty_raw;
             }
 
-            // Per-row timing: cast spells and melee (not pseudo-spells).
+            // Per-row timing: only encode when delay was manually set.
+            // Auto delays are build-dependent and recomputed on restore.
             let cast_time, delay;
             const spell = solver_combo_total_node._spell_map_cache?.get(spell_id);
             const is_cast_spell = spell && spell.cost != null
@@ -355,13 +356,18 @@ function _collect_solver_params() {
                 && ![...STATE_CANCEL_IDS.values()].includes(spell_id);
             const is_melee = spell_id === 0;
             if (is_cast_spell) {
-                const ct_inp = row.querySelector('.combo-row-cast-time');
                 const dl_inp = row.querySelector('.combo-row-delay');
-                cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
-                delay = dl_inp ? parseFloat(dl_inp.value) : SPELL_CAST_DELAY;
+                if (dl_inp?.dataset.auto === 'false') {
+                    const ct_inp = row.querySelector('.combo-row-cast-time');
+                    cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
+                    delay = parseFloat(dl_inp.value);
+                }
             } else if (is_melee) {
-                cast_time = 0;
-                delay = parseFloat(row.querySelector('.combo-row-delay')?.value) || SPELL_CAST_DELAY;
+                const dl_inp = row.querySelector('.combo-row-delay');
+                if (dl_inp?.dataset.auto === 'false') {
+                    cast_time = 0;
+                    delay = parseFloat(dl_inp.value) || SPELL_CAST_DELAY;
+                }
             }
 
             combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts, cast_time, delay });

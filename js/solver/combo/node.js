@@ -46,15 +46,31 @@ class SolverComboTotalNode extends ComputeNode {
         const registry = build_combo_boost_registry(atree_mg ?? new Map(), build);
         this._registry_cache = registry;
         this._refresh_selection_boosts(registry);
-        this._refresh_selection_timing(aug_spell_map);
         this._apply_pending_selection_data();
+        this._refresh_selection_timing(aug_spell_map);
 
         const crit_chance = skillPointsToPercentage(base_stats.get('dex'));
 
         let rows = this._read_combo_rows(aug_spell_map);
 
-        // Auto-compute cycle time from spell sequence.
-        // Annotate rows with mana_excl so the shared helper can process them.
+        // Annotate rows with mana_excl for shared helpers.
+        for (const r of rows) {
+            r.mana_excl = r.dom_row?.querySelector('.combo-mana-toggle')
+                ?.classList.contains('mana-excluded') ?? false;
+        }
+
+        // Run simulation pre-pass to determine per-row Blood Pact bonus,
+        // corruption %, health warnings, and mana tracking. Also auto-fills
+        // the calculated boost fields, Corrupted sliders, and cast delays
+        // (compute_delay), so the damage loop reads the correct boost values.
+        const sim_result = simulate_spell_by_spell(
+            rows, base_stats, aug_spell_map, registry,
+            this._health_config ?? DEFAULT_HEALTH_CONFIG, build);
+        // Re-read rows so boost_tokens and auto-filled delays reflect simulation output.
+        rows = this._read_combo_rows(aug_spell_map);
+
+        // Auto-compute cycle time AFTER simulation, since simulate_spell_by_spell
+        // may auto-fill cast delays (e.g. compute_delay for Manic Edge drain).
         for (const r of rows) {
             r.mana_excl = r.dom_row?.querySelector('.combo-mana-toggle')
                 ?.classList.contains('mana-excluded') ?? false;
@@ -65,16 +81,6 @@ class SolverComboTotalNode extends ComputeNode {
             if (ct_display) ct_display.textContent = this._auto_cycle_time > 0
                 ? `Cycle Time: ${this._auto_cycle_time}s` : '';
         }
-
-        // Run simulation pre-pass to determine per-row Blood Pact bonus,
-        // corruption %, health warnings, and mana tracking. Also auto-fills
-        // the calculated boost fields and Corrupted sliders, so the damage loop
-        // reads the correct boost values.
-        const sim_result = simulate_spell_by_spell(
-            rows, base_stats, aug_spell_map, registry,
-            this._health_config ?? DEFAULT_HEALTH_CONFIG, build);
-        // Re-read rows so boost_tokens reflect auto-filled Blood Pact / Corrupted values.
-        rows = this._read_combo_rows(aug_spell_map);
 
         // ── Pre-parse rows: extract DOM state for pure function ──
         const parsed_rows = [];
@@ -101,13 +107,34 @@ class SolverComboTotalNode extends ComputeNode {
             const item_names = build.equipment.map(it =>
                 it.statMap.get('displayName') ?? it.statMap.get('name') ?? '').filter(n => n);
             console.log('[COMBO-DEBUG][PAGE] items:', item_names.join(', '));
-            console.log('[COMBO-DEBUG][PAGE] sim results:', JSON.stringify(sim_result.row_results.map((r, i) => ({
+            const _dbg_rows = sim_result.row_results.map((r, i) => ({
                 row: i, bp_bonus: Math.round(r.blood_pact_bonus * 100) / 100,
-                states: r.state_values, hp_warn: r.hp_warning,
-            }))));
-            console.log('[COMBO-DEBUG][PAGE] sim end_mana:', sim_result.end_mana,
-                'end_hp:', Math.round(sim_result.end_hp), 'max_hp:', sim_result.max_hp,
-                'start_mana:', sim_result.start_mana);
+                states: r.state_values, hp_warn: r.hp_warning, mana_warn: r.mana_warning,
+                computed_delay: r.computed_delay,
+                mana_lost: Math.round(r.mana_lost * 100) / 100,
+                mana_gained: Math.round((r.mana_gained ?? 0) * 100) / 100,
+                elapsed_t: Math.round((r.elapsed_time ?? 0) * 1000) / 1000,
+                row_dt: Math.round((r.row_dt ?? 0) * 1000) / 1000,
+                cast_time: r.cast_time, delay: r.delay,
+            }));
+            if (_dbg_rows.length) {
+                const _cols = Object.keys(_dbg_rows[0]);
+                const _csv = [_cols.join(','), ..._dbg_rows.map(r => _cols.map(k => {
+                    const v = r[k];
+                    return typeof v === 'object' ? JSON.stringify(v) : v;
+                }).join(','))].join('\n');
+                console.log('[COMBO-DEBUG][PAGE] sim rows CSV:\n' + _csv);
+            }
+            console.log('[COMBO-DEBUG][PAGE] sim mana:', JSON.stringify({
+                start: sim_result.start_mana, end: sim_result.end_mana, max: sim_result.max_mana,
+                total_cost: Math.round(sim_result.total_mana_cost * 100) / 100,
+                recast_penalty: Math.round(sim_result.recast_penalty_total * 100) / 100,
+                wasted: Math.round((sim_result.mana_wasted ?? 0) * 100) / 100,
+            }));
+            console.log('[COMBO-DEBUG][PAGE] sim hp:', JSON.stringify({
+                end: Math.round(sim_result.end_hp), max: sim_result.max_hp,
+                melee_hits: sim_result.melee_hits,
+            }));
         }
         const dmg_result = compute_combo_damage_totals(
             base_stats, weapon, parsed_rows, crit_chance, registry, atree_mg,
@@ -260,9 +287,10 @@ class SolverComboTotalNode extends ComputeNode {
             const dl_inp = row.querySelector('.combo-row-delay');
             const cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
             const delay = dl_inp ? parseFloat(dl_inp.value) : SPELL_CAST_DELAY;
+            const auto_delay = dl_inp ? (dl_inp.dataset.auto !== 'false') : true;
             const is_melee_time = (spell_id === MELEE_TIME_SPELL_ID);
             const eff_spell = is_melee_time ? (spell_map.get(0) ?? null) : spell;
-            return { qty, sim_qty: Math.round(qty), spell: eff_spell, boost_tokens, dom_row: row, cast_time, delay, is_melee_time };
+            return { qty, sim_qty: Math.round(qty), spell: eff_spell, boost_tokens, dom_row: row, cast_time, delay, auto_delay, is_melee_time };
         });
     }
 
@@ -314,13 +342,18 @@ class SolverComboTotalNode extends ComputeNode {
             const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID
                 || (spell && spell._is_powder_special);
             if (is_cast_spell) {
-                const ct_inp = row.querySelector('.combo-row-cast-time');
                 const dl_inp = row.querySelector('.combo-row-delay');
-                cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
-                delay = dl_inp ? parseFloat(dl_inp.value) : SPELL_CAST_DELAY;
+                if (dl_inp?.dataset.auto === 'false') {
+                    const ct_inp = row.querySelector('.combo-row-cast-time');
+                    cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
+                    delay = parseFloat(dl_inp.value);
+                }
             } else if (is_melee) {
-                cast_time = 0;
-                delay = parseFloat(row.querySelector('.combo-row-delay')?.value) || SPELL_CAST_DELAY;
+                const dl_inp = row.querySelector('.combo-row-delay');
+                if (dl_inp?.dataset.auto === 'false') {
+                    cast_time = 0;
+                    delay = parseFloat(dl_inp.value) || SPELL_CAST_DELAY;
+                }
             }
             return { qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl, hits, cast_time, delay };
         });
@@ -734,9 +767,13 @@ class SolverComboTotalNode extends ComputeNode {
             const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID
                 || (spell && spell._is_powder_special);
             btn.disabled = !(is_cast_spell || is_melee);
-            // Melee ignores cast time — grey out that field.
+            // Melee ignores cast time — force hidden input to 0 and grey out the field.
+            const ct_hidden = row.querySelector('.combo-row-cast-time');
+            if (is_melee && ct_hidden) ct_hidden.value = '0';
             const ct_field = row.querySelector('.timing-cast-time');
             if (ct_field) ct_field.disabled = is_melee;
+            if (is_melee && ct_field) ct_field.value = '0';
+            _update_timing_btn_highlight(row);
         }
     }
 
@@ -856,6 +893,10 @@ class SolverComboTotalNode extends ComputeNode {
             html +=
                 `<hr class="my-1 border-secondary">` +
                 `<div>Ending mana: ${Math.round(end_mana)} / ${display_start_mana}</div>`;
+            const mana_waste = sim_result.mana_wasted ?? 0;
+            if (mana_waste > 0) {
+                html += `<div>Excess Mana: ${Math.round(mana_waste)}</div>`;
+            }
             // For BP builds, additionally show ending HP
             if (show_hp) {
                 html += `<div>Ending HP: ${Math.round(sim_result.end_hp)} / ${sim_result.max_hp}</div>`;

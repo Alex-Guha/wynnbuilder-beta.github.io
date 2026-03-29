@@ -216,17 +216,19 @@ function _apply_radiance_scale_inplace(statMap, boost) {
  * @param {number} melee_period - attack-speed-based melee cooldown (1/dmgMult)
  * @param {number} cast_time  - spell cast time (0 for melee)
  * @param {number} delay      - post-action delay
- * @returns {{ wall_dt: number, melee_cd: number }}
+ * @returns {{ pre_dt: number, post_dt: number, melee_cd: number }}
+ *   pre_dt  — wall-clock time *before* the action (cast time / melee cooldown wait)
+ *   post_dt — wall-clock time *after* the action (cast delay)
  */
 function compute_wall_dt(is_melee, is_spell, melee_cd, melee_period, cast_time, delay) {
     if (is_melee) {
-        return { wall_dt: melee_cd + delay, melee_cd: Math.max(0, melee_period - delay) };
+        return { pre_dt: melee_cd, post_dt: delay, melee_cd: Math.max(0, melee_period - delay) };
     }
     if (is_spell) {
         const spell_dt = cast_time + delay;
-        return { wall_dt: spell_dt, melee_cd: Math.max(0, melee_cd - spell_dt) };
+        return { pre_dt: cast_time, post_dt: delay, melee_cd: Math.max(0, melee_cd - spell_dt) };
     }
-    return { wall_dt: 0, melee_cd };
+    return { pre_dt: 0, post_dt: 0, melee_cd };
 }
 
 /**
@@ -265,7 +267,7 @@ function compute_combo_cycle_time(rows, weapon_statmap) {
         const sim_qty = row.sim_qty ?? Math.round(row.qty);
         for (let i = 0; i < sim_qty; i++) {
             const dt = compute_wall_dt(is_melee, is_spell, melee_cd, melee_period, eff_cast_time, eff_delay);
-            auto_time += dt.wall_dt;
+            auto_time += dt.pre_dt + dt.post_dt;
             melee_cd = dt.melee_cd;
         }
     }

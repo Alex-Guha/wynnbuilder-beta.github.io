@@ -11832,7 +11832,17 @@
                 "duration": 5,
                 "cooldown": 5
             },
-            "effects": []
+            "effects": [
+                {
+                    "type": "buff_state",
+                    "state_name": "Vanished",
+                    "activate_on": { "spell": 2 },
+                    "deactivate": "next_action",
+                    "duration": 5,
+                    "suppress_healing": true,
+                    "suppress_mana_regen": true
+                }
+            ]
         },
         {
             "display_name": "Sticky Bomb",

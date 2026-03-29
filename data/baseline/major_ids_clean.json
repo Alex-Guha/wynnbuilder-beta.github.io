@@ -3359,6 +3359,14 @@
                         "scaling": [
                             5
                         ]
+                    },
+                    {
+                        "type": "buff_state",
+                        "state_name": "Vanished",
+                        "drain_pct_per_second": { "mana": 5 },
+                        "compute_delay": true,
+                        "apply_to_next": true,
+                        "slider_name": "Mana Lost"
                     }
                 ]
             }

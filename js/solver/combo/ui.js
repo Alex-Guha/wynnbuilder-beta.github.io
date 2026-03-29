@@ -189,6 +189,7 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     dl_inp.type = 'hidden';
     dl_inp.className = 'combo-row-delay';
     dl_inp.value = String(pending_delay ?? SPELL_CAST_DELAY);
+    dl_inp.dataset.auto = (pending_delay == null) ? 'true' : 'false';
 
     // Wrap toggles + damage in a group so they always move to line 2 together
     // when the row wraps, instead of splitting across lines.
@@ -286,7 +287,31 @@ function _build_timing_popup_content(popup, cast_time, delay) {
             const row = popup.closest('.combo-row');
             if (!row) return;
             const hidden = row.querySelector(cls === 'timing-cast-time' ? '.combo-row-cast-time' : '.combo-row-delay');
-            if (hidden) hidden.value = inp.value;
+            if (hidden) {
+                hidden.value = inp.value;
+                // Mark delay as manually set so auto-fill doesn't overwrite it
+                if (cls === 'timing-cast-delay') hidden.dataset.auto = 'false';
+            }
+            _update_timing_btn_highlight(row);
+            if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+        });
+        inp.addEventListener('blur', () => {
+            if (inp.value !== '' && !isNaN(parseFloat(inp.value))) return;
+            const row = popup.closest('.combo-row');
+            if (!row) return;
+            const hidden = row.querySelector(cls === 'timing-cast-time' ? '.combo-row-cast-time' : '.combo-row-delay');
+            if (cls === 'timing-cast-delay') {
+                // Reset delay to default and restore auto mode so autocalc can fill it.
+                inp.value = String(def);
+                if (hidden) { hidden.value = inp.value; hidden.dataset.auto = 'true'; }
+            } else {
+                // Reset cast time to the spell-appropriate default.
+                const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
+                const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID || spell_id < 0;
+                const reset_val = is_melee ? 0 : def;
+                inp.value = String(reset_val);
+                if (hidden) hidden.value = inp.value;
+            }
             _update_timing_btn_highlight(row);
             if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
         });
@@ -303,7 +328,11 @@ function _update_timing_btn_highlight(row) {
     if (!btn) return;
     const ct = parseFloat(row.querySelector('.combo-row-cast-time')?.value);
     const dl = parseFloat(row.querySelector('.combo-row-delay')?.value);
-    const custom = (!isNaN(ct) && ct !== SPELL_CAST_TIME) || (!isNaN(dl) && dl !== SPELL_CAST_DELAY);
+    // Melee and powder specials have a default cast_time of 0, not SPELL_CAST_TIME.
+    const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
+    const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID || spell_id < 0;
+    const default_ct = is_melee ? 0 : SPELL_CAST_TIME;
+    const custom = (!isNaN(ct) && ct !== default_ct) || (!isNaN(dl) && dl !== SPELL_CAST_DELAY);
     btn.classList.toggle('toggleOn', custom);
 }
 

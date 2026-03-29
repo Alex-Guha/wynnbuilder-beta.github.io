@@ -42,11 +42,11 @@ const _INDIRECT_CONSTRAINT_STATS = INDIRECT_CONSTRAINT_STATS;
 
 // Mapping from indirect constraint stats to the direct item stats that contribute to them.
 const _INDIRECT_CONTRIBUTORS = {
-    ehp: ['hpBonus', 'hprRaw', 'hprPct', 'eDef', 'tDef', 'wDef', 'fDef', 'aDef'],
-    ehp_no_agi: ['hpBonus', 'hprRaw', 'hprPct', 'eDef', 'tDef', 'wDef', 'fDef', 'aDef'],
+    ehp: ['hpBonus'],
+    ehp_no_agi: ['hpBonus'],
     total_hp: ['hpBonus'],
     hpr: ['hprRaw', 'hprPct'],
-    ehpr: ['hprRaw', 'hprPct', 'eDef', 'tDef', 'wDef', 'fDef', 'aDef'],
+    ehpr: ['hpBonus', 'hprRaw', 'hprPct'],
 };
 
 // Dampening for indirect constraint sensitivity — indirect stats are noisier
@@ -147,6 +147,7 @@ const _DEFAULT_DELTAS = {
 function _eval_sensitivity_combo_damage(combo_base, snap) {
     return eval_combo_damage_with_bp(combo_base, snap.weapon_sm, snap.parsed_combo, {
         hp_casting: snap.hp_casting,
+        has_dynamic_sliders: snap.has_dynamic_sliders,
         health_config: snap.health_config,
         boost_registry: snap.boost_registry,
         atree_merged: snap.atree_mgd,
@@ -339,7 +340,14 @@ function _compute_sensitivity_weights(snap, locked, pools) {
     // 3. Assemble combo stats
     const combo_base = _assemble_baseline_combo(build_sm, total_sp, snap);
 
-    // 4. Baseline score
+    // 4. Baseline score & perturbation
+    // Suppress has_dynamic_sliders during perturbation — the drain mechanic
+    // creates extreme non-linearity at the degenerate baseline (locked items
+    // only → tiny mana pool), producing wildly inflated maxMana sensitivity
+    // that cascades into all constraint/mana bonuses via max_abs.
+    const saved_has_dyn = snap.has_dynamic_sliders;
+    snap.has_dynamic_sliders = false;
+
     const baseline_score = _sensitivity_eval_score(combo_base, snap);
 
     // 5. Pool-calibrated deltas
@@ -352,6 +360,7 @@ function _compute_sensitivity_weights(snap, locked, pools) {
         if (SOLVER_DEBUG_SENSITIVITY) {
             console.log('[solver][sensitivity] baseline combo_damage = 0, falling back to legacy weights');
         }
+        snap.has_dynamic_sliders = saved_has_dyn;
         return null;
     }
 
@@ -385,6 +394,8 @@ function _compute_sensitivity_weights(snap, locked, pools) {
         const perturbed_score = _sensitivity_eval_score(trial_combo, snap);
         sp_sensitivities[i] = (perturbed_score - baseline_score) / delta * _SP_SENSITIVITY_DAMPEN;
     }
+
+    snap.has_dynamic_sliders = saved_has_dyn;
     weights._sp_sensitivities = sp_sensitivities;
 
     // ── SP feasibility bonus ─────────────────────────────────────────

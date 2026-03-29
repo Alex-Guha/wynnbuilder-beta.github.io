@@ -156,5 +156,203 @@ function assertManaMatch(label, rows, stats, has_trans) {
         'Transcendence gate (fast): should warn when mana < effective_cost');
 }
 
+// ── Vanish / Manic Edge tests ────────────────────────────────────────────────
+
+// Helper: create a health_config with Vanish buff_state (optionally with Manic Edge)
+function makeVanishConfig(opts = {}) {
+    const bs = {
+        state_name: 'Vanished',
+        activate_on: { spell: 2 },  // base_spell 2 = Dash
+        deactivate: 'next_action',
+        slider_name: 'Mana Lost',
+        suppress_healing: true,
+        suppress_mana_regen: true,
+        drain_pct_per_second: opts.mana_drain ? { mana: 5 } : null,
+        compute_delay: opts.mana_drain ?? false,
+        apply_to_next: opts.mana_drain ?? false,
+        duration: 5,
+        value_cap: opts.value_cap ?? 26,
+        spell_rate_field: null,
+        spell_flat_field: null,
+    };
+    return {
+        hp_casting: false, health_cost: 0, damage_boost: null,
+        buff_states: [bs], exit_triggers: [],
+    };
+}
+
+function assertManaMatchHC(label, rows, stats, hc, has_trans) {
+    const registry = [];
+    const full = simulate_combo_mana_hp(rows, stats, hc, has_trans, registry);
+    const fast = simulate_combo_mana_fast(rows, stats, hc, has_trans, registry);
+
+    const eps = 1e-6;
+    t.assert(Math.abs(full.end_mana - fast.end_mana) < eps,
+        `${label}: end_mana mismatch: full=${full.end_mana}, fast=${fast.end_mana}`);
+    return full;
+}
+
+// 8. Vanish mana suppression — mana regen stops between Dash and next spell
+{
+    const stats = makeStats({ mr: 10, int: 0 });
+    const hc = makeVanishConfig({ mana_drain: false });
+    const dashSpell = makeSpell('Dash', 25, { base_spell: 2 });
+    const attackSpell = makeSpell('Attack', 30, { base_spell: 1 });
+    const rows = [
+        makeRow(1, dashSpell),
+        makeRow(1, attackSpell),
+    ];
+
+    const full = assertManaMatchHC('Vanish mana suppression', rows, stats, hc, false);
+    // Mana regen should have been suppressed between Dash and Attack.
+    // Without vanish: start=100, pay 25 → 75, regen during gap, pay 30.
+    // With vanish: start=100, pay 25 (activates Vanished), NO regen during gap, pay 30 → 45.
+    // The exact end_mana depends on timing, but should be less than without suppression.
+    const fullNoVanish = simulate_combo_mana_hp(rows, stats, DEFAULT_HEALTH_CONFIG, false, []);
+    t.assert(full.end_mana < fullNoVanish.end_mana,
+        `Vanish suppression: mana should be lower with vanish (${full.end_mana}) than without (${fullNoVanish.end_mana})`);
+}
+
+// 9. Manic Edge drain — one-shot drain at activation; state_values tracked via apply_to_next
+{
+    const stats = makeStats({ mr: 0, int: 0 });  // start_mana = 100, no regen
+    const hc = makeVanishConfig({ mana_drain: true });  // value_cap=26, drain=5%/s, duration=5
+    const dashSpell = makeSpell('Dash', 10, { base_spell: 2 });
+    const attackSpell = makeSpell('Attack', 10, { base_spell: 1 });
+    const rows = [
+        makeRow(1, dashSpell),
+        makeRow(1, attackSpell),
+    ];
+
+    const full = assertManaMatchHC('Manic Edge drain', rows, stats, hc, false);
+    // After paying Dash (10), mana=90. Vanished activates with compute_delay:
+    //   drain_rate = 5/100 * 100 = 5/sec, target = min(26, 90) = 26
+    //   drain_time = 26/5 = 5.2s, capped to duration=5 → drain_time=5
+    //   actual_drain = min(26, 5*5) = 25, state_value = min(26, 25) = 25
+    // Dash row should report computed_delay ≈ 5.0
+    const dash_result = full.row_results[0];
+    t.assert(Math.abs(dash_result.computed_delay - 5.0) < 0.01,
+        `Manic Edge: computed_delay should be ~5.0, got ${dash_result.computed_delay}`);
+    // Attack row deactivates Vanished; state_values should show the apply_to_next value (25)
+    const attack_result = full.row_results[1];
+    t.assert(attack_result.state_values.Vanished != null,
+        'Manic Edge: state_values.Vanished should be tracked');
+    t.assert(Math.abs(attack_result.state_values.Vanished - 25) < 0.01,
+        `Manic Edge: state_values.Vanished should be ~25, got ${attack_result.state_values.Vanished}`);
+}
+
+// 10. Duration cap — drain capped by duration, same math as test 9
+{
+    const stats = makeStats({ mr: 0, int: 0, atkSpd: 'SLOW' });
+    const hc = makeVanishConfig({ mana_drain: true });  // value_cap=26, duration=5
+    const dashSpell = makeSpell('Dash', 5, { base_spell: 2 });
+    const meleeSpell = makeSpell('Melee', null, { base_spell: 0, scaling: 'melee', mana_derived_from: 0 });
+    const rows = [
+        makeRow(1, dashSpell),
+        makeRow(10, meleeSpell),
+    ];
+
+    const full = assertManaMatchHC('Duration cap', rows, stats, hc, false);
+    // After Dash cost (5), mana=95. compute_drain_override:
+    //   drain_rate = 5/100*100 = 5/sec, target = min(26, 95) = 26
+    //   drain_time = 26/5 = 5.2s, capped to 5 → actual_drain = min(26, 25) = 25
+    const dash_result = full.row_results[0];
+    t.assert(Math.abs(dash_result.computed_delay - 5.0) < 0.01,
+        `Duration cap: computed_delay should be ~5.0, got ${dash_result.computed_delay}`);
+}
+
+// 11. No Vanish — no buff_state, no effect (baseline sanity)
+{
+    const stats = makeStats({ mr: 10, int: 0 });
+    const dashSpell = makeSpell('Dash', 25, { base_spell: 2 });
+    const attackSpell = makeSpell('Attack', 30, { base_spell: 1 });
+    const rows = [
+        makeRow(1, dashSpell),
+        makeRow(1, attackSpell),
+    ];
+    // With DEFAULT_HEALTH_CONFIG (no buff_states), should behave normally
+    assertManaMatch('No Vanish baseline', rows, stats, false);
+}
+
+// 12. value_cap — state_value capped at 26 even with large mana pool
+{
+    const stats = makeStats({ mr: 0, int: 0, maxMana: 900 });  // start_mana = 1000
+    const hc = makeVanishConfig({ mana_drain: true, value_cap: 26 });
+    const dashSpell = makeSpell('Dash', 5, { base_spell: 2 });
+    const meleeSpell = makeSpell('Melee', null, { base_spell: 0, scaling: 'melee', mana_derived_from: 0 });
+    const rows = [
+        makeRow(1, dashSpell),
+        makeRow(20, meleeSpell),
+    ];
+
+    const full = assertManaMatchHC('value_cap', rows, stats, hc, false);
+    // After Dash cost (5), mana=995. compute_drain_override:
+    //   drain_rate = 5/100*1000 = 50/sec, target = min(26, 995) = 26
+    //   drain_time = 26/50 = 0.52s (< duration 5), actual_drain = 26
+    const dash_result = full.row_results[0];
+    t.assert(Math.abs(dash_result.computed_delay - 0.52) < 0.01,
+        `value_cap: computed_delay should be ~0.52, got ${dash_result.computed_delay}`);
+    // Melee row deactivates Vanished; state_value should be exactly 26
+    const meleeResult = full.row_results[1];
+    t.assert(meleeResult.state_values.Vanished === 26,
+        `value_cap: state_values.Vanished should be 26, got ${meleeResult.state_values.Vanished}`);
+}
+
+// 13. computed_delay reported in row_results for activating row
+{
+    const stats = makeStats({ mr: 0, int: 0 });
+    const hc = makeVanishConfig({ mana_drain: true });
+    const dashSpell = makeSpell('Dash', 10, { base_spell: 2 });
+    const attackSpell = makeSpell('Attack', 10, { base_spell: 1 });
+    const rows = [
+        makeRow(1, dashSpell),
+        makeRow(1, attackSpell),
+    ];
+
+    const registry = [];
+    const full = simulate_combo_mana_hp(rows, stats, hc, false, registry);
+    t.assert(full.row_results[0].computed_delay != null,
+        'computed_delay: should be non-null on activating row');
+    t.assert(full.row_results[1].computed_delay == null,
+        'computed_delay: should be null on non-activating row');
+}
+
+// 14. Low mana — drain and delay scale down when mana < value_cap
+{
+    // start_mana = 100, Dash costs 90 → mana after cost = 10
+    const stats = makeStats({ mr: 0, int: 0 });
+    const hc = makeVanishConfig({ mana_drain: true });  // value_cap=26
+    const dashSpell = makeSpell('Dash', 90, { base_spell: 2 });
+    const attackSpell = makeSpell('Attack', 5, { base_spell: 1 });
+    const rows = [
+        makeRow(1, dashSpell),
+        makeRow(1, attackSpell),
+    ];
+
+    const full = assertManaMatchHC('Low mana drain', rows, stats, hc, false);
+    // After Dash cost (90), mana=10. compute_drain_override:
+    //   target = min(26, 10) = 10, drain_rate = 5/sec
+    //   drain_time = 10/5 = 2.0s (< duration 5), actual_drain = 10
+    const dash_result = full.row_results[0];
+    t.assert(Math.abs(dash_result.computed_delay - 2.0) < 0.01,
+        `Low mana: computed_delay should be ~2.0, got ${dash_result.computed_delay}`);
+    const attack_result = full.row_results[1];
+    t.assert(Math.abs(attack_result.state_values.Vanished - 10) < 0.01,
+        `Low mana: state_values.Vanished should be ~10, got ${attack_result.state_values.Vanished}`);
+}
+
+// 15. Full/fast mana agreement with drain override
+{
+    const stats = makeStats({ mr: 5, int: 20 });
+    const hc = makeVanishConfig({ mana_drain: true });
+    const dashSpell = makeSpell('Dash', 15, { base_spell: 2 });
+    const attackSpell = makeSpell('Attack', 20, { base_spell: 1 });
+    const rows = [
+        makeRow(1, dashSpell),
+        makeRow(2, attackSpell),
+    ];
+    assertManaMatchHC('Drain override full/fast agreement', rows, stats, hc, false);
+}
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 t.summary();

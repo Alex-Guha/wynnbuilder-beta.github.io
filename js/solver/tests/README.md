@@ -5,7 +5,7 @@ Runs in Node.js without a browser — no DOM, no npm dependencies.
 
 ## Prerequisites
 
-- **Node.js >= 18** (via nvm: `nvm use 18`)
+- **Node.js >= 18** (via nvm: `nvm use 18`) (latest node version recommended for speed)
 
 ## Running Tests
 

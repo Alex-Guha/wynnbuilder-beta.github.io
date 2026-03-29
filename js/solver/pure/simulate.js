@@ -27,10 +27,16 @@ function extract_health_config(atree_mg) {
         health_cost: 0,
         damage_boost: null,     // { min, max, slider_name }
         buff_states: [],        // [{ state_name, activate_on, deactivate, slider_name,
-                                //    tracking, suppress_healing, spell_rate_field, spell_flat_field }]
+                                //    tracking, suppress_healing, suppress_mana_regen,
+                                //    drain_pct_per_second, compute_delay, apply_to_next,
+                                //    duration, value_cap,
+                                //    spell_rate_field, spell_flat_field }]
         exit_triggers: [],      // [{ on, state, effect, value, cooldown?, slider_name? }]
     };
     if (!atree_mg) return config;
+
+    // Merge buff_state effects sharing the same state_name
+    const _bs_map = new Map();
 
     for (const [, abil] of atree_mg) {
         const props = abil.properties;
@@ -62,19 +68,48 @@ function extract_health_config(atree_mg) {
             }
         }
 
-        // Buff states: standalone buff_state effects
+        // Buff states: merge into _bs_map by state_name
         for (const effect of abil.effects) {
             if (effect.type === 'buff_state') {
-                config.buff_states.push({
-                    state_name: effect.state_name,
-                    activate_on: effect.activate_on,
-                    deactivate: effect.deactivate,
-                    slider_name: effect.state_name,  // links to stat_scaling slider by name
-                    tracking: effect.tracking,
-                    suppress_healing: effect.suppress_healing ?? false,
-                    spell_rate_field: effect.spell_rate_field ?? null,
-                    spell_flat_field: effect.spell_flat_field ?? null,
-                });
+                let entry = _bs_map.get(effect.state_name);
+                if (!entry) {
+                    entry = {
+                        state_name: effect.state_name,
+                        activate_on: null,
+                        deactivate: null,
+                        slider_name: null,
+                        tracking: null,
+                        suppress_healing: false,
+                        suppress_mana_regen: false,
+                        drain_pct_per_second: null,
+                        compute_delay: false,
+                        apply_to_next: false,
+                        duration: null,
+                        spell_rate_field: null,
+                        spell_flat_field: null,
+                    };
+                    _bs_map.set(effect.state_name, entry);
+                }
+                // Booleans: OR
+                if (effect.suppress_healing) entry.suppress_healing = true;
+                if (effect.suppress_mana_regen) entry.suppress_mana_regen = true;
+                if (effect.compute_delay) entry.compute_delay = true;
+                if (effect.apply_to_next) entry.apply_to_next = true;
+                // drain_pct_per_second: additive per key
+                if (effect.drain_pct_per_second) {
+                    if (!entry.drain_pct_per_second) entry.drain_pct_per_second = {};
+                    for (const [k, v] of Object.entries(effect.drain_pct_per_second)) {
+                        entry.drain_pct_per_second[k] = (entry.drain_pct_per_second[k] ?? 0) + v;
+                    }
+                }
+                // Nullable references: last non-null wins
+                if (effect.activate_on != null) entry.activate_on = effect.activate_on;
+                if (effect.deactivate != null) entry.deactivate = effect.deactivate;
+                if (effect.tracking != null) entry.tracking = effect.tracking;
+                if (effect.duration != null) entry.duration = effect.duration;
+                if (effect.slider_name != null) entry.slider_name = effect.slider_name;
+                if (effect.spell_rate_field != null) entry.spell_rate_field = effect.spell_rate_field;
+                if (effect.spell_flat_field != null) entry.spell_flat_field = effect.spell_flat_field;
             }
         }
 
@@ -85,6 +120,28 @@ function extract_health_config(atree_mg) {
             }
         }
     }
+
+    // Default slider_name to state_name for entries without an explicit slider_name
+    for (const entry of _bs_map.values()) {
+        if (entry.slider_name == null) entry.slider_name = entry.state_name;
+    }
+
+    // Derive value_cap from matching stat_scaling slider's slider_max in atree data
+    for (const entry of _bs_map.values()) {
+        entry.value_cap = Infinity;
+        if (entry.slider_name) {
+            for (const [, abil] of atree_mg) {
+                for (const effect of abil.effects) {
+                    if (effect.type === 'stat_scaling' && effect.slider_name === entry.slider_name
+                        && effect.slider_max != null) {
+                        entry.value_cap = effect.slider_max;
+                    }
+                }
+            }
+        }
+    }
+
+    config.buff_states = [..._bs_map.values()];
 
     // Broaden hp_casting: also true if any add_spell_prop injects hp_cost
     if (!config.hp_casting) {
@@ -186,6 +243,48 @@ function compute_recast_penalties(rows) {
 }
 
 /**
+ * For a buff_state with compute_delay: true, compute the cast delay needed
+ * to drain to value_cap, the actual resource drained, and the state value.
+ * Reads drain_pct_per_second (e.g. { mana: 5 }) and the corresponding
+ * runtime resource pool. Currently supports "mana"; "hp" ready to add.
+ *
+ * @param {number|null} override_time — if non-null, use this as the drain
+ *   duration instead of computing from target/rate (for user-set delays).
+ *   Still capped by bs.duration.
+ */
+function compute_drain_override(bs, current_mana, max_mana, current_hp, max_hp, override_time) {
+    if (!bs.compute_delay) return null;
+    const drain = bs.drain_pct_per_second;
+    if (!drain) return null;
+
+    // Determine which resource is drained and its pool
+    let drain_pct = 0, pool_current = 0, pool_max = 0;
+    if (drain.mana > 0) {
+        drain_pct = drain.mana; pool_current = current_mana; pool_max = max_mana;
+    } else if (drain.hp > 0) {
+        drain_pct = drain.hp; pool_current = current_hp; pool_max = max_hp;
+    }
+    if (drain_pct <= 0 || pool_max <= 0) return null;
+
+    const drain_rate = drain_pct / 100 * pool_max;  // resource per second
+    const target = Math.min(bs.value_cap ?? Infinity, Math.max(0, pool_current));
+    let drain_time;
+    if (override_time != null) {
+        // User-specified delay: drain for that long, still capped by duration
+        drain_time = Math.min(override_time, bs.duration ?? Infinity);
+    } else {
+        // Auto: compute drain time from target, capped by duration
+        drain_time = target / drain_rate;
+        if (bs.duration != null) drain_time = Math.min(drain_time, bs.duration);
+    }
+    const actual_drain = Math.min(target, drain_rate * drain_time);
+    const state_value = Math.min(bs.value_cap ?? Infinity, actual_drain);
+    // Return which resource was drained so caller knows what to subtract
+    const resource = drain.mana > 0 ? 'mana' : 'hp';
+    return { computed_delay: drain_time, actual_drain, state_value, resource };
+}
+
+/**
  * Pure mana+HP simulation kernel for Blood Pact / Bak'al's Grasp / Corruption /
  * Massacre / Mindless Slaughter. Shared by both main thread and worker. DOM-free.
  *
@@ -210,6 +309,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
     const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
     const start_mana = 100 + item_mana + int_mana;
     const max_mana = start_mana;
+    let mana_wasted = 0;
 
     const base_hp = base_stats.get('hp') ?? 0;
     const hp_bonus = base_stats.get('hpBonus') ?? 0;
@@ -231,7 +331,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
     // Generic buff state tracking
     const active_states = {};
     for (const bs of health_config.buff_states) {
-        active_states[bs.state_name] = { active: false, value: 0 };
+        active_states[bs.state_name] = { active: false, value: 0, activated_at: 0 };
     }
     const state_melee_hits = {};
     for (const bs of health_config.buff_states) {
@@ -255,7 +355,9 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
     for (const row of rows) {
         const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0,
-                cast_time: row_cast_time, delay: row_delay } = row;
+                cast_time: row_cast_time, delay: row_delay, auto_delay = true } = row;
+        const _mana_before = mana;
+        const _time_before = elapsed_time;
 
         // Cancel state pseudo-spell (e.g. "cancel_state:Corrupted")
         if (pseudo?.startsWith('cancel_state:')) {
@@ -272,27 +374,33 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                 st.value = 0;
                 state_melee_hits[state_name] = 0;
             }
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: Math.max(0, _mana_before - mana), mana_gained: 0, elapsed_time, row_dt: elapsed_time - _time_before });
             continue;
         }
 
         // Mana Reset pseudo-spell
         if (pseudo === 'mana_reset') {
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: Math.max(0, _mana_before - mana), mana_gained: 0, elapsed_time, row_dt: elapsed_time - _time_before });
             continue;
         }
 
         // Add Flat Mana pseudo-spell: inject (or drain) qty mana at this point
         if (pseudo === 'add_flat_mana') {
             if (!mana_excl && qty !== 0) {
-                mana = Math.max(0, Math.min(max_mana, mana + qty));
+                const uncapped_afm = mana + qty;
+                if (uncapped_afm > max_mana) mana_wasted += uncapped_afm - max_mana;
+                mana = Math.max(0, Math.min(max_mana, uncapped_afm));
             }
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: Math.max(0, _mana_before - mana), mana_gained: 0, elapsed_time, row_dt: elapsed_time - _time_before });
             continue;
         }
 
         if (qty <= 0 || !spell) {
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: 0, mana_gained: 0, elapsed_time, row_dt: 0 });
             continue;
         }
 
@@ -303,7 +411,8 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                     ? Math.round(compute_melee_time_hits(qty, base_stats, row_delay ?? SPELL_CAST_DELAY))
                     : Math.round(qty);
             }
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false });
+            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: 0, mana_gained: 0, elapsed_time, row_dt: 0 });
             continue;
         }
 
@@ -333,31 +442,88 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         let hp_warning = false;
         let mana_warning = false;
         let row_mana_cost = 0;
+        let row_mana_gained = 0;
+        let row_deact = null;  // captured pre-deactivation values for this row
+        let row_computed_delay = null;
 
-        for (let c = 0; c < sim_qty; c++) {
-            // ── Wall-clock time advancement (melee cooldown + spell overlap) ──
-            const dt = compute_wall_dt(is_melee, is_spell, melee_cd_remaining, melee_period, eff_cast_time, eff_delay);
-            const wall_dt = dt.wall_dt;
-            melee_cd_remaining = dt.melee_cd;
+        // ── Local helper: advance wall-clock time by `advance_dt` seconds ──
+        // Handles buff-state duration, mana suppression/drain, mana regen, HP regen.
+        function _advance_time(advance_dt) {
+            if (advance_dt <= 0) return;
+            const prev_time = elapsed_time;
+            elapsed_time += advance_dt;
 
-            if (wall_dt > 0) {
-                const prev_time = elapsed_time;
-                elapsed_time += wall_dt;
+            // ── Duration-aware mana regen suppression + drain ──
+            let mana_regen_dt = advance_dt;
 
-                // Mana regen (proportional to wall time)
-                mana = Math.min(max_mana, mana + mr_per_sec * wall_dt);
+            for (const bs of health_config.buff_states) {
+                const st = active_states[bs.state_name];
+                if (!st?.active) continue;
 
-                // HP regen tick check (suppressed by active buff states with suppress_healing)
-                const any_suppress = health_config.buff_states.some(
-                    bs => bs.suppress_healing && active_states[bs.state_name]?.active);
-                if (!any_suppress) {
-                    const prev_ticks = Math.floor(prev_time / HPR_TICK_SECONDS);
-                    const cur_ticks = Math.floor(elapsed_time / HPR_TICK_SECONDS);
-                    if (cur_ticks > prev_ticks) {
-                        hp = Math.min(max_hp, hp + hpr_tick * (cur_ticks - prev_ticks));
+                // Compute active portion of this tick (duration cap)
+                let active_dt = advance_dt;
+                if (bs.duration != null) {
+                    const elapsed_in_state = prev_time - st.activated_at;
+                    const remaining = bs.duration - elapsed_in_state;
+                    if (remaining <= 0) {
+                        // Already expired — deactivate and skip
+                        st.active = false;
+                        continue;
+                    }
+                    active_dt = Math.min(advance_dt, remaining);
+                    if (active_dt < advance_dt) {
+                        // Duration expires mid-tick — deactivate
+                        st.active = false;
+                    }
+                }
+
+                // Proportional mana regen suppression
+                if (bs.suppress_mana_regen) {
+                    mana_regen_dt = Math.min(mana_regen_dt, advance_dt - active_dt);
+                }
+
+                // Continuous drain (skip for compute_delay states — those drain in one shot at activation)
+                if (!bs.compute_delay && bs.drain_pct_per_second) {
+                    const drain_pct = bs.drain_pct_per_second.mana ?? 0;
+                    if (drain_pct > 0) {
+                        const drain = drain_pct / 100 * max_mana * active_dt;
+                        const actual = Math.min(mana, drain);
+                        mana -= actual;
+                        if (bs.tracking === 'mana_loss') {
+                            st.value = Math.min(st.value + actual, bs.value_cap);
+                        }
                     }
                 }
             }
+
+            // Apply mana regen only for the unsuppressed portion
+            if (mana_regen_dt > 0) {
+                const mana_before_regen = mana;
+                const uncapped_mr = mana + mr_per_sec * mana_regen_dt;
+                if (uncapped_mr > max_mana) mana_wasted += uncapped_mr - max_mana;
+                mana = Math.min(max_mana, uncapped_mr);
+                row_mana_gained += mana - mana_before_regen;
+            }
+
+            // HP regen tick check (suppressed by active buff states with suppress_healing)
+            const any_suppress = health_config.buff_states.some(
+                bs => bs.suppress_healing && active_states[bs.state_name]?.active);
+            if (!any_suppress) {
+                const prev_ticks = Math.floor(prev_time / HPR_TICK_SECONDS);
+                const cur_ticks = Math.floor(elapsed_time / HPR_TICK_SECONDS);
+                if (cur_ticks > prev_ticks) {
+                    hp = Math.min(max_hp, hp + hpr_tick * (cur_ticks - prev_ticks));
+                }
+            }
+        }
+
+        for (let c = 0; c < sim_qty; c++) {
+            // ── Wall-clock time: cast_time before action, delay after ──
+            const dt = compute_wall_dt(is_melee, is_spell, melee_cd_remaining, melee_period, eff_cast_time, eff_delay);
+            melee_cd_remaining = dt.melee_cd;
+
+            // ── Pre-action time (cast time / melee cooldown wait) ──
+            _advance_time(dt.pre_dt);
 
             // Melee hit tracking for states
             if (is_melee_scaling) {
@@ -370,7 +536,32 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
             // Mana steal from melee hits
             if (is_melee_scaling && ms_per_hit > 0) {
-                mana = Math.min(max_mana, mana + ms_per_hit);
+                const mana_before_ms = mana;
+                const uncapped_ms = mana + ms_per_hit;
+                if (uncapped_ms > max_mana) mana_wasted += uncapped_ms - max_mana;
+                mana = Math.min(max_mana, uncapped_ms);
+                row_mana_gained += mana - mana_before_ms;
+            }
+
+            // "next_action" deactivation (Vanish: deactivate on first cast of a row)
+            if (c === 0 && (is_spell || is_melee_scaling)) {
+                for (const bs of health_config.buff_states) {
+                    if (bs.deactivate !== 'next_action') continue;
+                    const st = active_states[bs.state_name];
+                    if (!st?.active) continue;
+                    // Fire exit triggers
+                    for (const trigger of health_config.exit_triggers) {
+                        if (trigger.state === bs.state_name && trigger.on === 'exit')
+                            hp = _apply_exit_trigger(trigger, st.value, max_hp, hp, boost_tokens, state_melee_hits[bs.state_name], elapsed_time);
+                    }
+                    // Capture pre-deactivation value so this row's snapshot
+                    // still reports it (e.g. Mana Lost for Surprise Strike).
+                    if (!row_deact) row_deact = {};
+                    row_deact[bs.state_name] = st.value;
+                    st.active = false;
+                    st.value = 0;
+                    state_melee_hits[bs.state_name] = 0;
+                }
             }
 
             // Spell-level HP cost & state tracking (Massacre / Mindless Slaughter)
@@ -381,12 +572,12 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                 // Per-second rate (Massacre: melee corruption while corrupted)
                 if (bs.spell_rate_field) {
                     const rate = spell[bs.spell_rate_field] ?? 0;
-                    if (rate > 0) st.value = Math.min(100, st.value + rate / baseDamageMultiplier[adjAtkSpd]);
+                    if (rate > 0) st.value = Math.min(bs.value_cap ?? 100, st.value + rate / baseDamageMultiplier[adjAtkSpd]);
                 }
                 // Per-cast flat (Massacre: powder special corruption)
                 if (bs.spell_flat_field) {
                     const flat = spell[bs.spell_flat_field] ?? 0;
-                    if (flat > 0) st.value = Math.min(100, st.value + flat);
+                    if (flat > 0) st.value = Math.min(bs.value_cap ?? 100, st.value + flat);
                 }
 
                 // HP cost from spell (Mindless Slaughter) — gated on THIS state being active
@@ -397,7 +588,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                     hp -= hp_deduction;
                     // Track state value via hp_loss_pct
                     if (bs.tracking === 'hp_loss_pct') {
-                        st.value = Math.min(100, st.value + spell_hp_cost);
+                        st.value = Math.min(bs.value_cap ?? 100, st.value + spell_hp_cost);
                     }
                     // Blood Pact at 100% blood ratio (entire cost is HP)
                     if (health_config.damage_boost) {
@@ -448,14 +639,44 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
                 row_mana_cost += adj_cost;
 
-                // State activation (generic: replaces hardcoded base_spell === 4)
+                // State activation (generic)
                 for (const bs of health_config.buff_states) {
                     if (bs.activate_on?.spell != null && spell.base_spell === bs.activate_on.spell) {
                         const st = active_states[bs.state_name];
-                        if (st && !st.active) { st.active = true; st.value = 0; }
+                        if (st && !st.active) {
+                            st.active = true; st.value = 0; st.activated_at = elapsed_time;
+
+                            // compute_delay: compute cast delay from drain parameters
+                            const dro = compute_drain_override(bs, mana, max_mana, hp, max_hp,
+                                auto_delay ? null : dt.post_dt);
+                            if (dro) {
+                                if (auto_delay && row_computed_delay == null) {
+                                    row_computed_delay = dro.computed_delay;
+                                }
+                                if (dro.resource === 'mana') mana -= dro.actual_drain;
+                                else hp -= dro.actual_drain;
+                                // The drain time is modeled as instant; shift activated_at
+                                // forward so _advance_time's duration check doesn't expire
+                                // the state during the overridden delay.
+                                st.activated_at += dro.computed_delay;
+                            }
+
+                            // apply_to_next: set slider value so next ability gets the buff
+                            if (bs.apply_to_next) {
+                                st.value = dro ? dro.state_value : (bs.value_cap ?? 0);
+                            }
+                        }
                     }
                 }
             }
+
+            // ── Post-action time (uses overridden delay on the activating cast) ──
+            let effective_post_dt = dt.post_dt;
+            if (row_computed_delay != null && c === 0) {
+                effective_post_dt = row_computed_delay;
+                melee_cd_remaining = Math.max(0, melee_cd_remaining - (effective_post_dt - dt.post_dt));
+            }
+            _advance_time(effective_post_dt);
         }
 
         const avg_blood_bonus = row_blood_casts > 0 ? row_blood_total / row_blood_casts : 0;
@@ -464,7 +685,10 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
             spell_costs.push({ name: spell.name, qty: sim_qty, cost: cost_per, recast_penalty: recast_penalty_per_cast * sim_qty });
         }
 
-        row_results.push({ blood_pact_bonus: avg_blood_bonus, state_values: _snapshot_states(active_states), hp_warning, mana_warning });
+        row_results.push({ blood_pact_bonus: avg_blood_bonus, state_values: _snapshot_states(active_states, row_deact),
+            hp_warning, mana_warning, computed_delay: row_computed_delay,
+            mana_lost: Math.max(0, _mana_before - mana), mana_gained: row_mana_gained, elapsed_time, row_dt: elapsed_time - _time_before,
+            cast_time: eff_cast_time, delay: eff_delay });
     }
 
     return {
@@ -478,6 +702,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         total_mana_cost,
         melee_hits,
         recast_penalty_total,
+        mana_wasted,
     };
 }
 
@@ -501,6 +726,7 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
     const int_mana = Math.floor(skillPointsToPercentage(base_stats.get('int') ?? 0) * 100);
     const start_mana = 100 + item_mana + int_mana;
     const max_mana = start_mana;
+    let mana_wasted = 0;
 
     const health_cost_pct = health_config.health_cost;
     const base_hp = base_stats.get('hp') ?? 0;
@@ -526,13 +752,23 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
     let has_hp_warning = false;
     let has_mana_warning = false;
 
+    // Minimal buff state tracking for mana-affecting features
+    const _fast_states = {};
+    for (const bs of health_config.buff_states) {
+        _fast_states[bs.state_name] = { active: false, activated_at: 0 };
+    }
+
     for (const row of rows) {
         const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0,
-                cast_time: row_cast_time, delay: row_delay } = row;
+                cast_time: row_cast_time, delay: row_delay, auto_delay = true } = row;
 
         // Add Flat Mana: inject (or drain) qty mana at this point
         if (pseudo === 'add_flat_mana') {
-            if (!mana_excl && qty !== 0) mana = Math.max(0, Math.min(max_mana, mana + qty));
+            if (!mana_excl && qty !== 0) {
+                const uncapped_afm = mana + qty;
+                if (uncapped_afm > max_mana) mana_wasted += uncapped_afm - max_mana;
+                mana = Math.max(0, Math.min(max_mana, uncapped_afm));
+            }
             continue;
         }
         if (pseudo || qty <= 0 || !spell) continue;
@@ -551,21 +787,72 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
             ? Math.round(compute_melee_time_hits(qty, base_stats, eff_delay))
             : Math.round(qty);
 
+        // ── Local helper: advance wall-clock time by `advance_dt` seconds ──
+        function _advance_time_fast(advance_dt) {
+            if (advance_dt <= 0) return;
+            const prev_time = elapsed_time;
+            elapsed_time += advance_dt;
+
+            let mana_regen_dt = advance_dt;
+
+            for (const bs of health_config.buff_states) {
+                const st = _fast_states[bs.state_name];
+                if (!st?.active) continue;
+
+                let active_dt = advance_dt;
+                if (bs.duration != null) {
+                    const elapsed_in_state = prev_time - st.activated_at;
+                    const remaining = bs.duration - elapsed_in_state;
+                    if (remaining <= 0) { st.active = false; continue; }
+                    active_dt = Math.min(advance_dt, remaining);
+                    if (active_dt < advance_dt) st.active = false;
+                }
+
+                if (bs.suppress_mana_regen) {
+                    mana_regen_dt = Math.min(mana_regen_dt, advance_dt - active_dt);
+                }
+
+                // Continuous drain (skip for compute_delay states — those drain in one shot at activation)
+                if (!bs.compute_delay && bs.drain_pct_per_second) {
+                    const drain_pct = bs.drain_pct_per_second.mana ?? 0;
+                    if (drain_pct > 0) {
+                        const drain = drain_pct / 100 * max_mana * active_dt;
+                        mana -= Math.min(mana, drain);
+                    }
+                }
+            }
+
+            if (mana_regen_dt > 0) {
+                const uncapped_mr = mana + mr_per_sec * mana_regen_dt;
+                if (uncapped_mr > max_mana) mana_wasted += uncapped_mr - max_mana;
+                mana = Math.min(max_mana, uncapped_mr);
+            }
+        }
+
+        let fast_post_override = null;
+
         for (let c = 0; c < sim_qty; c++) {
-            // ── Wall-clock time advancement (melee cooldown + spell overlap) ──
+            // ── Wall-clock time: cast_time before action, delay after ──
             const dt = compute_wall_dt(is_melee, is_spell, melee_cd_remaining, melee_period, eff_cast_time, eff_delay);
-            const wall_dt = dt.wall_dt;
             melee_cd_remaining = dt.melee_cd;
 
-            if (wall_dt > 0) {
-                elapsed_time += wall_dt;
-                // Mana regen (proportional to wall time)
-                mana = Math.min(max_mana, mana + mr_per_sec * wall_dt);
-            }
+            // ── Pre-action time (cast time / melee cooldown wait) ──
+            _advance_time_fast(dt.pre_dt);
 
             // Mana steal from melee hits
             if (is_melee_scaling && ms_per_hit > 0) {
-                mana = Math.min(max_mana, mana + ms_per_hit);
+                const uncapped_ms = mana + ms_per_hit;
+                if (uncapped_ms > max_mana) mana_wasted += uncapped_ms - max_mana;
+                mana = Math.min(max_mana, uncapped_ms);
+            }
+
+            // "next_action" deactivation (Vanish)
+            if (c === 0 && (is_spell || is_melee_scaling)) {
+                for (const bs of health_config.buff_states) {
+                    if (bs.deactivate !== 'next_action') continue;
+                    const st = _fast_states[bs.state_name];
+                    if (st?.active) st.active = false;
+                }
             }
 
             // Spell-level HP cost (Mindless Slaughter)
@@ -598,16 +885,54 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
                     mana -= effective_cost;
                     has_mana_warning = true;
                 }
+
+                // State activation
+                for (const bs of health_config.buff_states) {
+                    if (bs.activate_on?.spell != null && spell.base_spell === bs.activate_on.spell) {
+                        const st = _fast_states[bs.state_name];
+                        if (st && !st.active) {
+                            st.active = true; st.activated_at = elapsed_time;
+
+                            const dro = compute_drain_override(bs, mana, max_mana, hp, max_hp,
+                                auto_delay ? null : dt.post_dt);
+                            if (dro) {
+                                if (auto_delay && fast_post_override == null) {
+                                    fast_post_override = dro.computed_delay;
+                                }
+                                if (dro.resource === 'mana') mana -= dro.actual_drain;
+                                else hp -= dro.actual_drain;
+                                st.activated_at += dro.computed_delay;
+                            }
+                        }
+                    }
+                }
             }
+
+            // ── Post-action time (uses overridden delay on activating cast) ──
+            let effective_post = dt.post_dt;
+            if (fast_post_override != null && c === 0) {
+                effective_post = fast_post_override;
+                melee_cd_remaining = Math.max(0, melee_cd_remaining - (effective_post - dt.post_dt));
+            }
+            _advance_time_fast(effective_post);
         }
     }
 
-    return { start_mana, end_mana: mana, max_mana, has_hp_warning, has_mana_warning };
+    return { start_mana, end_mana: mana, max_mana, has_hp_warning, has_mana_warning, mana_wasted };
 }
 
-function _snapshot_states(active_states) {
+/**
+ * Snapshot state values for a row.  Only reports non-zero values for:
+ *  - states that are currently active (uses live value)
+ *  - states that were just deactivated THIS row (uses captured deact value)
+ * Inactive states from earlier rows report 0 so stale values don't leak to
+ * later rows (e.g. "Mana Lost" showing on Smoke Bomb after Vanish ended).
+ */
+function _snapshot_states(active_states, row_deact) {
     const out = {};
-    for (const [k, v] of Object.entries(active_states)) out[k] = v.value;
+    for (const [k, v] of Object.entries(active_states)) {
+        out[k] = v.active ? v.value : (row_deact?.[k] ?? 0);
+    }
     return out;
 }
 

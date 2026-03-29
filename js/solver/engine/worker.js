@@ -250,6 +250,7 @@ function _check_thresholds(stats, thresholds) {
 function _eval_combo_damage(combo_base, debug) {
     const result = eval_combo_damage_with_bp(combo_base, _cfg.weapon_sm, _cfg.parsed_combo, {
         hp_casting: _cfg.hp_casting,
+        has_dynamic_sliders: _cfg.has_dynamic_sliders,
         health_config: _cfg.health_config,
         boost_registry: _cfg.boost_registry,
         atree_merged: _cfg.atree_merged,

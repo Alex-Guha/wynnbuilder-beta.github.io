@@ -8,11 +8,14 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 # Todo
 
+- looping combo portions
+- True DPS calculation
+- Weighted multi-target solving
+- Let's add a new toggle to the combo section that appears when in advanced mode: "Debug". When in debug, 
+
 ### Necessary Improvements
 - Testing setup to measure the time it takes to find a build, across many builds. This would be used to test priority weighting changes.
     - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
-- Weighted multi-target solving
-- DPS-based calc
 
 ### Polish
 #### UI
@@ -20,6 +23,7 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 #### Combo
 - "Taking wall of smoke doesn't auto-bump the hits to 30 either", "It would be pretty complicated to fix too, because the entry doesn't know whether you specified 10 hits or jsut to use the max right now"
+- Remove the melee cd from combo end time, detect melee at end and within cd of start, and add in the appropriate time
 
 
 ### Testing

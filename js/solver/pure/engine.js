@@ -151,6 +151,11 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
                 dps: eff_dps_name ? { name: eff_dps_name, hits: eff_dps_hits, preset: !!row.dps_per_hit_name } : undefined,
                 per_cast: Math.round(per_cast),
                 row_damage: Math.round(row_damage),
+                heal_per_cast: heal_per_cast ? Math.round(heal_per_cast) : undefined,
+                row_healing: row_healing ? Math.round(row_healing) : undefined,
+                spell_cost: mod_spell.cost != null ? getSpellCost(stats, mod_spell) : undefined,
+                is_melee_time: row.is_melee_time || undefined,
+                eff_qty: row.is_melee_time ? eff_qty : undefined,
             }));
         }
 
@@ -280,9 +285,15 @@ function eval_combo_damage_with_bp(combo_base, weapon_sm, parsed_combo, bp_confi
     let damage_rows = parsed_combo;
     let hp_sim = null;
 
-    if (hp_casting && health_config) {
+    const has_dyn = bp_config.has_dynamic_sliders ?? !!(
+        health_config?.damage_boost?.slider_name ||
+        health_config?.buff_states?.some(bs => bs.slider_name)
+    );
+    if ((hp_casting || has_dyn) && health_config) {
         const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
-        hp_sim = cached_hp_sim ?? simulate_combo_mana_hp(
+        // Use cache only if it has row_results (fast sim lacks them)
+        const usable_cache = cached_hp_sim?.row_results ? cached_hp_sim : null;
+        hp_sim = usable_cache ?? simulate_combo_mana_hp(
             parsed_combo, combo_base, health_config, has_transcendence,
             boost_registry, scratch_row);
 
