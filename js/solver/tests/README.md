@@ -16,7 +16,9 @@ node js/solver/tests/run_all.js
 # Run individual test files
 node js/solver/tests/test_dominance.js
 node js/solver/tests/test_combo_damage.js
-node js/solver/tests/test_solver_search.js
+node js/solver/tests/test_solver_search.js           # all solver snapshots
+node js/solver/tests/test_solver_search.js archer     # only snapshots matching "archer"
+node js/solver/tests/test_solver_search.js archer shaman  # multiple filters
 node js/solver/tests/test_enum_order.js
 node js/solver/tests/test_mana_sim.js
 ```

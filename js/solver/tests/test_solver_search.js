@@ -5,7 +5,9 @@
 // enumeration via worker_threads.  Asserts the solver finds builds scoring
 // >= a known threshold within a time limit.
 //
-// Run: node js/solver/tests/test_solver_search.js
+// Run: node js/solver/tests/test_solver_search.js [filter1] [filter2] ...
+// With no args, runs all solver_*.snap.json snapshots.
+// With args, runs only snapshots whose names contain any of the given strings.
 // Requires Node.js >= 18.
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -111,19 +113,32 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
     ctx.apply_weapon_powders(weaponSM);
 
     // ── 2. Tomes ────────────────────────────────────────────────────────────
+    // tome_fields has 14 entries (some types have 2+ slots). Map each slot
+    // to its corresponding none_tome by type.
     const tomeNames = decoded.tomes || [];
+    const _tome_fields = ctx.tome_fields ?? vm.runInContext('tome_fields', ctx);
+    const _none_tome_by_type = {};
+    for (let i = 0; i < ctx.none_tomes.length; i++)
+        _none_tome_by_type[ctx.none_tomes[i].type] = ctx.none_tomes[i];
+
     const tomes = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < _tome_fields.length; i++) {
         const name = tomeNames[i];
-        const tome = (name && ctx.tomeMap.has(name)) ? ctx.tomeMap.get(name) : ctx.none_tomes[i];
-        tomes.push({ statMap: ctx.expandItem(tome) });
+        const type = _tome_fields[i].replace(/[0-9]/g, '');
+        const none = _none_tome_by_type[type] ?? ctx.none_tomes[0];
+        const tome = (name && ctx.tomeMap.has(name)) ? ctx.tomeMap.get(name) : none;
+        const tomeIt = ctx._apply_roll_mode_to_item(new ctx.Item(tome));
+        tomes.push({ statMap: tomeIt.statMap });
     }
 
     // ── 3. SP budget with guild tome handling (mirrors search.js:210-224) ───
-    // Note: expandItem() does not set the 'NONE' flag — that flag is set by
+    // Note: _apply_roll_mode_to_item does not set the 'NONE' flag — that flag
+    // is set by
     // the graph node system at runtime.  Detect NONE guild tomes by checking
     // whether a real tome name was decoded from the URL.
-    const guildTomeName = tomeNames[2];
+    // Guild tome is at tome_fields index 6 ('guildTome1').
+    const GUILD_TOME_IDX = _tome_fields.indexOf('guildTome1');
+    const guildTomeName = tomeNames[GUILD_TOME_IDX];
     const has_real_guild_tome = !!(guildTomeName && ctx.tomeMap.has(guildTomeName));
     let sp_budget = ctx.levelToSkillPoints(decoded.level);
     if (!has_real_guild_tome) {
@@ -136,7 +151,7 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
             const synth = new Map();
             synth.set('skillpoints', [1, 1, 1, 1, 1]);
             synth.set('reqs', [0, 0, 0, 0, 0]);
-            tomes[2] = { statMap: synth };
+            tomes[GUILD_TOME_IDX] = { statMap: synth };
         }
     }
 
@@ -248,7 +263,7 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
                     ? ctx.node_ref_to_boost_name(b.node_id, b.effect_pos, atreeMerged)
                     : `node_${b.node_id}_${b.effect_pos}`,
                 value: b.has_value ? b.value : 1,
-                is_pct: b.has_value,
+                is_pct: false,
             })),
             mana_excl: row.mana_excl,
             dmg_excl: row.dmg_excl,
@@ -329,7 +344,7 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
         weapon_sm: weaponSM,
         level: decoded.level,
         tomes,
-        guild_tome_item: { statMap: tomes[2].statMap },
+        guild_tome_item: { statMap: tomes[GUILD_TOME_IDX].statMap },
         sp_budget,
         atree_mgd: atreeMerged,
         atree_raw: atreeRaw,
@@ -517,20 +532,26 @@ function _buildSeedStatMap(decoded) {
     weaponSM.set('powders', weaponPowders);
     ctx.apply_weapon_powders(weaponSM);
 
-    // Build tome statMaps
+    // Build tome statMaps (all 14 slots)
+    const _tf = ctx.tome_fields ?? vm.runInContext('tome_fields', ctx);
+    const _ntbt = {};
+    for (let i = 0; i < ctx.none_tomes.length; i++) _ntbt[ctx.none_tomes[i].type] = ctx.none_tomes[i];
     const tomeSMs = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < _tf.length; i++) {
         const name = (decoded.tomes || [])[i];
-        const tome = (name && ctx.tomeMap.has(name)) ? ctx.tomeMap.get(name) : ctx.none_tomes[i];
-        tomeSMs.push(ctx.expandItem(tome));
+        const type = _tf[i].replace(/[0-9]/g, '');
+        const none = _ntbt[type] ?? ctx.none_tomes[0];
+        const tome = (name && ctx.tomeMap.has(name)) ? ctx.tomeMap.get(name) : none;
+        tomeSMs.push(ctx._apply_roll_mode_to_item(new ctx.Item(tome)).statMap);
     }
 
     // Assemble via worker-shim path to get activeMajorIDs from finalizeStatmap
+    const GUILD_TOME_SEED_IDX = _tf.indexOf('guildTome1');
     const locked_sms = [weaponSM, ...tomeSMs];
     const running = ctx._init_running_statmap(decoded.level, locked_sms);
     for (const sm of equipSMs) ctx._incr_add_item(running, sm);
     const activeSetCounts = ctx.calculate_skillpoints(
-        [...equipSMs, tomeSMs[2]], weaponSM, ctx.levelToSkillPoints(decoded.level))?.[3];
+        [...equipSMs, tomeSMs[GUILD_TOME_SEED_IDX]], weaponSM, ctx.levelToSkillPoints(decoded.level))?.[3];
     const build_sm = ctx._finalize_leaf_statmap(
         running, weaponSM, activeSetCounts || new Map(), ctx.sets,
         [...equipSMs, ...tomeSMs, weaponSM], null, null);
@@ -732,9 +753,25 @@ async function runSolverTest(snapName) {
 
 async function main() {
     const snapDir = path.join(__dirname, 'snapshots');
-    const solverSnaps = fs.readdirSync(snapDir)
+    const allSnaps = fs.readdirSync(snapDir)
         .filter(f => f.startsWith('solver_') && f.endsWith('.snap.json'))
         .map(f => f.replace('.snap.json', ''));
+
+    // Allow filtering by CLI args: node test_solver_search.js <name1> <name2> ...
+    // Names can be partial matches (e.g. "archer" matches "solver_archer_dps").
+    const args = process.argv.slice(2);
+    let solverSnaps;
+    if (args.length > 0) {
+        solverSnaps = allSnaps.filter(s => args.some(a => s.includes(a)));
+        if (solverSnaps.length === 0) {
+            console.error(`No snapshots matched: ${args.join(', ')}`);
+            console.error(`Available: ${allSnaps.join(', ')}`);
+            process.exit(1);
+        }
+        console.log(`Running ${solverSnaps.length}/${allSnaps.length} snapshot(s): ${solverSnaps.join(', ')}`);
+    } else {
+        solverSnaps = allSnaps;
+    }
 
     if (solverSnaps.length === 0) {
         t.warn('No solver snapshots found. Create snapshots/solver_*.snap.json to add test cases.');
