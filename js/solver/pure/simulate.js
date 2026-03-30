@@ -428,11 +428,6 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
         // Mana-excluded rows: skip cost/regen tracking entirely
         if (mana_excl) {
-            if (spell.scaling === 'melee') {
-                melee_hits += row.is_melee_time
-                    ? Math.round(compute_melee_time_hits(qty, base_stats, row_delay ?? SPELL_CAST_DELAY, melee_cd_override))
-                    : Math.round(qty);
-            }
             row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
                 mana_lost: 0, mana_gained: 0, elapsed_time, row_dt: 0 });
             continue;
