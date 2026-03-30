@@ -347,7 +347,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
     let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
         + (base_stats.get('atkTier') ?? 0);
     adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
-    const ms_per_hit = ms > 0 ? ms / 3 / baseDamageMultiplier[adjAtkSpd] : 0;
+    const ms_per_hit = ms !== 0 ? ms / 3 / baseDamageMultiplier[adjAtkSpd] : 0;
 
     // Generic buff state tracking
     const active_states = {};
@@ -561,11 +561,11 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
             }
 
             // Mana steal from melee hits
-            if (is_melee_scaling && ms_per_hit > 0) {
+            if (is_melee_scaling && ms_per_hit !== 0) {
                 const mana_before_ms = mana;
                 const uncapped_ms = mana + ms_per_hit;
                 if (uncapped_ms > max_mana) mana_wasted += uncapped_ms - max_mana;
-                mana = Math.min(max_mana, uncapped_ms);
+                mana = Math.max(0, Math.min(max_mana, uncapped_ms));
                 row_mana_gained += mana - mana_before_ms;
             }
 
@@ -773,7 +773,7 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
     let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
         + (base_stats.get('atkTier') ?? 0);
     adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
-    const ms_per_hit = ms > 0 ? ms / 3 / baseDamageMultiplier[adjAtkSpd] : 0;
+    const ms_per_hit = ms !== 0 ? ms / 3 / baseDamageMultiplier[adjAtkSpd] : 0;
 
     // Melee cooldown tracking
     const melee_period = 1 / baseDamageMultiplier[adjAtkSpd];
@@ -878,10 +878,10 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
             _advance_time_fast(dt.pre_dt);
 
             // Mana steal from melee hits
-            if (is_melee_scaling && ms_per_hit > 0) {
+            if (is_melee_scaling && ms_per_hit !== 0) {
                 const uncapped_ms = mana + ms_per_hit;
                 if (uncapped_ms > max_mana) mana_wasted += uncapped_ms - max_mana;
-                mana = Math.min(max_mana, uncapped_ms);
+                mana = Math.max(0, Math.min(max_mana, uncapped_ms));
             }
 
             // "next_action" deactivation (Vanish)

@@ -97,6 +97,17 @@ function assertManaMatch(label, rows, stats, has_trans) {
     assertManaMatch('Melee + mana steal', rows, stats, false);
 }
 
+// 2b. Melee + NEGATIVE mana steal (items with ms < 0 drain mana per hit)
+{
+    const stats = makeStats({ mr: 5, ms: -24, int: 30, atkSpd: 'FAST' });
+    const rows = [
+        makeRow(1, makeSpell('Spell 1', 25, { base_spell: 1 })),
+        makeRow(3, makeSpell('Melee', null, { base_spell: 0, scaling: 'melee', mana_derived_from: 0 })),
+        makeRow(1, makeSpell('Spell 2', 40, { base_spell: 2 })),
+    ];
+    assertManaMatch('Melee + negative mana steal', rows, stats, false);
+}
+
 // 3. Transcendence: has_transcendence=true
 {
     const stats = makeStats({ mr: 8, int: 40 });
