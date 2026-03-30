@@ -648,6 +648,12 @@ const _SOLVER_DEFAULTS = {
  *         [2]   effect_pos (0-3)
  *         [1]   has_value (0=toggle, 1=slider)
  *         [10]  value (only if has_value=1, 0-1023; v1-v3: 7-bit, 0-127)
+ *       [1]   has_timing (v5+: 0=use defaults, 1=explicit cast_time+delay)
+ *       If has_timing=1:
+ *         [2]   cast_time size_class (SC 0=3-bit ×20, 1=5-bit int, 2=6-bit ×20, 3=10-bit ×100)
+ *         [3/5/6/10] cast_time value (per size_class)
+ *         [2]   delay size_class (same encoding)
+ *         [3/5/6/10] delay value (per size_class)
  *   [4]   blacklist_count (0-15)
  *     Per blacklist entry:
  *       [14]  item_id (0-16383)

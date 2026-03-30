@@ -350,6 +350,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
     const row_results = [];
     const spell_costs = [];
     let total_mana_cost = 0;
+    let total_mana_drain = 0;
     let melee_hits = 0;
     let recast_penalty_total = 0;
 
@@ -489,6 +490,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                         const drain = drain_pct / 100 * max_mana * active_dt;
                         const actual = Math.min(mana, drain);
                         mana -= actual;
+                        total_mana_drain += actual;
                         if (bs.tracking === 'mana_loss') {
                             st.value = Math.min(st.value + actual, bs.value_cap);
                         }
@@ -653,8 +655,12 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                                 if (auto_delay && row_computed_delay == null) {
                                     row_computed_delay = dro.computed_delay;
                                 }
-                                if (dro.resource === 'mana') mana -= dro.actual_drain;
-                                else hp -= dro.actual_drain;
+                                if (dro.resource === 'mana') {
+                                    mana -= dro.actual_drain;
+                                    total_mana_drain += dro.actual_drain;
+                                } else {
+                                    hp -= dro.actual_drain;
+                                }
                                 // The drain time is modeled as instant; shift activated_at
                                 // forward so _advance_time's duration check doesn't expire
                                 // the state during the overridden delay.
@@ -700,6 +706,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         row_results,
         spell_costs,
         total_mana_cost,
+        total_mana_drain,
         melee_hits,
         recast_penalty_total,
         mana_wasted,
@@ -727,6 +734,7 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
     const start_mana = 100 + item_mana + int_mana;
     const max_mana = start_mana;
     let mana_wasted = 0;
+    let total_mana_drain = 0;
 
     const health_cost_pct = health_config.health_cost;
     const base_hp = base_stats.get('hp') ?? 0;
@@ -817,7 +825,9 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
                     const drain_pct = bs.drain_pct_per_second.mana ?? 0;
                     if (drain_pct > 0) {
                         const drain = drain_pct / 100 * max_mana * active_dt;
-                        mana -= Math.min(mana, drain);
+                        const actual = Math.min(mana, drain);
+                        mana -= actual;
+                        total_mana_drain += actual;
                     }
                 }
             }
@@ -899,8 +909,12 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
                                 if (auto_delay && fast_post_override == null) {
                                     fast_post_override = dro.computed_delay;
                                 }
-                                if (dro.resource === 'mana') mana -= dro.actual_drain;
-                                else hp -= dro.actual_drain;
+                                if (dro.resource === 'mana') {
+                                    mana -= dro.actual_drain;
+                                    total_mana_drain += dro.actual_drain;
+                                } else {
+                                    hp -= dro.actual_drain;
+                                }
                                 st.activated_at += dro.computed_delay;
                             }
                         }
@@ -918,7 +932,7 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
         }
     }
 
-    return { start_mana, end_mana: mana, max_mana, has_hp_warning, has_mana_warning, mana_wasted };
+    return { start_mana, end_mana: mana, max_mana, has_hp_warning, has_mana_warning, mana_wasted, total_mana_drain };
 }
 
 /**

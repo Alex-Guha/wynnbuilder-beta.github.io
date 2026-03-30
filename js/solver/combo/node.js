@@ -882,13 +882,17 @@ class SolverComboTotalNode extends ComputeNode {
             // Aggregate breakdown for tooltip (regen, steal)
             const mana_regen = ((mr + BASE_MANA_REGEN) / 5) * combo_time;
             html += `<div>Regen \u00d7${combo_time}s: ${fmt(mana_regen)} (${mr + BASE_MANA_REGEN}/5s)</div>`;
-            if (ms && melee_hits > 0) {
+            if (ms !== 0 && melee_hits > 0) {
                 let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
                     + (base_stats.get('atkTier') ?? 0);
                 adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
                 const mana_steal = melee_hits * ms / 3 / baseDamageMultiplier[adjAtkSpd];
                 const mana_per_hit = ms / 3 / baseDamageMultiplier[adjAtkSpd];
                 html += `<div>Mana steal \u00d7${melee_hits} hits: ${fmt(mana_steal)} (${Math.round(mana_per_hit * 10) / 10}/hit)</div>`;
+            }
+            const mana_drain = sim_result.total_mana_drain ?? 0;
+            if (mana_drain > 0) {
+                html += `<div>Drain: ${fmt(-mana_drain)}</div>`;
             }
             html +=
                 `<hr class="my-1 border-secondary">` +

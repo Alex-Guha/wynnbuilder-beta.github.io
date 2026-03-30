@@ -11,11 +11,12 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 - looping combo portions
 - True DPS calculation
 - Weighted multi-target solving
-- Let's add a new toggle to the combo section that appears when in advanced mode: "Debug". When in debug, 
+- Let's add a new toggle to the combo section that appears when in advanced mode: "Debug". When in debug, stuff
 
 ### Necessary Improvements
 - Testing setup to measure the time it takes to find a build, across many builds. This would be used to test priority weighting changes.
     - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
+- Rewrite simulator, the tech debt is stacking up.
 
 ### Polish
 #### UI

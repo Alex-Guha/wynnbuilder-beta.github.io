@@ -189,6 +189,8 @@ function assertManaMatchHC(label, rows, stats, hc, has_trans) {
     const eps = 1e-6;
     t.assert(Math.abs(full.end_mana - fast.end_mana) < eps,
         `${label}: end_mana mismatch: full=${full.end_mana}, fast=${fast.end_mana}`);
+    t.assert(Math.abs(full.total_mana_drain - fast.total_mana_drain) < eps,
+        `${label}: total_mana_drain mismatch: full=${full.total_mana_drain}, fast=${fast.total_mana_drain}`);
     return full;
 }
 
@@ -352,6 +354,53 @@ function assertManaMatchHC(label, rows, stats, hc, has_trans) {
         makeRow(2, attackSpell),
     ];
     assertManaMatchHC('Drain override full/fast agreement', rows, stats, hc, false);
+}
+
+// 16. total_mana_drain tracking — verify drain is returned and mana accounting holds
+{
+    const stats = makeStats({ mr: 0, int: 0 });  // start_mana = 100, no regen
+    const hc = makeVanishConfig({ mana_drain: true });  // compute_delay drain, value_cap=26
+    const dashSpell = makeSpell('Dash', 10, { base_spell: 2 });
+    const attackSpell = makeSpell('Attack', 10, { base_spell: 1 });
+    const rows = [
+        makeRow(1, dashSpell),
+        makeRow(1, attackSpell),
+    ];
+
+    const registry = [];
+    const full = simulate_combo_mana_hp(rows, stats, hc, false, registry);
+    const fast = simulate_combo_mana_fast(rows, stats, hc, false, registry);
+
+    // total_mana_drain should be > 0 (Manic Edge drains mana on activation)
+    t.assert(full.total_mana_drain > 0,
+        `Drain tracking (full): total_mana_drain should be > 0, got ${full.total_mana_drain}`);
+    t.assert(fast.total_mana_drain > 0,
+        `Drain tracking (fast): total_mana_drain should be > 0, got ${fast.total_mana_drain}`);
+
+    // Full/fast agreement
+    t.assert(Math.abs(full.total_mana_drain - fast.total_mana_drain) < 1e-6,
+        `Drain tracking: full/fast mismatch: full=${full.total_mana_drain}, fast=${fast.total_mana_drain}`);
+
+    // Mana accounting: start - costs - drain + regen + steal ≈ end (no regen/steal here)
+    const expected_end = full.start_mana - full.total_mana_cost - full.total_mana_drain;
+    t.assert(Math.abs(full.end_mana - expected_end) < 1,
+        `Drain tracking: mana accounting: start(${full.start_mana}) - cost(${full.total_mana_cost}) - drain(${full.total_mana_drain}) = ${expected_end}, but end_mana=${full.end_mana}`);
+}
+
+// 17. No drain — total_mana_drain should be 0 for builds without drain mechanics
+{
+    const stats = makeStats({ mr: 10, int: 0 });
+    const rows = [
+        makeRow(2, makeSpell('Spell 1', 30, { base_spell: 1 })),
+    ];
+    const registry = [];
+    const full = simulate_combo_mana_hp(rows, stats, DEFAULT_HEALTH_CONFIG, false, registry);
+    const fast = simulate_combo_mana_fast(rows, stats, DEFAULT_HEALTH_CONFIG, false, registry);
+
+    t.assert(full.total_mana_drain === 0,
+        `No drain (full): total_mana_drain should be 0, got ${full.total_mana_drain}`);
+    t.assert(fast.total_mana_drain === 0,
+        `No drain (fast): total_mana_drain should be 0, got ${fast.total_mana_drain}`);
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────
