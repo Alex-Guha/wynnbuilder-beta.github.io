@@ -96,6 +96,18 @@ const _scratch_finalize_inner = { damMult: new Map(), defMult: new Map(), healMu
 const _scratch_sp_set_counts = new Map();
 const _scratch_orig_base_sp = new Int32Array(5);  // pre-greedy base_sp snapshot for mana rescue
 
+// ── Pre-allocated scratch arrays for leaf evaluation (eliminate per-leaf allocs) ──
+const _scratch_equip_8 = new Array(8);
+const _scratch_sp_input = new Array(9);    // 8 equips + guild_tome
+let _scratch_all_equip = null;             // sized at init: 8 + tome_sms.length + 1 (weapon)
+const _scratch_sp = {
+    bonus: [0, 0, 0, 0, 0],
+    req: [0, 0, 0, 0, 0],
+    assign: [0, 0, 0, 0, 0],
+    final: [0, 0, 0, 0, 0],
+    no_bonus: [],  // sized at init (max 9: weapon + up to 8 crafted items)
+};
+
 /**
  * Build constraint prechecks from the restriction thresholds.
  * Called once during worker init.
@@ -351,6 +363,7 @@ function _run_level_enum() {
     const pools = { ..._cfg.pools };
     const _dbg = SOLVER_DEBUG_WORKER && _cfg.worker_id === 0;
     let _dbg_sp_prune_count = 0;
+    let _dbg_sp_leaf_reject = 0;
     let _dbg_precheck_reject = 0;
     let _dbg_ehp_reject = 0;
     let _dbg_sp_reject = 0;
@@ -466,6 +479,10 @@ function _run_level_enum() {
     fixed_item_sms.push(weapon_sm);
 
     const running_sm = _init_running_statmap(level, fixed_item_sms);
+
+    // Size scratch arrays now that tome_sms is known
+    _scratch_all_equip = new Array(8 + tome_sms.length + 1);  // 8 equips + tomes + weapon
+    _scratch_sp.no_bonus = new Array(9);  // weapon + up to 8 crafted items (max possible)
 
     // ── Progress reporting ──────────────────────────────────────────────────
 
@@ -627,17 +644,22 @@ function _run_level_enum() {
             return;
         }
 
-        const equip_8_sms = [
-            partial.helmet.statMap, partial.chestplate.statMap,
-            partial.leggings.statMap, partial.boots.statMap,
-            partial.ring1.statMap, partial.ring2.statMap,
-            partial.bracelet.statMap, partial.necklace.statMap,
-        ];
+        // Fill scratch arrays (pointer writes only, no allocation)
+        _scratch_equip_8[0] = partial.helmet.statMap;
+        _scratch_equip_8[1] = partial.chestplate.statMap;
+        _scratch_equip_8[2] = partial.leggings.statMap;
+        _scratch_equip_8[3] = partial.boots.statMap;
+        _scratch_equip_8[4] = partial.ring1.statMap;
+        _scratch_equip_8[5] = partial.ring2.statMap;
+        _scratch_equip_8[6] = partial.bracelet.statMap;
+        _scratch_equip_8[7] = partial.necklace.statMap;
+
+        // SP input: 8 equips + guild_tome (reuse scratch)
+        for (let i = 0; i < 8; i++) _scratch_sp_input[i] = _scratch_equip_8[i];
+        _scratch_sp_input[8] = guild_tome_sm;
 
         // Combined SP feasibility check + full calculation (single pass).
-        // Uses effective requirements and proper weapon exclusion for tighter
-        // rejection than the old two-step _sp_prefilter + calculate_skillpoints.
-        const sp_result = calculate_skillpoints([...equip_8_sms, guild_tome_sm], weapon_sm, sp_budget, _scratch_sp_set_counts);
+        const sp_result = calculate_skillpoints(_scratch_sp_input, weapon_sm, sp_budget, _scratch_sp_set_counts, _scratch_sp);
         if (!sp_result) {
             _dbg_sp_reject++;
             _maybe_progress();
@@ -651,8 +673,11 @@ function _run_level_enum() {
 
         // Build stat assembly from running statMap (incremental accumulation)
         const t0 = _dbg ? performance.now() : 0;
-        const all_equip_sms = [...equip_8_sms, ...tome_sms, weapon_sm];
-        const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, all_equip_sms, _scratch_finalize, _scratch_finalize_inner);
+        // Fill _scratch_all_equip: 8 equips + tomes + weapon (no allocation)
+        for (let i = 0; i < 8; i++) _scratch_all_equip[i] = _scratch_equip_8[i];
+        for (let i = 0; i < tome_sms.length; i++) _scratch_all_equip[8 + i] = tome_sms[i];
+        _scratch_all_equip[8 + tome_sms.length] = weapon_sm;
+        const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, _scratch_all_equip, _scratch_finalize, _scratch_finalize_inner);
 
         // Greedily assign any remaining SP budget to maximise the scoring target
         let final_assigned = _greedy_allocate_sp(build_sm, base_sp, total_sp, assigned_sp, weapon_sm);
@@ -710,8 +735,9 @@ function _run_level_enum() {
         _dbg_scored++;
         _met_req++;
         if (_dbg) _dbg_leaf_time += performance.now() - t0;
-        const item_names = equip_8_sms.map(sm => _get_item_name(sm));
-        const entry = { score, item_names, base_sp, total_sp, assigned_sp: final_assigned };
+        const item_names = _scratch_equip_8.map(sm => _get_item_name(sm));
+        // Clone SP arrays before storing — they may alias scratch buffers
+        const entry = { score, item_names, base_sp: base_sp.slice(), total_sp: total_sp.slice(), assigned_sp: final_assigned };
         // In debug mode, store a deep clone of combo_base so we can re-evaluate with logging
         if (SOLVER_DEBUG_COMBO) entry._debug_combo_base = _deep_clone_statmap(combo_base);
         _insert_top5(entry);
@@ -880,6 +906,26 @@ function _run_level_enum() {
         return true;
     }
 
+    /**
+     * Leaf-level SP feasibility check — all items are placed, no suffix term.
+     * Identical logic to _sp_mid_tree_feasible but without the suffix
+     * optimistic provision (no remaining slots) and no early return.
+     * ~20 int ops, zero allocation — cheapest possible rejection at the leaf.
+     */
+    function _sp_leaf_feasible() {
+        let total_deficit = 0;
+        for (let i = 0; i < 5; i++) {
+            if (_sp_running_max_eff_req[i] === 0) continue;
+            const prov = _sp_fixed_sum_prov[i] + _sp_running_free_prov[i];
+            if (_sp_running_max_eff_req[i] <= prov) continue;
+            const deficit = _sp_running_max_eff_req[i] - prov;
+            if (deficit > SP_PER_ATTR_CAP) return false;
+            total_deficit += deficit;
+            if (total_deficit > sp_budget) return false;
+        }
+        return true;
+    }
+
     // Track ring1's placed offset for ring2 symmetry constraint (ring2 offset >= ring1 offset).
     let _ring1_placed_offset = 0;
 
@@ -928,7 +974,15 @@ function _run_level_enum() {
                     if (is) tracker.add(is, iname);
                     partial[slot] = item;
                     _place_item(item.statMap);
-                    _evaluate_leaf();
+                    _sp_place_free_item(item.statMap, slot_idx);
+                    if (_sp_leaf_feasible()) {
+                        _evaluate_leaf();
+                    } else {
+                        _checked++;
+                        _dbg_sp_leaf_reject++;
+                        _maybe_progress();
+                    }
+                    _sp_unplace_free_item(item.statMap, slot_idx);
                     _unplace_item(item.statMap);
                     if (is) tracker.remove(is, iname);
                 }
@@ -989,6 +1043,7 @@ function _run_level_enum() {
         console.log('[w0] leaf breakdown | checked:', _checked,
             '| precheck_reject:', _dbg_precheck_reject,
             '| ehp_reject:', _dbg_ehp_reject,
+            '| sp_leaf_reject:', _dbg_sp_leaf_reject,
             '| sp_reject:', _dbg_sp_reject,
             '| sp_pruned:', _dbg_sp_prune_count,
             '| feasible:', _feasible,

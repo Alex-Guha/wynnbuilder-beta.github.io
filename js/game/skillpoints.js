@@ -29,14 +29,40 @@ function pull_req(req_skillpoints, item, is_bonus_item) {
  * @param {Map[]} equipment  - equipment statMaps (armor/acc/tomes)
  * @param {Map}   weapon     - weapon statMap
  * @param {number} sp_budget - max total assignable SP (default Infinity = no limit)
+ * @param {Map|null} scratch_set_counts - reusable Map for set counting (optional)
+ * @param {Object|null} scratch_sp - reusable arrays {bonus, req, assign, final, no_bonus}
+ *                                   to eliminate per-call allocations (optional).
+ *                                   Caller must .slice() return arrays before caching.
  * @returns {Array|null} [best_skillpoints, final_skillpoints, best_total, set_counts],
  *                       or null if sp_budget is exceeded or any single attr > SP_PER_ATTR_CAP.
  */
-function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_set_counts = null) {
-    let no_bonus_items = [weapon];
+function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_set_counts = null, scratch_sp = null) {
+    let no_bonus_items;
+    let bonus_skillpoints;
+    let req_skillpoints;
+    let assign;
+    let final_skillpoints;
 
-    let bonus_skillpoints = [0, 0, 0, 0, 0];
-    let req_skillpoints = [0, 0, 0, 0, 0];
+    if (scratch_sp) {
+        no_bonus_items = scratch_sp.no_bonus;
+        no_bonus_items[0] = weapon;
+        scratch_sp._no_bonus_len = 1;
+        bonus_skillpoints = scratch_sp.bonus;
+        req_skillpoints = scratch_sp.req;
+        assign = scratch_sp.assign;
+        final_skillpoints = scratch_sp.final;
+        for (let i = 0; i < 5; i++) {
+            bonus_skillpoints[i] = 0;
+            req_skillpoints[i] = 0;
+            assign[i] = 0;
+        }
+    } else {
+        no_bonus_items = [weapon];
+        bonus_skillpoints = [0, 0, 0, 0, 0];
+        req_skillpoints = [0, 0, 0, 0, 0];
+        assign = [0, 0, 0, 0, 0];
+    }
+
     let set_counts;
     if (scratch_set_counts) {
         set_counts = scratch_set_counts;
@@ -46,7 +72,11 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
     }
     for (const item of equipment) {
         if (item.get("crafted")) {
-            no_bonus_items.push(item);
+            if (scratch_sp) {
+                no_bonus_items[scratch_sp._no_bonus_len++] = item;
+            } else {
+                no_bonus_items.push(item);
+            }
             pull_req(req_skillpoints, item, false);
         }
         // Add skillpoints, and record set bonuses
@@ -64,7 +94,6 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
     }
     pull_req(req_skillpoints, weapon, false);
 
-    let assign = [0, 0, 0, 0, 0];
     let total_assigned = 0;
     for (let i = 0; i < 5; ++i) {
         if(req_skillpoints[i] == 0)
@@ -78,10 +107,17 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
             if (total_assigned > sp_budget) return null;
         }
     }
-    let final_skillpoints = assign.slice();
+
+    if (scratch_sp) {
+        // Reuse final array: copy assign then add bonus
+        for (let i = 0; i < 5; i++) final_skillpoints[i] = assign[i];
+    } else {
+        final_skillpoints = assign.slice();
+    }
     inplace_vadd5(final_skillpoints, bonus_skillpoints);
-    for (const item of no_bonus_items) {
-        inplace_vadd5(final_skillpoints, item.get('skillpoints'));
+    const nb_len = scratch_sp ? scratch_sp._no_bonus_len : no_bonus_items.length;
+    for (let i = 0; i < nb_len; i++) {
+        inplace_vadd5(final_skillpoints, no_bonus_items[i].get('skillpoints'));
     }
     for (const [set_name, count] of set_counts) {
         const bonus = sets.get(set_name).bonuses[count - 1];
