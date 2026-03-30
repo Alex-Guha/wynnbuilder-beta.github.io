@@ -597,7 +597,7 @@ const _SOLVER_DEFAULTS = {
  * Version 1 binary format — compact binary with default elision.
  *
  * Binary layout (EncodingBitVector):
- *   [3]   version (111 = v7)
+ *   [3]   version (111 = v7; 000 = extension signal → [4] extended_version)
  *   [10]  field_present bitmask (1 = non-default, field encoded below)
  *          bit 0: roll_groups (default {85,100,85,85})
  *          bit 1: sfree      (default 0)
@@ -654,6 +654,10 @@ const _SOLVER_DEFAULTS = {
  *         [3/5/6/10] cast_time value (per size_class)
  *         [2]   delay size_class (same encoding)
  *         [3/5/6/10] delay value (per size_class)
+ *       [1]   has_melee_cd (v8+: 0=use weapon default, 1=explicit melee cooldown)
+ *       If has_melee_cd=1:
+ *         [2]   melee_cd size_class (same timing encoding)
+ *         [3/5/6/10] melee_cd value (per size_class)
  *   [4]   blacklist_count (0-15)
  *     Per blacklist entry:
  *       [14]  item_id (0-16383)
@@ -677,8 +681,17 @@ function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
     const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-    // Version: 3 bits (v7 = 111)
-    bv.append(7, 3);
+    // Check if any combo row has a melee_cd override → needs extended version.
+    const combo_rows_arr = params.combo_rows || [];
+    const needs_v8 = combo_rows_arr.some(r => r.melee_cd !== undefined);
+
+    // Version: 3 bits. Use 0 as extension signal for v8+; otherwise v7.
+    if (needs_v8) {
+        bv.append(0, 3);       // extension signal
+        bv.append(8, 4);       // extended version = 8
+    } else {
+        bv.append(7, 3);       // v7 (full backward compat)
+    }
 
     // ── Presence bitmask (10 bits) ──
     // v3: bit 0 → roll_groups (4×7 bits), replaces v2's single roll field
@@ -797,6 +810,17 @@ function encodeSolverParams(params) {
             const dl_sc = _timing_size_class(row.delay);
             bv.append(dl_sc, 2);
             _encode_timing(bv, row.delay, dl_sc);
+        }
+
+        // v8: per-row melee cooldown override (melee/powder-special rows only).
+        if (needs_v8) {
+            const has_mcd = (row.melee_cd !== undefined) ? 1 : 0;
+            bv.append(has_mcd, 1);
+            if (has_mcd) {
+                const mcd_sc = _timing_size_class(row.melee_cd);
+                bv.append(mcd_sc, 2);
+                _encode_timing(bv, row.melee_cd, mcd_sc);
+            }
         }
     }
 

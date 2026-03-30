@@ -156,6 +156,7 @@ function _parse_combo_for_search(spell_map, weapon) {
                 cast_time: r.cast_time,
                 delay: r.delay,
                 auto_delay: r.auto_delay,
+                melee_cd_override: r.melee_cd_override,
                 is_melee_time: r.is_melee_time || false,
             };
             // DPS spells with a Total/Max part: pass per-hit display name and

@@ -1,19 +1,21 @@
 // ── Combo data serialization ──────────────────────────────────────────────────
 
-/** Serialize [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay}] to multi-line text. */
+/** Serialize [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd}] to multi-line text. */
 function combo_data_to_text(data) {
-    return data.map(({ qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay }) => {
+    return data.map(({ qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd }) => {
         let line = qty + ' | ' + spell_name + ' | ' + boost_tokens_text;
         const has_timing = cast_time !== undefined && delay !== undefined;
-        if (mana_excl || dmg_excl || hits !== undefined || has_timing) line += ' | ' + (mana_excl ? '1' : '0');
-        if (dmg_excl || hits !== undefined || has_timing) line += ' | ' + (dmg_excl ? '1' : '0');
-        if (hits !== undefined || has_timing) line += ' | ' + (hits !== undefined ? hits : '');
-        if (has_timing) line += ' | ' + cast_time + ' | ' + delay;
+        const has_mcd = melee_cd !== undefined;
+        if (mana_excl || dmg_excl || hits !== undefined || has_timing || has_mcd) line += ' | ' + (mana_excl ? '1' : '0');
+        if (dmg_excl || hits !== undefined || has_timing || has_mcd) line += ' | ' + (dmg_excl ? '1' : '0');
+        if (hits !== undefined || has_timing || has_mcd) line += ' | ' + (hits !== undefined ? hits : '');
+        if (has_timing || has_mcd) line += ' | ' + (cast_time ?? '') + ' | ' + (delay ?? '');
+        if (has_mcd) line += ' | ' + melee_cd;
         return line;
     }).join('\n');
 }
 
-/** Parse multi-line text to [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay}]. */
+/** Parse multi-line text to [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd}]. */
 function combo_text_to_data(text) {
     const result = [];
     for (const raw of text.split('\n')) {
@@ -34,11 +36,14 @@ function combo_text_to_data(text) {
         const dl_str    = (parts[7] ?? '').trim();
         const cast_time = ct_str ? parseFloat(ct_str) : undefined;
         const delay     = dl_str ? parseFloat(dl_str) : undefined;
+        const mcd_str   = (parts[8] ?? '').trim();
+        const melee_cd  = mcd_str ? parseFloat(mcd_str) : undefined;
         result.push({
             qty, spell_name, boost_tokens_text, mana_excl, dmg_excl,
             hits: (hits != null && !isNaN(hits)) ? hits : undefined,
             cast_time: (cast_time != null && !isNaN(cast_time)) ? cast_time : undefined,
             delay: (delay != null && !isNaN(delay)) ? delay : undefined,
+            melee_cd: (melee_cd != null && !isNaN(melee_cd)) ? melee_cd : undefined,
         });
     }
     return result;

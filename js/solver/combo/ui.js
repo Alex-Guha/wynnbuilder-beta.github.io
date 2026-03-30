@@ -17,7 +17,7 @@ function _update_boost_btn_highlight(row) {
 
 // ── Combo row builder ─────────────────────────────────────────────────────────
 
-function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_mana_excl, pending_dmg_excl, pending_spell_value, pending_cast_time, pending_delay) {
+function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_mana_excl, pending_dmg_excl, pending_spell_value, pending_cast_time, pending_delay, pending_melee_cd) {
     const row = document.createElement('div');
     row.className = 'combo-row d-flex gap-2 align-items-center';
     if (pending_spell !== undefined) row.dataset.pendingSpell = pending_spell;
@@ -183,13 +183,20 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     const ct_inp = document.createElement('input');
     ct_inp.type = 'hidden';
     ct_inp.className = 'combo-row-cast-time';
-    ct_inp.value = String(pending_cast_time ?? SPELL_CAST_TIME);
+    ct_inp.value = (pending_cast_time != null) ? String(pending_cast_time) : '';
+    ct_inp.dataset.auto = (pending_cast_time == null) ? 'true' : 'false';
 
     const dl_inp = document.createElement('input');
     dl_inp.type = 'hidden';
     dl_inp.className = 'combo-row-delay';
-    dl_inp.value = String(pending_delay ?? SPELL_CAST_DELAY);
+    dl_inp.value = (pending_delay != null) ? String(pending_delay) : '';
     dl_inp.dataset.auto = (pending_delay == null) ? 'true' : 'false';
+
+    const mcd_inp = document.createElement('input');
+    mcd_inp.type = 'hidden';
+    mcd_inp.className = 'combo-row-melee-cd';
+    mcd_inp.value = (pending_melee_cd != null) ? String(pending_melee_cd) : '';
+    mcd_inp.dataset.auto = (pending_melee_cd == null) ? 'true' : 'false';
 
     // Wrap toggles + damage in a group so they always move to line 2 together
     // when the row wraps, instead of splitting across lines.
@@ -197,7 +204,7 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     toggles_wrap.className = 'combo-row-toggles-wrap';
     toggles_wrap.append(mana_btn, dmg_btn, dmg_wrap);
 
-    row.append(rm_btn, qty_inp, spell_sel, timing_wrap, boost_wrap, toggles_wrap, ct_inp, dl_inp);
+    row.append(rm_btn, qty_inp, spell_sel, timing_wrap, boost_wrap, toggles_wrap, ct_inp, dl_inp, mcd_inp);
     return row;
 }
 
@@ -266,7 +273,7 @@ document.addEventListener('click', (e) => {
 /** Build the inner content of a timing popup (two labeled number inputs). */
 function _build_timing_popup_content(popup, cast_time, delay) {
     popup.innerHTML = '';
-    const make_field = (label, cls, val, def) => {
+    const make_field = (label, cls, val, def, is_auto) => {
         const wrap = document.createElement('div');
         wrap.className = 'd-flex align-items-center gap-1 m-1';
         const lbl = document.createElement('span');
@@ -276,7 +283,12 @@ function _build_timing_popup_content(popup, cast_time, delay) {
         inp.type = 'number';
         inp.className = 'combo-row-input ' + cls;
         inp.style.cssText = 'width:4.5em; text-align:center;';
-        inp.value = String(val ?? def);
+        if (is_auto) {
+            inp.value = '';
+            inp.placeholder = String(def);
+        } else {
+            inp.value = String(val);
+        }
         inp.step = '0.01';
         inp.min = '0';
         const unit = document.createElement('span');
@@ -289,50 +301,78 @@ function _build_timing_popup_content(popup, cast_time, delay) {
             const hidden = row.querySelector(cls === 'timing-cast-time' ? '.combo-row-cast-time' : '.combo-row-delay');
             if (hidden) {
                 hidden.value = inp.value;
-                // Mark delay as manually set so auto-fill doesn't overwrite it
-                if (cls === 'timing-cast-delay') hidden.dataset.auto = 'false';
+                hidden.dataset.auto = 'false';
             }
             _update_timing_btn_highlight(row);
             if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
         });
         inp.addEventListener('blur', () => {
             if (inp.value !== '' && !isNaN(parseFloat(inp.value))) return;
+            // Empty/invalid → restore auto mode; _refresh_selection_timing will fill defaults.
             const row = popup.closest('.combo-row');
             if (!row) return;
             const hidden = row.querySelector(cls === 'timing-cast-time' ? '.combo-row-cast-time' : '.combo-row-delay');
-            if (cls === 'timing-cast-delay') {
-                // Reset delay to default and restore auto mode so autocalc can fill it.
-                inp.value = String(def);
-                if (hidden) { hidden.value = inp.value; hidden.dataset.auto = 'true'; }
-            } else {
-                // Reset cast time to the spell-appropriate default.
-                const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
-                const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID || spell_id < 0;
-                const reset_val = is_melee ? 0 : def;
-                inp.value = String(reset_val);
-                if (hidden) hidden.value = inp.value;
-            }
+            inp.value = '';
+            if (hidden) { hidden.value = ''; hidden.dataset.auto = 'true'; }
             _update_timing_btn_highlight(row);
             if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
         });
         wrap.append(lbl, inp, unit);
         return wrap;
     };
-    popup.appendChild(make_field('Cast Time', 'timing-cast-time', cast_time, SPELL_CAST_TIME));
-    popup.appendChild(make_field('Cast Delay', 'timing-cast-delay', delay, SPELL_CAST_DELAY));
+    popup.appendChild(make_field('Cast Time', 'timing-cast-time', cast_time, SPELL_CAST_TIME, cast_time == null));
+    popup.appendChild(make_field('Cast Delay', 'timing-cast-delay', delay, SPELL_CAST_DELAY, delay == null));
+
+    // Melee Cooldown override field (visible only for melee/powder-special rows).
+    const mcd_wrap = document.createElement('div');
+    mcd_wrap.className = 'align-items-center gap-1 m-1 timing-melee-cd-wrap';
+    mcd_wrap.style.display = 'none';
+    const mcd_lbl = document.createElement('span');
+    mcd_lbl.className = 'text-secondary small text-nowrap';
+    mcd_lbl.textContent = 'Cooldown';
+    const mcd_inp = document.createElement('input');
+    mcd_inp.type = 'number';
+    mcd_inp.className = 'combo-row-input timing-melee-cd';
+    mcd_inp.style.cssText = 'width:4.5em; text-align:center;';
+    mcd_inp.step = '0.001';
+    mcd_inp.min = '0';
+    mcd_inp.value = '';
+    const mcd_unit = document.createElement('span');
+    mcd_unit.className = 'text-secondary small';
+    mcd_unit.textContent = 's';
+    mcd_inp.addEventListener('input', () => {
+        const row = popup.closest('.combo-row');
+        if (!row) return;
+        const hidden = row.querySelector('.combo-row-melee-cd');
+        if (hidden) {
+            hidden.value = mcd_inp.value;
+            hidden.dataset.auto = 'false';
+        }
+        _update_timing_btn_highlight(row);
+        if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+    });
+    mcd_inp.addEventListener('blur', () => {
+        if (mcd_inp.value !== '' && !isNaN(parseFloat(mcd_inp.value))) return;
+        const row = popup.closest('.combo-row');
+        if (!row) return;
+        const hidden = row.querySelector('.combo-row-melee-cd');
+        if (hidden) { hidden.value = ''; hidden.dataset.auto = 'true'; }
+        mcd_inp.value = '';
+        _update_timing_btn_highlight(row);
+        if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+    });
+    mcd_wrap.append(mcd_lbl, mcd_inp, mcd_unit);
+    popup.appendChild(mcd_wrap);
 }
 
 /** Highlight timing button when values differ from defaults. */
 function _update_timing_btn_highlight(row) {
     const btn = row.querySelector('.combo-timing-menu-btn');
     if (!btn) return;
-    const ct = parseFloat(row.querySelector('.combo-row-cast-time')?.value);
-    const dl = parseFloat(row.querySelector('.combo-row-delay')?.value);
-    // Melee and powder specials have a default cast_time of 0, not SPELL_CAST_TIME.
-    const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
-    const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID || spell_id < 0;
-    const default_ct = is_melee ? 0 : SPELL_CAST_TIME;
-    const custom = (!isNaN(ct) && ct !== default_ct) || (!isNaN(dl) && dl !== SPELL_CAST_DELAY);
+    const ct_auto = row.querySelector('.combo-row-cast-time')?.dataset.auto !== 'false';
+    const dl_auto = row.querySelector('.combo-row-delay')?.dataset.auto !== 'false';
+    const mcd_auto = row.querySelector('.combo-row-melee-cd')?.dataset.auto !== 'false';
+    const custom = !ct_auto || !dl_auto || !mcd_auto;
     btn.classList.toggle('toggleOn', custom);
 }
 

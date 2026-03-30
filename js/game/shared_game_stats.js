@@ -62,10 +62,14 @@ function getBaseSpellCost(stats, spell) {
     return cost * (1 + (stats.get('spPct' + bs) ?? 0) / 100);
 }
 
-function getSpellCost(stats, spell) {
+function getUnclampedSpellCost(stats, spell) {
     const bs = spell.mana_derived_from ?? spell.base_spell;
     const final_pct = stats.get('spPct' + bs + 'Final') ?? 0;
-    return Math.max(1, getBaseSpellCost(stats, spell) * (1 + final_pct / 100));
+    return getBaseSpellCost(stats, spell) * (1 + final_pct / 100);
+}
+
+function getSpellCost(stats, spell) {
+    return Math.max(1, getUnclampedSpellCost(stats, spell));
 }
 
 // ── Defense stat calculation ─────────────────────────────────────────────────

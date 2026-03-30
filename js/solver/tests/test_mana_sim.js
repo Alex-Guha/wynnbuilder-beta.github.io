@@ -50,6 +50,7 @@ function makeRow(qty, spell, opts = {}) {
         boost_tokens: opts.boost_tokens ?? [],
         mana_excl: opts.mana_excl ?? false,
         pseudo: opts.pseudo ?? null,
+        recast_penalties: opts.recast_penalties ?? null,
         recast_penalty_per_cast: opts.recast_penalty_per_cast ?? 0,
     };
 }
@@ -401,6 +402,95 @@ function assertManaMatchHC(label, rows, stats, hc, has_trans) {
         `No drain (full): total_mana_drain should be 0, got ${full.total_mana_drain}`);
     t.assert(fast.total_mana_drain === 0,
         `No drain (fast): total_mana_drain should be 0, got ${fast.total_mana_drain}`);
+}
+
+// ── Recast penalty + spell cost clamp interaction ───────────────────────────
+
+const compute_recast_penalties = ctx.compute_recast_penalties;
+
+// 18. High cost reduction absorbs recast penalty: max(1, base + penalty) = 1
+{
+    // spRaw1 = -200 makes unclamped cost deeply negative.
+    // 3 consecutive casts: penalties [0, 0, 5]. All should clamp to 1.
+    const stats = makeStats({ spRaw1: -200 });
+    const spell = makeSpell('Cheap Spell', 30, { base_spell: 1 });
+    const rows = [
+        makeRow(3, spell, { recast_penalties: [0, 0, 5], recast_penalty_per_cast: 5/3 }),
+    ];
+    const registry = [];
+    const hc = DEFAULT_HEALTH_CONFIG;
+    const full = simulate_combo_mana_hp(rows, stats, hc, false, registry);
+    const fast = simulate_combo_mana_fast(rows, stats, hc, false, registry);
+
+    // Each cast should cost max(1, 30-200+penalty) = 1, total_mana_cost = 3
+    t.assert(Math.abs(full.total_mana_cost - 3) < 1e-6,
+        `Recast absorbed (full): total_mana_cost should be 3, got ${full.total_mana_cost}`);
+    // Full/fast agreement
+    t.assert(Math.abs(full.end_mana - fast.end_mana) < 1e-6,
+        `Recast absorbed: full/fast end_mana mismatch: full=${full.end_mana}, fast=${fast.end_mana}`);
+    // recast_penalty_total should be 0 (penalty fully absorbed by clamp)
+    t.assert(full.recast_penalty_total === 0,
+        `Recast absorbed: recast_penalty_total should be 0, got ${full.recast_penalty_total}`);
+}
+
+// 19. No cost reduction: recast penalty adds to cost normally
+{
+    const stats = makeStats();
+    const spell = makeSpell('Spell', 20, { base_spell: 1 });
+    // 3 casts: penalties [0, 0, 5]
+    const rows = [
+        makeRow(3, spell, { recast_penalties: [0, 0, 5], recast_penalty_per_cast: 5/3 }),
+    ];
+    const registry = [];
+    const hc = DEFAULT_HEALTH_CONFIG;
+    const full = simulate_combo_mana_hp(rows, stats, hc, false, registry);
+    const fast = simulate_combo_mana_fast(rows, stats, hc, false, registry);
+
+    // Costs: 20 + 20 + max(1, 20+5) = 20 + 20 + 25 = 65
+    t.assert(Math.abs(full.total_mana_cost - 65) < 1e-6,
+        `Recast normal (full): total_mana_cost should be 65, got ${full.total_mana_cost}`);
+    t.assert(Math.abs(full.end_mana - fast.end_mana) < 1e-6,
+        `Recast normal: full/fast end_mana mismatch: full=${full.end_mana}, fast=${fast.end_mana}`);
+    t.assert(Math.abs(full.recast_penalty_total - 5) < 1e-6,
+        `Recast normal: recast_penalty_total should be 5, got ${full.recast_penalty_total}`);
+}
+
+// 20. Partial absorption: cost reduction partially absorbs penalty
+{
+    // spRaw1 = -18 → unclamped = 30-18 = 12 (base cost above clamp)
+    // Penalties [0, 0, 5]: costs = 12, 12, max(1, 12+5)=17. Total = 41.
+    const stats = makeStats({ spRaw1: -18 });
+    const spell = makeSpell('Spell', 30, { base_spell: 1 });
+    const rows = [
+        makeRow(3, spell, { recast_penalties: [0, 0, 5], recast_penalty_per_cast: 5/3 }),
+    ];
+    const registry = [];
+    const hc = DEFAULT_HEALTH_CONFIG;
+    const full = simulate_combo_mana_hp(rows, stats, hc, false, registry);
+    const fast = simulate_combo_mana_fast(rows, stats, hc, false, registry);
+
+    t.assert(Math.abs(full.total_mana_cost - 41) < 1e-6,
+        `Recast partial (full): total_mana_cost should be 41, got ${full.total_mana_cost}`);
+    t.assert(Math.abs(full.end_mana - fast.end_mana) < 1e-6,
+        `Recast partial: full/fast end_mana mismatch: full=${full.end_mana}, fast=${fast.end_mana}`);
+}
+
+// 21. compute_recast_penalties outputs per-cast arrays
+{
+    const spell = makeSpell('Spell', 20, { base_spell: 1 });
+    const rows = [
+        { sim_qty: 4, spell, mana_excl: false, pseudo: null },
+    ];
+    compute_recast_penalties(rows);
+    const p = rows[0].recast_penalties;
+    t.assert(Array.isArray(p) && p.length === 4,
+        `Per-cast array: should be array of length 4, got ${JSON.stringify(p)}`);
+    // First 2 free, then 5, 10
+    t.assert(p[0] === 0 && p[1] === 0 && p[2] === 5 && p[3] === 10,
+        `Per-cast array: expected [0,0,5,10], got [${p}]`);
+    // Average should still be set
+    t.assert(Math.abs(rows[0].recast_penalty_per_cast - 15/4) < 1e-9,
+        `Per-cast average: expected ${15/4}, got ${rows[0].recast_penalty_per_cast}`);
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────

@@ -594,6 +594,7 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
                         hits,
                         cast_time: r.cast_time,
                         delay: r.delay,
+                        melee_cd: r.melee_cd,
                     };
                 });
                 if (data.length > 0) {

@@ -122,7 +122,7 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
         }
 
         const eff_qty = row.is_melee_time
-            ? compute_melee_time_hits(qty, base_stats, SPELL_CAST_DELAY)
+            ? compute_melee_time_hits(qty, base_stats, SPELL_CAST_DELAY, row.melee_cd_override)
             : qty;
         const row_damage = dmg_excl ? 0 : per_cast * eff_qty;
         const heal_per_cast = computeSpellHealingTotal(stats, mod_spell);
@@ -251,7 +251,7 @@ function eval_combo_healing(parsed_combo, combo_base, boost_registry, scratch_ro
         const { qty, spell, boost_tokens } = row;
         const { stats } = apply_combo_row_boosts(combo_base, boost_tokens, boost_registry, scratch_row);
         const eff_qty = row.is_melee_time
-            ? compute_melee_time_hits(qty, combo_base, SPELL_CAST_DELAY)
+            ? compute_melee_time_hits(qty, combo_base, SPELL_CAST_DELAY, row.melee_cd_override)
             : qty;
         total += computeSpellHealingTotal(stats, spell) * eff_qty;
     }

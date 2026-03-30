@@ -25,7 +25,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
 
     // ── Pre-pass: serialize DOM state into pure rows ──
     const pure_rows = [];
-    for (const { qty, sim_qty, spell, boost_tokens, dom_row, cast_time, delay, auto_delay, is_melee_time } of rows) {
+    for (const { qty, sim_qty, spell, boost_tokens, dom_row, cast_time, delay, auto_delay, melee_cd_override, is_melee_time } of rows) {
         const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
         const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
             ?.classList.contains('mana-excluded') ?? false;
@@ -41,7 +41,7 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
         }
 
         pure_rows.push({ qty, sim_qty, spell, boost_tokens, mana_excl, pseudo,
-            recast_penalty_per_cast: 0, cast_time, delay, is_melee_time, auto_delay });
+            recast_penalties: null, recast_penalty_per_cast: 0, cast_time, delay, is_melee_time, auto_delay, melee_cd_override });
     }
 
     // Compute recast penalties via shared pure function
@@ -63,7 +63,9 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
             if (inp) {
                 if (inp.dataset.auto === undefined) inp.dataset.auto = 'true';
                 if (inp.dataset.auto === 'true') {
-                    inp.value = String(Math.round(res.state_values?.[bs.state_name] ?? 0));
+                    const val = String(Math.round(res.state_values?.[bs.state_name] ?? 0));
+                    inp.value = '';
+                    inp.placeholder = val;
                 }
             }
         }
@@ -75,9 +77,9 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
                 if (dl_inp.dataset.auto === 'true') {
                     const val = String(Math.round(res.computed_delay * 1000) / 1000);
                     dl_inp.value = val;
-                    // Sync the visible timing popup input if it exists
+                    // Sync the visible timing popup: show placeholder, not value.
                     const popup_inp = dom_row.querySelector('.timing-cast-delay');
-                    if (popup_inp) popup_inp.value = val;
+                    if (popup_inp) { popup_inp.value = ''; popup_inp.placeholder = val; }
                 }
             }
             _update_timing_btn_highlight(dom_row);
@@ -90,8 +92,10 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
             if (inp) {
                 if (inp.dataset.auto === undefined) inp.dataset.auto = 'true';
                 if (inp.dataset.auto === 'true') {
-                    inp.value = res.blood_pact_bonus > 0
+                    const val = res.blood_pact_bonus > 0
                         ? String(Math.round(res.blood_pact_bonus * 10) / 10) : '';
+                    inp.value = '';
+                    inp.placeholder = val || 'auto';
                 }
             }
         }

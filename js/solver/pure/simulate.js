@@ -180,8 +180,10 @@ function extract_slider_names(health_config) {
 }
 
 /**
- * Compute per-row recast_penalty_per_cast for a parsed combo sequence.
- * Mutates each row's recast_penalty_per_cast field in-place.
+ * Compute per-cast recast penalties for a parsed combo sequence.
+ * Mutates each row in-place, setting:
+ *   - recast_penalties: number[] — per-cast penalty for each cast in the row
+ *   - recast_penalty_per_cast: number — average (backward compat for item_priority)
  * DOM-free. Called by search.js (snapshot builder) and combo/simulate.js (page).
  *
  * @param {Object[]} rows - Each row must have:
@@ -200,10 +202,12 @@ function compute_recast_penalties(rows) {
         }
         const { sim_qty, spell, mana_excl } = row;
         row.recast_penalty_per_cast = 0;
+        row.recast_penalties = null;
         if (!spell || sim_qty <= 0 || mana_excl || spell.cost == null) continue;
         const rc_base = spell.mana_derived_from ?? spell.base_spell;
         if (rc_base === 0) continue;
 
+        const penalties = new Array(sim_qty);
         let row_penalty = 0;
         let is_switch = false;
         if (rc_base !== last_base) {
@@ -213,31 +217,48 @@ function compute_recast_penalties(rows) {
             last_base = rc_base;
         }
         if (is_switch && penalty > 0) {
-            row_penalty = penalty * penalty_per;
+            // First cast carries the switch penalty
+            penalties[0] = penalty * penalty_per;
+            row_penalty = penalties[0];
             penalty = 0; consec = 1;
             const remaining = sim_qty - 1;
             if (remaining > 0) {
+                // One free cast after switch
                 const free_remaining = Math.min(remaining, 1);
-                const penalty_remaining = remaining - free_remaining;
-                if (penalty_remaining > 0) {
-                    row_penalty += penalty_per * penalty_remaining * (penalty_remaining + 1) / 2;
-                    penalty = penalty_remaining;
+                for (let i = 1; i <= free_remaining; i++) penalties[i] = 0;
+                // Then incrementing penalties
+                const penalty_start = 1 + free_remaining;
+                for (let i = penalty_start; i < sim_qty; i++) {
+                    const k = i - penalty_start + 1;
+                    penalties[i] = k * penalty_per;
+                    row_penalty += penalties[i];
                 }
+                const penalty_remaining = remaining - free_remaining;
+                if (penalty_remaining > 0) penalty = penalty_remaining;
                 consec += remaining;
             }
         } else if (penalty > 0) {
-            row_penalty = penalty_per * (sim_qty * penalty + sim_qty * (sim_qty + 1) / 2);
+            // Continuing same spell, already penalized
+            for (let i = 0; i < sim_qty; i++) {
+                penalties[i] = (penalty + 1 + i) * penalty_per;
+                row_penalty += penalties[i];
+            }
             penalty += sim_qty;
             consec += sim_qty;
         } else {
+            // Fresh — first free_casts are free, then incrementing
             const free_casts = Math.max(0, Math.min(sim_qty, 2 - consec));
-            const penalty_casts = sim_qty - free_casts;
-            if (penalty_casts > 0) {
-                row_penalty = penalty_per * penalty_casts * (penalty_casts + 1) / 2;
-                penalty = penalty_casts;
+            for (let i = 0; i < free_casts; i++) penalties[i] = 0;
+            for (let i = free_casts; i < sim_qty; i++) {
+                const k = i - free_casts + 1;
+                penalties[i] = k * penalty_per;
+                row_penalty += penalties[i];
             }
+            const penalty_casts = sim_qty - free_casts;
+            if (penalty_casts > 0) penalty = penalty_casts;
             consec += sim_qty;
         }
+        row.recast_penalties = penalties;
         row.recast_penalty_per_cast = sim_qty > 0 ? row_penalty / sim_qty : 0;
     }
 }
@@ -355,8 +376,8 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
     let recast_penalty_total = 0;
 
     for (const row of rows) {
-        const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0,
-                cast_time: row_cast_time, delay: row_delay, auto_delay = true } = row;
+        const { qty, spell, boost_tokens, mana_excl, pseudo,
+                cast_time: row_cast_time, delay: row_delay, auto_delay = true, melee_cd_override } = row;
         const _mana_before = mana;
         const _time_before = elapsed_time;
 
@@ -409,7 +430,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         if (mana_excl) {
             if (spell.scaling === 'melee') {
                 melee_hits += row.is_melee_time
-                    ? Math.round(compute_melee_time_hits(qty, base_stats, row_delay ?? SPELL_CAST_DELAY))
+                    ? Math.round(compute_melee_time_hits(qty, base_stats, row_delay ?? SPELL_CAST_DELAY, melee_cd_override))
                     : Math.round(qty);
             }
             row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
@@ -419,11 +440,13 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
 
         // Get spell cost using boosted stats (matching main thread behavior)
         const { stats: row_stats } = apply_combo_row_boosts(base_stats, boost_tokens, boost_registry, scratch_row);
-        const cost_per = spell.cost != null ? getSpellCost(row_stats, spell) : 0;
+        const unclamped_cost = spell.cost != null ? getUnclampedSpellCost(row_stats, spell) : 0;
+        const cost_per = Math.max(1, unclamped_cost);
         const is_spell = spell.cost != null;
         const is_melee_scaling = spell.scaling === 'melee';
         const recast_base = spell.mana_derived_from ?? spell.base_spell;
         const is_melee = recast_base === 0;
+        const recast_penalties = row.recast_penalties;
 
         const eff_cast_time = is_melee ? 0 : (row_cast_time ?? SPELL_CAST_TIME);
         const eff_delay = row_delay ?? SPELL_CAST_DELAY;
@@ -433,10 +456,9 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         // compute_combo_damage_totals).
         // Melee Time rows: compute effective hits from attack speed.
         const sim_qty = row.is_melee_time
-            ? Math.round(compute_melee_time_hits(qty, base_stats, eff_delay))
+            ? Math.round(compute_melee_time_hits(qty, base_stats, eff_delay, melee_cd_override))
             : Math.round(qty);
         if (is_melee_scaling) melee_hits += sim_qty;
-        recast_penalty_total += recast_penalty_per_cast * sim_qty;
 
         let row_blood_total = 0;
         let row_blood_casts = 0;
@@ -519,9 +541,11 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
             }
         }
 
+        const eff_melee_period = melee_cd_override ?? melee_period;
+
         for (let c = 0; c < sim_qty; c++) {
             // ── Wall-clock time: cast_time before action, delay after ──
-            const dt = compute_wall_dt(is_melee, is_spell, melee_cd_remaining, melee_period, eff_cast_time, eff_delay);
+            const dt = compute_wall_dt(is_melee, is_spell, melee_cd_remaining, eff_melee_period, eff_cast_time, eff_delay);
             melee_cd_remaining = dt.melee_cd;
 
             // ── Pre-action time (cast time / melee cooldown wait) ──
@@ -600,9 +624,10 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                 }
             }
 
-            // Spell cost payment
+            // Spell cost payment (recast penalty folded in before clamp)
             if (is_spell) {
-                const effective_cost = cost_per + recast_penalty_per_cast;
+                const effective_cost = Math.max(1, unclamped_cost + (recast_penalties?.[c] ?? 0));
+                recast_penalty_total += effective_cost - cost_per;
                 const adj_cost = has_transcendence ? effective_cost * 0.75 : effective_cost;
 
                 if (mana >= effective_cost) {
@@ -688,7 +713,8 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         const avg_blood_bonus = row_blood_casts > 0 ? row_blood_total / row_blood_casts : 0;
         total_mana_cost += row_mana_cost;
         if (is_spell) {
-            spell_costs.push({ name: spell.name, qty: sim_qty, cost: cost_per, recast_penalty: recast_penalty_per_cast * sim_qty });
+            const row_recast = (recast_penalties ?? []).reduce((sum, p) => sum + Math.max(1, unclamped_cost + p) - cost_per, 0);
+            spell_costs.push({ name: spell.name, qty: sim_qty, cost: cost_per, recast_penalty: row_recast });
         }
 
         row_results.push({ blood_pact_bonus: avg_blood_bonus, state_values: _snapshot_states(active_states, row_deact),
@@ -767,8 +793,8 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
     }
 
     for (const row of rows) {
-        const { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast = 0,
-                cast_time: row_cast_time, delay: row_delay, auto_delay = true } = row;
+        const { qty, spell, boost_tokens, mana_excl, pseudo,
+                cast_time: row_cast_time, delay: row_delay, auto_delay = true, melee_cd_override } = row;
 
         // Add Flat Mana: inject (or drain) qty mana at this point
         if (pseudo === 'add_flat_mana') {
@@ -783,16 +809,17 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
         if (mana_excl) continue;
 
         const { stats: row_stats } = apply_combo_row_boosts(base_stats, boost_tokens, boost_registry, scratch_row);
-        const cost_per = spell.cost != null ? getSpellCost(row_stats, spell) : 0;
+        const unclamped_cost = spell.cost != null ? getUnclampedSpellCost(row_stats, spell) : 0;
         const is_spell = spell.cost != null;
         const is_melee_scaling = spell.scaling === 'melee';
         const recast_base = spell.mana_derived_from ?? spell.base_spell;
         const is_melee = recast_base === 0;
+        const recast_penalties = row.recast_penalties;
 
         const eff_cast_time = is_melee ? 0 : (row_cast_time ?? SPELL_CAST_TIME);
         const eff_delay = row_delay ?? SPELL_CAST_DELAY;
         const sim_qty = row.is_melee_time
-            ? Math.round(compute_melee_time_hits(qty, base_stats, eff_delay))
+            ? Math.round(compute_melee_time_hits(qty, base_stats, eff_delay, melee_cd_override))
             : Math.round(qty);
 
         // ── Local helper: advance wall-clock time by `advance_dt` seconds ──
@@ -840,10 +867,11 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
         }
 
         let fast_post_override = null;
+        const eff_melee_period = melee_cd_override ?? melee_period;
 
         for (let c = 0; c < sim_qty; c++) {
             // ── Wall-clock time: cast_time before action, delay after ──
-            const dt = compute_wall_dt(is_melee, is_spell, melee_cd_remaining, melee_period, eff_cast_time, eff_delay);
+            const dt = compute_wall_dt(is_melee, is_spell, melee_cd_remaining, eff_melee_period, eff_cast_time, eff_delay);
             melee_cd_remaining = dt.melee_cd;
 
             // ── Pre-action time (cast time / melee cooldown wait) ──
@@ -873,9 +901,9 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
                 hp -= hp_deduction;
             }
 
-            // Spell cost payment
+            // Spell cost payment (recast penalty folded in before clamp)
             if (is_spell) {
-                const effective_cost = cost_per + recast_penalty_per_cast;
+                const effective_cost = Math.max(1, unclamped_cost + (recast_penalties?.[c] ?? 0));
                 const adj_cost = has_transcendence ? effective_cost * 0.75 : effective_cost;
 
                 if (mana >= effective_cost) {

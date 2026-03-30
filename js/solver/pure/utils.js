@@ -264,9 +264,10 @@ function compute_combo_cycle_time(rows, weapon_statmap) {
         const is_spell = row.spell.cost != null;
         const eff_cast_time = is_melee ? 0 : (row.cast_time ?? SPELL_CAST_TIME);
         const eff_delay = row.delay ?? SPELL_CAST_DELAY;
+        const eff_melee_period = row.melee_cd_override ?? melee_period;
         const sim_qty = row.sim_qty ?? Math.round(row.qty);
         for (let i = 0; i < sim_qty; i++) {
-            const dt = compute_wall_dt(is_melee, is_spell, melee_cd, melee_period, eff_cast_time, eff_delay);
+            const dt = compute_wall_dt(is_melee, is_spell, melee_cd, eff_melee_period, eff_cast_time, eff_delay);
             auto_time += dt.pre_dt + dt.post_dt;
             melee_cd = dt.melee_cd;
         }
@@ -281,12 +282,18 @@ function compute_combo_cycle_time(rows, weapon_statmap) {
  * @param {number} qty_seconds - Duration in seconds
  * @param {Map} base_stats - Build stats (needs atkSpd, atkTier)
  * @param {number} [delay=SPELL_CAST_DELAY] - Post-hit delay
+ * @param {number} [melee_period_override] - Override for melee cooldown period
  * @returns {number} Effective hit count (fractional)
  */
-function compute_melee_time_hits(qty_seconds, base_stats, delay) {
-    let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
-        + (base_stats.get('atkTier') ?? 0);
-    adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
-    const melee_period = 1 / baseDamageMultiplier[adjAtkSpd];
+function compute_melee_time_hits(qty_seconds, base_stats, delay, melee_period_override) {
+    let melee_period;
+    if (melee_period_override != null) {
+        melee_period = melee_period_override;
+    } else {
+        let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd'))
+            + (base_stats.get('atkTier') ?? 0);
+        adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+        melee_period = 1 / baseDamageMultiplier[adjAtkSpd];
+    }
     return qty_seconds / Math.max(melee_period, delay ?? SPELL_CAST_DELAY);
 }

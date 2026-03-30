@@ -22,6 +22,7 @@ class SolverComboTotalNode extends ComputeNode {
             // Refresh with the raw spell map (no powder specials) for the invalid-build case.
             this._spell_map_cache = spell_map;
             if (spell_map) this._refresh_selection_spells(spell_map);
+            if (spell_map) this._refresh_selection_timing(spell_map, base_stats);
             if (total_elem) total_elem.textContent = '—';
             const mr = document.getElementById('combo-mana-row');
             if (mr) mr.style.display = 'none';
@@ -47,7 +48,7 @@ class SolverComboTotalNode extends ComputeNode {
         this._registry_cache = registry;
         this._refresh_selection_boosts(registry);
         this._apply_pending_selection_data();
-        this._refresh_selection_timing(aug_spell_map);
+        this._refresh_selection_timing(aug_spell_map, base_stats);
 
         const crit_chance = skillPointsToPercentage(base_stats.get('dex'));
 
@@ -270,7 +271,8 @@ class SolverComboTotalNode extends ComputeNode {
                 boost_tokens.push({ name: btn.dataset.boostName, value: 1, is_pct: false });
             }
             for (const inp of sliders) {
-                const val = parseFloat(inp.value) || 0;
+                const raw = inp.value !== '' ? inp.value : inp.placeholder;
+                const val = parseFloat(raw) || 0;
                 const rm = parseInt(inp.dataset.realMin || '0');
                 if (val > 0 && (rm === 0 || val >= rm)) {
                     const tok = { name: inp.dataset.boostName, value: val, is_pct: false };
@@ -280,17 +282,23 @@ class SolverComboTotalNode extends ComputeNode {
             }
             // Calculated boost fields (Blood Pact): read the value as a percentage token.
             for (const inp of calcs) {
-                const val = parseFloat(inp.value) || 0;
+                const raw = inp.value !== '' ? inp.value : inp.placeholder;
+                const val = parseFloat(raw) || 0;
                 if (val > 0) boost_tokens.push({ name: inp.dataset.boostName, value: val, is_pct: true });
             }
             const ct_inp = row.querySelector('.combo-row-cast-time');
             const dl_inp = row.querySelector('.combo-row-delay');
-            const cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
-            const delay = dl_inp ? parseFloat(dl_inp.value) : SPELL_CAST_DELAY;
+            const raw_ct = ct_inp ? parseFloat(ct_inp.value) : NaN;
+            const cast_time = isNaN(raw_ct) ? SPELL_CAST_TIME : raw_ct;
+            const raw_dl = dl_inp ? parseFloat(dl_inp.value) : NaN;
+            const delay = isNaN(raw_dl) ? SPELL_CAST_DELAY : raw_dl;
             const auto_delay = dl_inp ? (dl_inp.dataset.auto !== 'false') : true;
+            const mcd_inp = row.querySelector('.combo-row-melee-cd');
+            const melee_cd_override = (mcd_inp && mcd_inp.dataset.auto === 'false' && mcd_inp.value !== '')
+                ? parseFloat(mcd_inp.value) : undefined;
             const is_melee_time = (spell_id === MELEE_TIME_SPELL_ID);
             const eff_spell = is_melee_time ? (spell_map.get(0) ?? null) : spell;
-            return { qty, sim_qty: Math.round(qty), spell: eff_spell, boost_tokens, dom_row: row, cast_time, delay, auto_delay, is_melee_time };
+            return { qty, sim_qty: Math.round(qty), spell: eff_spell, boost_tokens, dom_row: row, cast_time, delay, auto_delay, melee_cd_override, is_melee_time };
         });
     }
 
@@ -341,21 +349,27 @@ class SolverComboTotalNode extends ComputeNode {
                 && ![...STATE_CANCEL_IDS.values()].includes(spell_id);
             const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID
                 || (spell && spell._is_powder_special);
-            if (is_cast_spell) {
+            if (is_cast_spell || is_melee) {
+                const ct_inp = row.querySelector('.combo-row-cast-time');
                 const dl_inp = row.querySelector('.combo-row-delay');
-                if (dl_inp?.dataset.auto === 'false') {
-                    const ct_inp = row.querySelector('.combo-row-cast-time');
-                    cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
-                    delay = parseFloat(dl_inp.value);
-                }
-            } else if (is_melee) {
-                const dl_inp = row.querySelector('.combo-row-delay');
-                if (dl_inp?.dataset.auto === 'false') {
-                    cast_time = 0;
-                    delay = parseFloat(dl_inp.value) || SPELL_CAST_DELAY;
+                const ct_manual = ct_inp?.dataset.auto === 'false';
+                const dl_manual = dl_inp?.dataset.auto === 'false';
+                if (ct_manual || dl_manual) {
+                    cast_time = is_melee ? 0
+                        : (ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME);
+                    const raw_dl = dl_inp ? parseFloat(dl_inp.value) : NaN;
+                    delay = isNaN(raw_dl) ? SPELL_CAST_DELAY : raw_dl;
                 }
             }
-            return { qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl, hits, cast_time, delay };
+            // Per-row melee cooldown override (melee/powder special rows only).
+            let melee_cd;
+            if (is_melee) {
+                const mcd_inp = row.querySelector('.combo-row-melee-cd');
+                if (mcd_inp?.dataset.auto === 'false' && mcd_inp.value !== '') {
+                    melee_cd = parseFloat(mcd_inp.value);
+                }
+            }
+            return { qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl, hits, cast_time, delay, melee_cd };
         });
     }
 
@@ -364,7 +378,7 @@ class SolverComboTotalNode extends ComputeNode {
         const container = document.getElementById('combo-selection-rows');
         if (!container) return;
         container.innerHTML = '';
-        for (const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay } of data) {
+        for (const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd } of data) {
             // Resolve spell_value from spell_name when missing (text import).
             // This lets _refresh_selection_boosts filter boosts by spell before
             // _apply_pending_selection_data runs.
@@ -391,7 +405,7 @@ class SolverComboTotalNode extends ComputeNode {
                     }
                 }
             }
-            const row = _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, resolved_value, cast_time, delay);
+            const row = _build_selection_row(qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, resolved_value, cast_time, delay, melee_cd);
             if (hits !== undefined && hits !== null) row.dataset.pendingHits = String(hits);
             container.appendChild(row);
         }
@@ -721,6 +735,10 @@ class SolverComboTotalNode extends ComputeNode {
                     inp.style.cssText = 'width:4.5em; text-align:center;';
                     inp.placeholder = 'auto';
                     inp.value = old_slider.get(entry.name) ?? '';
+                } else if (_is_auto_state) {
+                    inp.step = String(entry.step ?? 1);
+                    inp.placeholder = 'auto';
+                    inp.value = old_slider.get(entry.name) ?? '';
                 } else {
                     inp.step = String(entry.step ?? 1);
                     inp.value = old_slider.get(entry.name) ?? String(off_pos);
@@ -740,6 +758,15 @@ class SolverComboTotalNode extends ComputeNode {
                     _update_boost_btn_highlight(row);
                     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
                 });
+                if (_is_auto_slider) {
+                    inp.addEventListener('blur', () => {
+                        if (inp.value !== '' && !isNaN(parseFloat(inp.value))) return;
+                        inp.value = '';
+                        inp.dataset.auto = 'true';
+                        _update_boost_btn_highlight(row);
+                        if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+                    });
+                }
                 wrap.append(lbl, inp, max_lbl);
                 area.appendChild(wrap);
             }
@@ -752,9 +779,19 @@ class SolverComboTotalNode extends ComputeNode {
     }
 
     /** Grey out the timing button for spells that don't use cast time/delay. */
-    _refresh_selection_timing(spell_map) {
+    _refresh_selection_timing(spell_map, base_stats) {
         const container = document.getElementById('combo-selection-rows');
         if (!container) return;
+
+        // Compute melee_period from weapon stats for the placeholder.
+        let melee_period;
+        if (base_stats) {
+            let adjAtkSpd = attackSpeeds.indexOf(base_stats.get('atkSpd') || 'NORMAL')
+                + (base_stats.get('atkTier') ?? 0);
+            adjAtkSpd = Math.max(0, Math.min(6, adjAtkSpd));
+            melee_period = Math.round(1 / baseDamageMultiplier[adjAtkSpd] * 1000) / 1000;
+        }
+
         for (const row of container.querySelectorAll('.combo-row')) {
             const btn = row.querySelector('.combo-timing-menu-btn');
             if (!btn) continue;
@@ -767,12 +804,46 @@ class SolverComboTotalNode extends ComputeNode {
             const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID
                 || (spell && spell._is_powder_special);
             btn.disabled = !(is_cast_spell || is_melee);
-            // Melee ignores cast time — force hidden input to 0 and grey out the field.
+            // Sync cast time: auto fills default; melee forces 0 and greys out.
             const ct_hidden = row.querySelector('.combo-row-cast-time');
-            if (is_melee && ct_hidden) ct_hidden.value = '0';
             const ct_field = row.querySelector('.timing-cast-time');
             if (ct_field) ct_field.disabled = is_melee;
-            if (is_melee && ct_field) ct_field.value = '0';
+            const default_ct = is_melee ? 0 : SPELL_CAST_TIME;
+            if (ct_hidden?.dataset.auto === 'true') {
+                ct_hidden.value = String(default_ct);
+                if (ct_field) { ct_field.value = ''; ct_field.placeholder = String(default_ct); }
+            } else if (is_melee && ct_hidden) {
+                // Melee always forces cast time to 0 regardless of manual state.
+                ct_hidden.value = '0';
+                if (ct_field) ct_field.value = '0';
+            } else if (ct_hidden?.dataset.auto === 'false' && ct_hidden.value !== '') {
+                if (ct_field && !ct_field.value) ct_field.value = ct_hidden.value;
+            }
+            // Sync delay: auto fills default; simulation may override later.
+            const dl_hidden = row.querySelector('.combo-row-delay');
+            const dl_field = row.querySelector('.timing-cast-delay');
+            if (dl_hidden?.dataset.auto === 'true') {
+                dl_hidden.value = String(SPELL_CAST_DELAY);
+                if (dl_field) { dl_field.value = ''; dl_field.placeholder = String(SPELL_CAST_DELAY); }
+            } else if (dl_hidden?.dataset.auto === 'false' && dl_hidden.value !== '') {
+                if (dl_field && !dl_field.value) dl_field.value = dl_hidden.value;
+            }
+            // Show/hide melee cooldown field and set placeholder.
+            const mcd_wrap = row.querySelector('.timing-melee-cd-wrap');
+            if (mcd_wrap) mcd_wrap.style.display = is_melee ? 'flex' : 'none';
+            const mcd_field = row.querySelector('.timing-melee-cd');
+            if (mcd_field && melee_period != null) mcd_field.placeholder = melee_period;
+            // Sync melee-cd: auto mode fills hidden with computed period;
+            // manual mode syncs popup from hidden (for URL/clipboard restore).
+            const mcd_hidden = row.querySelector('.combo-row-melee-cd');
+            if (is_melee && mcd_hidden) {
+                if (mcd_hidden.dataset.auto === 'true' && melee_period != null) {
+                    mcd_hidden.value = String(melee_period);
+                    if (mcd_field) mcd_field.value = '';
+                } else if (mcd_hidden.dataset.auto === 'false' && mcd_hidden.value !== '') {
+                    if (mcd_field && !mcd_field.value) mcd_field.value = mcd_hidden.value;
+                }
+            }
             _update_timing_btn_highlight(row);
         }
     }

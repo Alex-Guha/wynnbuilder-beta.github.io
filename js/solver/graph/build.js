@@ -354,23 +354,31 @@ function _collect_solver_params() {
             const is_cast_spell = spell && spell.cost != null
                 && spell_id !== 0 && spell_id !== MANA_RESET_SPELL_ID
                 && ![...STATE_CANCEL_IDS.values()].includes(spell_id);
-            const is_melee = spell_id === 0;
-            if (is_cast_spell) {
+            const is_melee = spell_id === 0 || spell_id === MELEE_TIME_SPELL_ID
+                || (spell && spell._is_powder_special);
+            if (is_cast_spell || is_melee) {
+                const ct_inp = row.querySelector('.combo-row-cast-time');
                 const dl_inp = row.querySelector('.combo-row-delay');
-                if (dl_inp?.dataset.auto === 'false') {
-                    const ct_inp = row.querySelector('.combo-row-cast-time');
-                    cast_time = ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME;
-                    delay = parseFloat(dl_inp.value);
-                }
-            } else if (is_melee) {
-                const dl_inp = row.querySelector('.combo-row-delay');
-                if (dl_inp?.dataset.auto === 'false') {
-                    cast_time = 0;
-                    delay = parseFloat(dl_inp.value) || SPELL_CAST_DELAY;
+                const ct_manual = ct_inp?.dataset.auto === 'false';
+                const dl_manual = dl_inp?.dataset.auto === 'false';
+                if (ct_manual || dl_manual) {
+                    cast_time = is_melee ? 0
+                        : (ct_inp ? parseFloat(ct_inp.value) : SPELL_CAST_TIME);
+                    const raw_dl = dl_inp ? parseFloat(dl_inp.value) : NaN;
+                    delay = isNaN(raw_dl) ? SPELL_CAST_DELAY : raw_dl;
                 }
             }
 
-            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts, cast_time, delay });
+            // Per-row melee cooldown override (melee/powder-special rows only).
+            let melee_cd;
+            if (is_melee) {
+                const mcd_inp = row.querySelector('.combo-row-melee-cd');
+                if (mcd_inp?.dataset.auto === 'false' && mcd_inp.value !== '') {
+                    melee_cd = parseFloat(mcd_inp.value);
+                }
+            }
+
+            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts, cast_time, delay, melee_cd });
         }
     }
 

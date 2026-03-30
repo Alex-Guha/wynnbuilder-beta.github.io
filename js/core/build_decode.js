@@ -673,13 +673,12 @@ function decodeSolverParams(b64_str) {
         const cursor = new BitVectorCursor(bv, 0);
         const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-        // Version: 3 bits
-        const version = cursor.advanceBy(3);
+        // Version: 3 bits. Version 0 is an extension signal: read 4 more bits.
+        let version = cursor.advanceBy(3);
         if (version === 0) {
-            console.warn('[decode] decodeSolverParams: version 0 (extension signal) not supported');
-            return null;
+            version = cursor.advanceBy(4);  // extended version (8-15)
         }
-        if (version > 7) {
+        if (version > 8) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -789,7 +788,16 @@ function decodeSolverParams(b64_str) {
                     delay = _decode_timing(cursor, dl_sc);
                 }
             }
-            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts, cast_time, delay });
+            // v8: per-row melee cooldown override.
+            let melee_cd;
+            if (version >= 8) {
+                const has_mcd = cursor.advanceBy(1) === 1;
+                if (has_mcd) {
+                    const mcd_sc = cursor.advanceBy(2);
+                    melee_cd = _decode_timing(cursor, mcd_sc);
+                }
+            }
+            combo_rows.push({ spell_node_id, qty, mana_excl, dmg_excl, has_hits, hits, boosts, cast_time, delay, melee_cd });
         }
 
         // ── Blacklist ──
