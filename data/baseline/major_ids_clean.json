@@ -933,7 +933,7 @@
     },
     "FIXATE": {
         "displayName": "Fixate",
-        "description": "Your Distortion cap and Devitalize effects are doubled, but effects gained by distortion beyond the requirements are reduced by 40%.",
+        "description": "Your Distortion cap and Devitalize effects are doubled, but effects gained by distortion beyond the requirements are reduced by 40%. Meteor Shower's maximum Meteor is now increased by 2 but requires +10 distortion per meteor.",
         "abilities": [
             {
                 "class": "Mage",
@@ -1057,6 +1057,32 @@
                         "scaling": [
                             -0.14
                         ]
+                    }
+                ]
+            },
+            {
+                "class": "Mage",
+                "base_abil": "Distortion",
+                "dependencies": [
+                    "Meteor Shower"
+                ],
+                "effects": [
+                    {
+                        "type": "stat_scaling",
+                        "slider": true,
+                        "slider_name": "Distortion",
+                        "round": true,
+                        "output": [
+                            {
+                                "type": "prop",
+                                "abil": "Distortion",
+                                "name": "meteorCount"
+                            }
+                        ],
+                        "scaling": [
+                            -0.00833333333333
+                        ],
+                        "max": 2
                     }
                 ]
             }
