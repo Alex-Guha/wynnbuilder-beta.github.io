@@ -275,7 +275,10 @@ function _eval_combo_damage(combo_base, debug) {
         cached_hp_sim: _cached_hp_sim,
     });
     _cached_hp_sim = null;  // consume cache
-    return result.total_damage;
+    const total_damage = result.total_damage;
+    const combo_time = compute_combo_cycle_time(
+        _cfg.parsed_combo, _cfg.weapon_sm, combo_base.get('atkTier') ?? 0);
+    return combo_time > 0 ? total_damage / combo_time : total_damage;
 }
 
 /** Mana/HP feasibility gate — delegates to shared eval_combo_mana_check(). */
@@ -519,8 +522,8 @@ function _run_level_enum() {
     function _greedy_allocate_sp(build_sm, base_sp, total_sp, assigned_sp, weapon_sm) {
         const remaining = sp_budget - assigned_sp;
 
-        const target = _cfg.scoring_target ?? 'combo_damage';
-        const need_thresh = (target !== 'combo_damage' && target !== 'total_healing');
+        const target = _cfg.scoring_target ?? 'combo_dps';
+        const need_thresh = (target !== 'combo_dps' && target !== 'total_healing');
 
         function _trial_score() {
             const cb = _assemble_combo_stats(build_sm, total_sp, weapon_sm);
@@ -687,7 +690,7 @@ function _run_level_enum() {
 
         // Compute thresh_stats once: used for threshold gate and non-damage scoring
         const need_thresh = restrictions.stat_thresholds.length > 0
-            || (_cfg.scoring_target ?? 'combo_damage') !== 'combo_damage';
+            || (_cfg.scoring_target ?? 'combo_dps') !== 'combo_dps';
         let thresh_stats = need_thresh ? _assemble_threshold_stats(combo_base) : null;
 
         // Threshold check

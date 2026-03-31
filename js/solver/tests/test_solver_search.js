@@ -354,7 +354,7 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
         static_boosts: staticBoosts,
         parsed_combo: parsedCombo,
         boost_registry: boostRegistry,
-        scoring_target: snap.scoring_target || 'combo_damage',
+        scoring_target: snap.scoring_target || 'combo_dps',
         combo_time,
         allow_downtime: sp.dtime || false,
         hp_casting,
@@ -658,7 +658,7 @@ async function runSolverTest(snapName) {
     if (snapshotNeedsGeneration(snap)) {
         console.log(`  [${snapName}] First run — generating snapshot data...`);
         snap.locked_items = currentLockedStats;
-        if (!snap.scoring_target) snap.scoring_target = 'combo_damage';
+        if (!snap.scoring_target) snap.scoring_target = 'combo_dps';
         saveSnapshot(snapName, snap);
     }
     checkSnapshotFreshness(snap, t, currentLockedStats, hasFreeSlots);

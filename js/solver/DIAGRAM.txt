@@ -236,7 +236,7 @@
 │    ┌───────────────────────────────────────────────────────────────────┐    │
 │    │ SCORING  (_eval_score)                                            │    │
 │    │                                                                   │    │
-│    │  combo_damage → compute_combo_damage_totals() [pure/engine.js]    │    │
+│    │  combo_dps → total_damage / compute_combo_cycle_time()            │    │
 │    │  ehp/ehp_no_agi/total_hp/hpr/ehpr → getDefenseStats()             │    │
 │    │  total_healing → computeSpellHealingTotal()                       │    │
 │    │  spd/poison/lb/xpb → direct stat read                             │    │

@@ -133,6 +133,7 @@ const _DEFAULT_DELTAS = {
     mr: 15, ms: 10, maxMana: 5,
     spPct1: 20, spPct2: 20, spPct3: 20, spPct4: 20,
     spRaw1: 5, spRaw2: 5, spRaw3: 5, spRaw4: 5,
+    atkTier: 1,
     spd: 20, poison: 3000, lb: 30, xpb: 20, healPct: 20, ls: 100,
     nDamPct: 20, nDamRaw: 100, nSdPct: 20, nSdRaw: 100, nMdPct: 20, nMdRaw: 100,
     gXp: 20, gSpd: 20, mainAttackRange: 20,
@@ -166,7 +167,12 @@ function _eval_sensitivity_combo_healing(combo_base, snap) {
  */
 function _sensitivity_eval_score(combo_base, snap) {
     return eval_score_dispatch(snap.scoring_target, combo_base,
-        () => _eval_sensitivity_combo_damage(combo_base, snap).total_damage,
+        () => {
+            const dmg = _eval_sensitivity_combo_damage(combo_base, snap).total_damage;
+            const combo_time = compute_combo_cycle_time(
+                snap.parsed_combo, snap.weapon_sm, combo_base.get('atkTier') ?? 0);
+            return combo_time > 0 ? dmg / combo_time : dmg;
+        },
         () => _eval_sensitivity_combo_healing(combo_base, snap),
         null);
 }
@@ -329,7 +335,7 @@ function _compute_pool_deltas(pools) {
  */
 function _compute_sensitivity_weights(snap, locked, pools) {
     const t0 = performance.now();
-    const target = snap.scoring_target ?? 'combo_damage';
+    const target = snap.scoring_target ?? 'combo_dps';
 
     // 1. Build baseline statMap from locked items
     const build_sm = _build_baseline_statmap(snap, locked);
@@ -353,12 +359,12 @@ function _compute_sensitivity_weights(snap, locked, pools) {
     // 5. Pool-calibrated deltas
     const { deltas, sp_deltas } = _compute_pool_deltas(pools);
 
-    // 6. Fallback check: zero baseline for combo_damage means no damage at all
+    // 6. Fallback check: zero baseline for combo_dps means no damage at all
     //    (e.g. no combo rows, or weapon does 0 damage). Other targets (spd, poison)
     //    can legitimately start at 0 with few locked items.
-    if (baseline_score === 0 && target === 'combo_damage') {
+    if (baseline_score === 0 && target === 'combo_dps') {
         if (SOLVER_DEBUG_SENSITIVITY) {
-            console.log('[solver][sensitivity] baseline combo_damage = 0, falling back to legacy weights');
+            console.log('[solver][sensitivity] baseline combo_dps = 0, falling back to legacy weights');
         }
         snap.has_dynamic_sliders = saved_has_dyn;
         return null;
@@ -448,21 +454,28 @@ function _compute_sensitivity_weights(snap, locked, pools) {
 
         const deficit = demand_sum - snap.sp_budget;
         if (deficit > 0) {
-            // Compute max_abs from current stat weights for scaling reference
+            // Compute max impact from current stat weights for scaling reference.
+            // Uses per-item impact (sensitivity × delta) so stats with small
+            // deltas (atkTier=1) don't dominate over stats with large deltas.
             let local_max_abs = 1.0;
-            for (const [, w] of weights) {
-                const a = Math.abs(w);
-                if (a > local_max_abs) local_max_abs = a;
+            for (const [stat, w] of weights) {
+                const d = deltas.get(stat) ?? _DEFAULT_DELTAS[stat] ?? 1;
+                const impact = Math.abs(w) * d;
+                if (impact > local_max_abs) local_max_abs = impact;
             }
 
             // Each SP index gets an independent feasibility sensitivity
             // proportional to its share of total demand.  The scale constant
             // controls how strongly SP items compete with damage items.
+            // local_max_abs is impact-based, so divide by SP delta to get
+            // per-unit sensitivity.
             const pressure = Math.min(deficit / snap.sp_budget, 3.0);
             for (let i = 0; i < 5; i++) {
                 if (net_demand[i] > 0) {
+                    const eff_sp_delta = sp_deltas[i] || 10;
                     sp_sensitivities[i] += local_max_abs * pressure
-                        * (net_demand[i] / demand_sum) * _SP_FEASIBILITY_SCALE;
+                        * (net_demand[i] / demand_sum) * _SP_FEASIBILITY_SCALE
+                        / eff_sp_delta;
                 }
             }
             if (SOLVER_DEBUG_SENSITIVITY) {
@@ -515,24 +528,17 @@ function _compute_sensitivity_weights(snap, locked, pools) {
 function _augment_sensitivity_weights(result, snap, restrictions) {
     const { weights, combo_base, deltas, sp_deltas, total_sp, build_sm } = result;
 
-    // Compute max absolute weight for constraint/mana bonus scaling
+    // Compute max per-item impact (sensitivity × delta) for bonus scaling.
+    // Using impact instead of raw per-unit sensitivity prevents stats with
+    // tiny deltas (atkTier, delta=1) from dominating max_abs and inflating
+    // all augmentation bonuses — critical for DPS scoring where atkTier's
+    // per-unit sensitivity is disproportionately large.
     let max_abs = 1.0;
     for (const [stat, w] of weights) {
-        const abs_w = Math.abs(w);
-        if (abs_w > max_abs) max_abs = abs_w;
+        const d = deltas.get(stat) ?? _DEFAULT_DELTAS[stat] ?? 1;
+        const impact = Math.abs(w) * d;
+        if (impact > max_abs) max_abs = impact;
     }
-
-    // Compute reference delta (median of all non-zero deltas) for constraint scaling.
-    // Stats with small per-item values (e.g. atkTier, delta=1) need proportionally
-    // larger per-unit constraint bonuses to compete with multi-stat damage items.
-    const all_deltas = [];
-    for (const [, d] of deltas) {
-        if (d > 0) all_deltas.push(d);
-    }
-    all_deltas.sort((a, b) => a - b);
-    const ref_delta = all_deltas.length > 0
-        ? all_deltas[all_deltas.length >> 1]
-        : 1;
 
     // ── Restriction thresholds (ge constraints on direct stats) ─────────
     for (const { stat, op, value } of (restrictions.stat_thresholds ?? [])) {
@@ -540,19 +546,18 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
         const current = combo_base.get(stat) ?? 0;
         const deficit = value - current;
         if (deficit > 0) {
-            // Normalize by stat magnitude: stats with small per-item values
-            // (atkTier ~1) get larger per-unit bonuses than stats with large
-            // per-item values (damPct ~20), so constraint items compete in scoring.
+            // max_abs is impact-based (per-item), so divide by stat_delta
+            // to get a per-unit bonus.  This naturally normalizes across
+            // stats with different magnitudes (atkTier ~1 vs damPct ~20).
             const stat_delta = deltas.get(stat) || _DEFAULT_DELTAS[stat] || 1;
-            const norm = ref_delta / stat_delta;
             // When threshold is positive, scale by deficit/threshold (fractional shortfall).
             // When threshold <= 0 (e.g. mainAttackRange >= 0 with negative current),
             // use deficit/stat_delta instead (how many typical items of deficit).
             const scale = value > 0 ? (deficit / value) : (deficit / stat_delta);
-            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * scale * norm;
+            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * scale / stat_delta;
             weights.set(stat, (weights.get(stat) ?? 0) + bonus);
             if (SOLVER_DEBUG_SENSITIVITY) {
-                console.log(`[solver][sensitivity] constraint bonus: ${stat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, norm: ×${norm.toFixed(1)})`);
+                console.log(`[solver][sensitivity] constraint bonus: ${stat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, delta: ${stat_delta})`);
             }
         }
     }
@@ -582,12 +587,11 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
             if (indirect_sens <= 0) continue;
 
             const stat_delta = deltas.get(cstat) || _DEFAULT_DELTAS[cstat] || 1;
-            const norm = ref_delta / stat_delta;
             const scale = value > 0 ? (deficit / value) : (deficit / stat_delta);
-            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * scale * norm * _INDIRECT_SENS_SCALE * indirect_sens;
+            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * scale / stat_delta * _INDIRECT_SENS_SCALE * indirect_sens;
             weights.set(cstat, (weights.get(cstat) ?? 0) + bonus);
             if (SOLVER_DEBUG_SENSITIVITY) {
-                console.log(`[solver][sensitivity] indirect constraint bonus (${stat}): ${cstat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sens: ${indirect_sens.toFixed(4)}, norm: ×${norm.toFixed(1)})`);
+                console.log(`[solver][sensitivity] indirect constraint bonus (${stat}): ${cstat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sens: ${indirect_sens.toFixed(4)}, delta: ${stat_delta})`);
             }
         }
 
@@ -606,8 +610,10 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
                 const sp_sens = (perturbed_val - baseline_val) / sp_delta;
                 if (sp_sens <= 0) continue;
 
+                const eff_sp_delta = sp_deltas[si] || 10;
                 const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * (deficit / value)
-                    * _INDIRECT_SENS_SCALE * sp_sens * _SP_SENSITIVITY_DAMPEN;
+                    * _INDIRECT_SENS_SCALE * sp_sens * _SP_SENSITIVITY_DAMPEN
+                    / eff_sp_delta;
                 weights._sp_sensitivities[si] += bonus;
                 if (SOLVER_DEBUG_SENSITIVITY) {
                     console.log(`[solver][sensitivity] indirect SP constraint bonus (${stat}): ${skp_order[si]} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sp_sens: ${sp_sens.toFixed(4)})`);
@@ -633,13 +639,19 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
 
         const has_melee = (snap.parsed_combo ?? []).some(r => (r.spell?.scaling ?? 'spell') === 'melee');
         if (mana_bonus > 0) {
-            weights._priority_only.set('mr', (weights._priority_only.get('mr') ?? 0) + mana_bonus);
+            // mana_bonus is impact-based; divide by each target stat's delta
+            // to produce per-unit weights for priority scoring.
+            const delta_mr = deltas.get('mr') ?? _DEFAULT_DELTAS.mr ?? 1;
+            const delta_ms = deltas.get('ms') ?? _DEFAULT_DELTAS.ms ?? 1;
+            const delta_maxMana = deltas.get('maxMana') ?? _DEFAULT_DELTAS.maxMana ?? 1;
+            weights._priority_only.set('mr', (weights._priority_only.get('mr') ?? 0) + mana_bonus / delta_mr);
             if (has_melee) {
-                weights._priority_only.set('ms', (weights._priority_only.get('ms') ?? 0) + mana_bonus * 0.5);
+                weights._priority_only.set('ms', (weights._priority_only.get('ms') ?? 0) + mana_bonus * 0.5 / delta_ms);
             }
-            weights._priority_only.set('maxMana', (weights._priority_only.get('maxMana') ?? 0) + mana_bonus * 0.3);
+            weights._priority_only.set('maxMana', (weights._priority_only.get('maxMana') ?? 0) + mana_bonus * 0.3 / delta_maxMana);
             // Boost int SP sensitivity for mana
-            weights._sp_sensitivities[2] += mana_bonus * 0.5; // int is index 2
+            const sp_delta_int = sp_deltas[2] || 10;
+            weights._sp_sensitivities[2] += mana_bonus * 0.5 / sp_delta_int; // int is index 2
 
             if (SOLVER_DEBUG_SENSITIVITY) {
                 console.log(`[solver][sensitivity] mana bonus: ratio_raw=${ratio_raw.toFixed(3)}, ratio=${ratio.toFixed(3)}, mr+=${mana_bonus.toFixed(2)}` +
@@ -672,10 +684,13 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
 
                 // Negative weight: items have negative values (cost reduction),
                 // so negative × negative = positive score contribution.
+                // Divide by target delta to convert impact-based mana_bonus to per-unit.
+                const delta_spRaw = deltas.get(raw_key) ?? _DEFAULT_DELTAS[raw_key] ?? 1;
+                const delta_spPct = deltas.get(pct_key) ?? _DEFAULT_DELTAS[pct_key] ?? 1;
                 weights._priority_only.set(raw_key,
-                    (weights._priority_only.get(raw_key) ?? 0) - mana_bonus * raw_ratio);
+                    (weights._priority_only.get(raw_key) ?? 0) - mana_bonus * raw_ratio / delta_spRaw);
                 weights._priority_only.set(pct_key,
-                    (weights._priority_only.get(pct_key) ?? 0) - mana_bonus * pct_ratio);
+                    (weights._priority_only.get(pct_key) ?? 0) - mana_bonus * pct_ratio / delta_spPct);
             }
 
             if (SOLVER_DEBUG_SENSITIVITY && casts_by_spell.size > 0) {
@@ -696,13 +711,13 @@ function _augment_sensitivity_weights(result, snap, restrictions) {
 
 /**
  * Legacy damage weight builder — used as fallback when sensitivity computation
- * returns null (e.g. zero baseline damage with combo_damage target).
+ * returns null (e.g. zero baseline damage with combo_dps target).
  */
 function _build_dmg_weights_legacy(snap) {
     const weights = new Map();
     const add = (stat, w) => weights.set(stat, (weights.get(stat) ?? 0) + w);
 
-    const target = snap.scoring_target ?? 'combo_damage';
+    const target = snap.scoring_target ?? 'combo_dps';
 
     if (target === 'total_healing') {
         add('healPct', 1.0);
@@ -964,18 +979,23 @@ function _build_dominance_stats(snap, dmg_weights, restrictions) {
     const higher = new Set();
     const lower = new Set();
 
-    // Compute threshold from max absolute sensitivity
-    let max_abs = 0;
+    // Compute threshold from max per-item impact (sensitivity × delta).
+    // Using impact prevents stats with tiny deltas (atkTier) from inflating
+    // the threshold and excluding damage stats from dominance checks.
+    const _deltas = dmg_weights._deltas;
+    let max_impact = 0;
     for (const [stat, w] of dmg_weights) {
-        const abs_w = Math.abs(w);
-        if (abs_w > max_abs) max_abs = abs_w;
+        const d = (_deltas?.get(stat)) ?? _DEFAULT_DELTAS[stat] ?? 1;
+        const impact = Math.abs(w) * d;
+        if (impact > max_impact) max_impact = impact;
     }
-    const threshold = max_abs * 0.005;
+    const threshold = max_impact * 0.005;
 
-    // Classify by sensitivity sign
+    // Classify by per-item impact sign
     for (const [stat, w] of dmg_weights) {
-        if (w > threshold) higher.add(stat);
-        else if (w < -threshold) lower.add(stat);
+        const d = (_deltas?.get(stat)) ?? _DEFAULT_DELTAS[stat] ?? 1;
+        if (w * d > threshold) higher.add(stat);
+        else if (w * d < -threshold) lower.add(stat);
     }
 
     // ge/le restrictions on direct stats

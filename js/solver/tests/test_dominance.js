@@ -126,7 +126,7 @@ function makeNoneItem() {
 
 // Test 9: Pure damage combo (no mana) — lower is empty
 {
-    const snap = { combo_time: 0, parsed_combo: [], scoring_target: 'combo_damage' };
+    const snap = { combo_time: 0, parsed_combo: [], scoring_target: 'combo_dps' };
     const dmg_weights = new Map([['damPct', 1], ['sdPct', 1]]);
     const restrictions = { stat_thresholds: [] };
     const ds = _build_dominance_stats(snap, dmg_weights, restrictions);

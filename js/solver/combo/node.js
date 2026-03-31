@@ -235,7 +235,10 @@ class SolverComboTotalNode extends ComputeNode {
             }
         }
 
-        if (total_elem) total_elem.textContent = Math.round(total).toLocaleString();
+        if (total_elem) {
+            const dps = this._auto_cycle_time > 0 ? total / this._auto_cycle_time : total;
+            total_elem.textContent = Math.round(dps).toLocaleString() + ' DPS';
+        }
 
         this._update_mana_display(base_stats, sim_result);
 

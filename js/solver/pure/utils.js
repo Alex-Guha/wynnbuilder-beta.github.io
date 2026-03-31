@@ -241,9 +241,9 @@ function compute_wall_dt(is_melee, is_spell, melee_cd, melee_period, cast_time, 
  * @param {Map} weapon_statmap - Weapon statMap (needs 'atkSpd', 'atkTier')
  * @returns {number} Cycle time in seconds (rounded to 2 decimal places), or 0
  */
-function compute_combo_cycle_time(rows, weapon_statmap) {
+function compute_combo_cycle_time(rows, weapon_statmap, atkTier_override) {
     let adjAtkSpd_t = attackSpeeds.indexOf(weapon_statmap.get('atkSpd') || 'NORMAL')
-        + (weapon_statmap.get('atkTier') ?? 0);
+        + (atkTier_override ?? weapon_statmap.get('atkTier') ?? 0);
     adjAtkSpd_t = Math.max(0, Math.min(6, adjAtkSpd_t));
     const melee_period = 1 / baseDamageMultiplier[adjAtkSpd_t];
 

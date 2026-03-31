@@ -406,8 +406,8 @@ function greedy_sp_loop(base_sp, total_sp, remaining, cap_total, trial_score_fn)
  * @param {Map|null} thresh_stats - pre-cloned stats for non-damage targets (or null to use combo_base)
  */
 function eval_score_dispatch(scoring_target, combo_base, eval_damage_fn, eval_healing_fn, thresh_stats) {
-    const target = scoring_target ?? 'combo_damage';
-    if (target === 'combo_damage') return eval_damage_fn();
+    const target = scoring_target ?? 'combo_dps';
+    if (target === 'combo_dps') return eval_damage_fn();
     if (target === 'total_healing') return eval_healing_fn();
     const stats = thresh_stats ?? combo_base;
     return eval_indirect_stat(stats, target);

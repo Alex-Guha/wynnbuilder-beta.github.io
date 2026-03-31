@@ -240,7 +240,7 @@ function _build_solver_snapshot(restrictions) {
     const boost_registry = build_combo_boost_registry(atree_mgd, solver_build_node.value);
     const parsed_combo = _parse_combo_for_search(spell_map, weapon);
 
-    const scoring_target = document.getElementById('solver-target')?.value ?? 'combo_damage';
+    const scoring_target = document.getElementById('solver-target')?.value ?? 'combo_dps';
 
     const mana_enabled = document.getElementById('combo-mana-btn')?.classList.contains('toggleOn') ?? true;
     const combo_time = mana_enabled ? compute_combo_cycle_time(parsed_combo, weapon.statMap) : 0;
@@ -496,7 +496,7 @@ function _format_compact(n) {
 // ── Solver target metadata ─────────────────────────────────────────────────
 
 const SOLVER_TARGET_LABELS = {
-    combo_damage: '',
+    combo_dps: '',
     ehp: 'EHP: ',
     ehpr: 'EHPR: ',
     total_healing: 'Healing: ',
@@ -741,7 +741,7 @@ function _display_solver_results(topN) {
     const panel = document.getElementById('solver-results-panel');
     if (!panel) return;
     if (!topN.length) { panel.innerHTML = ''; return; }
-    const target = document.getElementById('solver-target')?.value ?? 'combo_damage';
+    const target = document.getElementById('solver-target')?.value ?? 'combo_dps';
 
     const visible = topN.slice(0, _TOP_N_DISPLAY);
     const extra = topN.slice(_TOP_N_DISPLAY);
@@ -1424,7 +1424,7 @@ function start_solver_search() {
         if (err_el) err_el.textContent = 'Set a weapon before solving.';
         return;
     }
-    const _combo_required = snap.scoring_target === 'combo_damage' || snap.scoring_target === 'total_healing';
+    const _combo_required = snap.scoring_target === 'combo_dps' || snap.scoring_target === 'total_healing';
     if (_combo_required && snap.parsed_combo.length === 0) {
         if (err_el) err_el.textContent = 'Add combo rows with spells before solving.';
         return;
