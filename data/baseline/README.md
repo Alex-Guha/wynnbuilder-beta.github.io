@@ -72,7 +72,7 @@ python3 encoding_gen_const.py $VER --write
 For smaller updates that only touch atree, aspects, major IDs, or items:
 
 ```
-cd /path/to/wynnbuilder-beta.github.io/py_script && python atree-generateID.py && cp atree_constants_min.json ../data/{version}/atree.json && cp aspects_min.json ../data/{version}/aspects.json && cp major_ids_min.json ../data/{version}/majid.json && python compress_json.py ../data/baseline/clean.json ../data/{version}/items.json
+cd /path/to/wynnbuilder-beta.github.io/py_script && python atree-generateID.py && cp atree_constants_min.json ../data/$VER/atree.json && cp aspects_min.json ../data/$VER/aspects.json && cp major_ids_min.json ../data/$VER/majid.json && python compress_json.py ../data/baseline/clean.json ../data/$VER/items.json
 ```
 
 ## Bumping DB version constants

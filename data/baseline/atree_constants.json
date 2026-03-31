@@ -1557,8 +1557,8 @@
             ]
         },
         {
-            "display_name": "Call of the Hound",
-            "desc": "Arrow Shield summons a Hound that will attack aggressive enemies every 0.25s and drag them towards your traps. </br> </br><span class='mc-white'>Total Damage</span>: 40% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 40%) </br>Vision: 18 Blocks (Circle-Shaped) </br>Duration: 60s",
+            "display_name": "Murder Flock",
+            "desc": "Basaltic Trap summons a Crow upon detonation that will peck at aggressive enemies every 0.9s. (Max 2) Damaged enemies will be distracted for 0.2s. </br> </br><span class='mc-white'>Total Damage</span>: 60% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 60%) </br>Effect: Blindness to Enemies </br>Vision: 18 Blocks (Circle-Shaped) </br>Duration: 12s",
             "archetype": "Trapper",
             "archetype_req": 0,
             "base_abil": "Arrow Shield",
@@ -1566,7 +1566,7 @@
                 "Patient Hunter"
             ],
             "dependencies": [
-                "Arrow Shield"
+                "Basaltic Trap"
             ],
             "blockers": [],
             "cost": 2,
@@ -1577,20 +1577,19 @@
             },
             "properties": {
                 "vision": 18,
-                "duration": 60,
-                "houndCount": 1
+                "duration": 12
             },
             "effects": [
                 {
                     "type": "replace_spell",
-                    "name": "Call of the Hound",
-                    "base_spell": 8,
+                    "name": "Murder Flock",
+                    "base_spell": 10,
                     "display": "Total DPS",
                     "parts": [
                         {
                             "name": "Single Hit",
                             "multipliers": [
-                                40,
+                                60,
                                 0,
                                 0,
                                 0,
@@ -1599,16 +1598,15 @@
                             ]
                         },
                         {
-                            "name": "DPS",
+                            "name": "Crow DPS",
                             "hits": {
-                                "Single Hit": 4
-                            },
-                            "hide": true
+                                "Single Hit": 1.1111111111
+                            }
                         },
                         {
                             "name": "Total DPS",
                             "hits": {
-                                "DPS": "Arrow Shield.houndCount"
+                                "Crow DPS": 2
                             }
                         }
                     ]
@@ -1778,6 +1776,7 @@
         {
             "display_name": "Rocket Jump",
             "desc": "Arrow Bomb's recoil is increased, and its self-damage is reduced to 1%.",
+            "archetype": "Trapper",
             "base_abil": "Arrow Bomb",
             "parents": [
                 "Ivyroot Mamba",
@@ -2225,7 +2224,7 @@
             "base_abil": "Arrow Storm",
             "parents": [
                 "Bouncing Bomb",
-                "Murder Flock",
+                "Call of the Hound",
                 "Cheaper Arrow Shield II"
             ],
             "dependencies": [],
@@ -2375,10 +2374,10 @@
             ]
         },
         {
-            "display_name": "Murder Flock",
-            "desc": "Basaltic Trap summons a Crow upon detonation that will peck at aggressive enemies every 0.9s. (Max 2) Damaged enemies will be distracted for 0.2s. </br> </br><span class='mc-white'>Total Damage</span>: 60% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 60%) </br>Effect: Blindness to Enemies </br>Vision: 18 Blocks (Circle-Shaped) </br>Duration: 12s",
+            "display_name": "Call of the Hound",
+            "desc": "Arrow Shield summons a Hound that will attack aggressive enemies every 0.25s and drag them towards your traps. </br> </br><span class='mc-white'>Total Damage</span>: 40% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 40%) </br>Vision: 18 Blocks (Circle-Shaped) </br>Duration: 60s",
             "archetype": "Trapper",
-            "archetype_req": 5,
+            "archetype_req": 4,
             "base_abil": "Arrow Shield",
             "parents": [
                 "Mana Trap",
@@ -2386,7 +2385,7 @@
                 "Decimator"
             ],
             "dependencies": [
-                "Basaltic Trap"
+                "Arrow Shield"
             ],
             "blockers": [],
             "cost": 2,
@@ -2397,19 +2396,20 @@
             },
             "properties": {
                 "vision": 18,
-                "duration": 12
+                "duration": 60,
+                "houndCount": 1
             },
             "effects": [
                 {
                     "type": "replace_spell",
-                    "name": "Murder Flock",
-                    "base_spell": 10,
+                    "name": "Call of the Hound",
+                    "base_spell": 8,
                     "display": "Total DPS",
                     "parts": [
                         {
                             "name": "Single Hit",
                             "multipliers": [
-                                60,
+                                40,
                                 0,
                                 0,
                                 0,
@@ -2418,15 +2418,16 @@
                             ]
                         },
                         {
-                            "name": "Crow DPS",
+                            "name": "DPS",
                             "hits": {
-                                "Single Hit": 1.1111111111
-                            }
+                                "Single Hit": 4
+                            },
+                            "hide": true
                         },
                         {
                             "name": "Total DPS",
                             "hits": {
-                                "Crow DPS": 2
+                                "DPS": "Arrow Shield.houndCount"
                             }
                         }
                     ]
@@ -2443,7 +2444,7 @@
                 "Initiator",
                 "Phasing Beam",
                 "Cheaper Escape II",
-                "Murder Flock"
+                "Call of the Hound"
             ],
             "dependencies": [
                 "Phantom Ray"
@@ -2476,7 +2477,7 @@
             "display_name": "Spectral Hover",
             "desc": "Slow Falling is applied upon using Escape. Crouching at any point will cancel this effect. </br> </br>Duration: 5s",
             "parents": [
-                "Murder Flock",
+                "Call of the Hound",
                 "Decimator"
             ],
             "dependencies": [],
@@ -2746,7 +2747,7 @@
         },
         {
             "display_name": "Tangled Traps",
-            "desc": "Your Traps will be connected by a rope that deals damage to enemies every 0.2s. </br> Increase your maximum Traps by +1. </br> </br><span class='mc-white'>Total Damage</span>: 40% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 20%)   </br>&emsp;(<span class='aDam'>Air</span>: 20%)",
+            "desc": "Your Traps will be connected by a rope that deals damage to enemies every 0.2s. </br> Grape Bomb gains +1 grape. </br> </br><span class='mc-white'>Total Damage</span>: 40% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 20%)   </br>&emsp;(<span class='aDam'>Air</span>: 20%)",
             "archetype": "Trapper",
             "archetype_req": 0,
             "base_abil": "Basaltic Trap",
@@ -2795,8 +2796,8 @@
                     "bonuses": [
                         {
                             "type": "prop",
-                            "abil": "Basaltic Trap",
-                            "name": "traps",
+                            "abil": "Grape Bomb",
+                            "name": "grapes",
                             "value": 1
                         }
                     ]
@@ -3409,7 +3410,7 @@
         },
         {
             "display_name": "Fimbulwinter",
-            "desc": "Enemies are frozen after standing inside of Chilling Snare for 2s.</br>[1000%n/500%w]",
+            "desc": "Enemies take additional damage after standing inside of Chilling Snare for 2s.</br>[800%n/400%w]",
             "base_abil": "Basaltic Trap",
             "archetype": "Trapper",
             "parents": [
@@ -3433,10 +3434,10 @@
                     "base_spell": 14,
                     "target_part": "Fimbulwinter",
                     "multipliers": [
-                        1000,
+                        800,
                         0,
                         0,
-                        500,
+                        400,
                         0,
                         0
                     ]
@@ -3448,6 +3449,17 @@
                     "hits": {
                         "Fimbulwinter": 1
                     }
+                },
+                {
+                    "type": "raw_stat",
+                    "bonuses": [
+                        {
+                            "type": "prop",
+                            "abil": "Basaltic Trap",
+                            "name": "traps",
+                            "value": 1
+                        }
+                    ]
                 }
             ]
         },
@@ -3624,7 +3636,7 @@
         },
         {
             "display_name": "Shrieking Arrows",
-            "desc": "Arrow Storm and Phantom Ray will deal additional damage.</br></br>Damage: [6%n/1%t/1%a] for Arrow Storm</br>Damage: [2%n/1%w] for Phantom Ray",
+            "desc": "Arrow Storm and Phantom Ray will deal additional damage.</br></br>Damage: [6%n/1%t/1%a] for Arrow Storm</br>Damage: [4%n/2%w] for Phantom Ray",
             "archetype": "Boltslinger",
             "parents": [
                 "Overgrowth",
@@ -3663,10 +3675,10 @@
                     "target_part": "Single Tick",
                     "behavior": "modify",
                     "multipliers": [
+                        4,
+                        0,
+                        0,
                         2,
-                        0,
-                        0,
-                        1,
                         0,
                         0
                     ]
@@ -11836,7 +11848,9 @@
                 {
                     "type": "buff_state",
                     "state_name": "Vanished",
-                    "activate_on": { "spell": 2 },
+                    "activate_on": {
+                        "spell": 2
+                    },
                     "deactivate": "next_action",
                     "duration": 5,
                     "suppress_healing": true,
