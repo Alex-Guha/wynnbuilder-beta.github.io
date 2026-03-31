@@ -29,7 +29,7 @@ const { performance } = require('perf_hooks');
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const JS_ROOT = path.join(REPO_ROOT, 'js');
 const SNAP_DIR = path.join(__dirname, 'snapshots');
-const LATEST_VERSION = '2.2.0.15';
+const LATEST_VERSION = '2.2.0.17';
 
 // ── Sandbox ──────────────────────────────────────────────────────────────────
 
@@ -70,11 +70,11 @@ function createSandbox() {
     // Build a minimal "browser-like" global environment.
     const stub_element = {
         textContent: '', value: '', innerHTML: '', style: {},
-        classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
-        addEventListener() {},
-        appendChild() {},
+        classList: { add() { }, remove() { }, toggle() { }, contains() { return false; } },
+        addEventListener() { },
+        appendChild() { },
         getAttribute() { return null; },
-        setAttribute() {},
+        setAttribute() { },
         querySelectorAll() { return []; },
         querySelector() { return null; },
     };
@@ -97,9 +97,11 @@ function createSandbox() {
 
         // Stubs for browser APIs referenced at parse time.
         window: {
-            location: { hash: '', search: '', href: '', protocol: 'https:', host: 'localhost',
-                        pathname: '/', hostname: 'localhost' },
-            history: { replaceState() {} },
+            location: {
+                hash: '', search: '', href: '', protocol: 'https:', host: 'localhost',
+                pathname: '/', hostname: 'localhost'
+            },
+            history: { replaceState() { } },
         },
         document: {
             getElementById() { return Object.create(stub_element); },
@@ -108,11 +110,11 @@ function createSandbox() {
             querySelectorAll() { return []; },
         },
         self: {},
-        postMessage() {},
-        importScripts() {},
+        postMessage() { },
+        importScripts() { },
         navigator: { userAgent: 'node-test-harness' },
         confirm() { return false; },
-        alert() {},
+        alert() { },
         fetch() { return Promise.reject(new Error('fetch not available in test sandbox')); },
 
         // Will be populated by loadGameData.
@@ -762,83 +764,83 @@ function collectSpells(ctx, atree_merged) {
     for (const [abil_id, abil] of atree_merged.entries()) {
         for (const effect of abil.effects) {
             switch (effect.type) {
-            case 'replace_spell':
-                continue;
-            case 'add_spell_prop': {
-                const { base_spell, target_part = null, cost = 0, behavior = 'merge' } = effect;
-                if (base_spell === 'powder_special') {
-                    _pending_powder_special.push(effect);
+                case 'replace_spell':
+                    continue;
+                case 'add_spell_prop': {
+                    const { base_spell, target_part = null, cost = 0, behavior = 'merge' } = effect;
+                    if (base_spell === 'powder_special') {
+                        _pending_powder_special.push(effect);
+                        continue;
+                    }
+                    if (!ret_spells.has(base_spell)) continue;
+                    const ret_spell = ret_spells.get(base_spell);
+
+                    if ('cost' in ret_spell) ret_spell.cost += cost;
+                    if (target_part === null) continue;
+
+                    let found_part = false;
+                    for (const part of ret_spell.parts) {
+                        if (part.name !== target_part) continue;
+
+                        if ('multipliers' in effect) {
+                            for (const [idx, v] of effect.multipliers.entries()) {
+                                if (behavior === 'overwrite') part.multipliers[idx] = v;
+                                else part.multipliers[idx] += v;
+                            }
+                        } else if ('max_hp_heal_pct' in effect) {
+                            if (behavior === 'overwrite') part.max_hp_heal_pct = effect.max_hp_heal_pct;
+                            else part.max_hp_heal_pct += effect.max_hp_heal_pct;
+                        } else if ('hits' in effect) {
+                            for (const [idx, _v] of Object.entries(effect.hits)) {
+                                const v = ctx.atree_translate(atree_merged, _v);
+                                if (behavior === 'overwrite') part.hits[idx] = v;
+                                else {
+                                    if (idx in part.hits) part.hits[idx] += v;
+                                    else part.hits[idx] = v;
+                                }
+                            }
+                        }
+                        if ('hide' in effect) part.display = false;
+                        if ('ignored_mults' in effect) {
+                            if ('ignored_mults' in part) part.ignored_mults.push(effect.ignored_mults);
+                            else part.ignored_mults = effect.ignored_mults;
+                        }
+                        found_part = true;
+                        break;
+                    }
+                    if (!found_part && behavior === 'merge') {
+                        const spell_part = structuredClone(effect);
+                        spell_part.name = target_part;
+                        if ('hits' in spell_part) {
+                            for (const idx in spell_part.hits) {
+                                spell_part.hits[idx] = ctx.atree_translate(atree_merged, spell_part.hits[idx]);
+                            }
+                        }
+                        if ('hide' in effect) spell_part.display = false;
+                        ret_spell.parts.push(spell_part);
+                    }
+                    if ('display' in effect) ret_spell.display = effect.display;
                     continue;
                 }
-                if (!ret_spells.has(base_spell)) continue;
-                const ret_spell = ret_spells.get(base_spell);
-
-                if ('cost' in ret_spell) ret_spell.cost += cost;
-                if (target_part === null) continue;
-
-                let found_part = false;
-                for (const part of ret_spell.parts) {
-                    if (part.name !== target_part) continue;
-
-                    if ('multipliers' in effect) {
-                        for (const [idx, v] of effect.multipliers.entries()) {
-                            if (behavior === 'overwrite') part.multipliers[idx] = v;
-                            else part.multipliers[idx] += v;
-                        }
-                    } else if ('max_hp_heal_pct' in effect) {
-                        if (behavior === 'overwrite') part.max_hp_heal_pct = effect.max_hp_heal_pct;
-                        else part.max_hp_heal_pct += effect.max_hp_heal_pct;
-                    } else if ('hits' in effect) {
-                        for (const [idx, _v] of Object.entries(effect.hits)) {
-                            const v = ctx.atree_translate(atree_merged, _v);
-                            if (behavior === 'overwrite') part.hits[idx] = v;
-                            else {
-                                if (idx in part.hits) part.hits[idx] += v;
-                                else part.hits[idx] = v;
+                case 'convert_spell_conv': {
+                    const { base_spell, target_part, conversion } = effect;
+                    const ret_spell = ret_spells.get(base_spell);
+                    if (!ret_spell) continue;
+                    const elem_idx = ctx.damageClasses.indexOf(conversion);
+                    const filter = target_part === 'all';
+                    for (const part of ret_spell.parts) {
+                        if (filter || part.name === target_part) {
+                            if ('multipliers' in part) {
+                                let total_conv = 0;
+                                for (let i = 1; i < 6; ++i) total_conv += part.multipliers[i];
+                                const new_conv = [part.multipliers[0], 0, 0, 0, 0, 0];
+                                new_conv[elem_idx] = total_conv;
+                                part.multipliers = new_conv;
                             }
                         }
                     }
-                    if ('hide' in effect) part.display = false;
-                    if ('ignored_mults' in effect) {
-                        if ('ignored_mults' in part) part.ignored_mults.push(effect.ignored_mults);
-                        else part.ignored_mults = effect.ignored_mults;
-                    }
-                    found_part = true;
-                    break;
+                    continue;
                 }
-                if (!found_part && behavior === 'merge') {
-                    const spell_part = structuredClone(effect);
-                    spell_part.name = target_part;
-                    if ('hits' in spell_part) {
-                        for (const idx in spell_part.hits) {
-                            spell_part.hits[idx] = ctx.atree_translate(atree_merged, spell_part.hits[idx]);
-                        }
-                    }
-                    if ('hide' in effect) spell_part.display = false;
-                    ret_spell.parts.push(spell_part);
-                }
-                if ('display' in effect) ret_spell.display = effect.display;
-                continue;
-            }
-            case 'convert_spell_conv': {
-                const { base_spell, target_part, conversion } = effect;
-                const ret_spell = ret_spells.get(base_spell);
-                if (!ret_spell) continue;
-                const elem_idx = ctx.damageClasses.indexOf(conversion);
-                const filter = target_part === 'all';
-                for (const part of ret_spell.parts) {
-                    if (filter || part.name === target_part) {
-                        if ('multipliers' in part) {
-                            let total_conv = 0;
-                            for (let i = 1; i < 6; ++i) total_conv += part.multipliers[i];
-                            const new_conv = [part.multipliers[0], 0, 0, 0, 0, 0];
-                            new_conv[elem_idx] = total_conv;
-                            part.multipliers = new_conv;
-                        }
-                    }
-                }
-                continue;
-            }
             }
         }
     }

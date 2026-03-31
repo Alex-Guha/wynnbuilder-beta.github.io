@@ -79,7 +79,7 @@ class ItemLoader extends Loader {
                 cursor.continue();
             }
             else {
-               // no more results
+                // no more results
                 console.log("Successfully read local set db.");
             }
         };
@@ -227,7 +227,8 @@ const wynn_version_names = [
     '2.2.0.7',
     '2.2.0.12',
     '2.2.0.14',
-    '2.2.0.15'
+    '2.2.0.15',
+    '2.2.0.17',
 ];
 
 const WYNN_VERSION_LATEST = wynn_version_names.length - 1;
@@ -266,7 +267,7 @@ async function load_encoding_constants(version_str, decoding_version_str) {
     let decoding_url = `${baseUrl}/data/${decoding_version_str}/encoding_consts.json`;
     ENC = await (await fetch(encoding_url)).json();
     if (decoding_version_str !== undefined && decoding_version_str != version_str) {
-       DEC = await (await fetch(decoding_url)).json(); 
+        DEC = await (await fetch(decoding_url)).json();
     } else {
         DEC = ENC;
     }
