@@ -8,15 +8,28 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 # Todo
 
-- looping combo portions
+### Bugs
+- Build seeding is not rejecting builds when there's a spell in the combo that fails mana
+
+### Looping Portions
+- Goal: users to not need to manually re-enter series of spells that are repeated with the same buffs over and over.
+- Allow looping to potentially happen until a resource runs out, be it mana or health or something else, or a fixed number of times.
+- Sometimes, there are variable timings in these loop portions, and they will still need to autocalculate values.
+
+I think the easiest way to do this is to take the user defined looped portion, and when a build is input and stats are defined, unroll it - as many times as it can be if it's resource limited.
+
+Some things we have to consider:
+- How do we present this in the UI and allow users to easily define rows as part of a loop
+- How do we encode this in the url and text import/export
+
+### Necessary Improvements
 - True DPS calculation
 - Weighted multi-target solving
 - Let's add a new toggle to the combo section that appears when in advanced mode: "Debug". When in debug, stuff
-
-### Necessary Improvements
 - Testing setup to measure the time it takes to find a build, across many builds. This would be used to test priority weighting changes.
     - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
 - Rewrite simulator, the tech debt is stacking up.
+- Move "allow downtime" to be a row option instead of a toggle? Still messes with dps calc...
 
 ### Polish
 #### UI
@@ -39,6 +52,7 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 ### Long term
 - Premade archetype combo selectors
 - Tree-assembler: "I want ability X, Y, and Z, give me a tree that gets all 3 if possible"
+- Allow builds marginally outside the non-mana requirements to be displayed separately, maybe repurposing the last 5 in the top 15
 
 - Consider:
 > CPS thingy into damage solver as sometimes people (idk all, but at least i will) slow down/accelerate their cycle depends on their situation, like sustain or burst

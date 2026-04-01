@@ -401,10 +401,12 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
             continue;
         }
 
-        // Mana Reset pseudo-spell
+        // Mana Reset pseudo-spell: refill mana to max and reset recast counter
         if (pseudo === 'mana_reset') {
+            const mana_gained_amt = mana_excl ? 0 : max_mana - mana;
+            if (!mana_excl) mana = max_mana;
             row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
-                mana_lost: Math.max(0, _mana_before - mana), mana_gained: 0, elapsed_time, row_dt: elapsed_time - _time_before });
+                mana_lost: Math.max(0, _mana_before - mana), mana_gained: mana_gained_amt, elapsed_time, row_dt: elapsed_time - _time_before });
             continue;
         }
 
