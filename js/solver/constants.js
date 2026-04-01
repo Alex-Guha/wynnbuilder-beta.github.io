@@ -48,7 +48,6 @@ const MANA_RESET_NODE_ID = 126;
 
 /**
  * Internal spell ID for the "Cancel Bak'al's Grasp" pseudo-spell.
- * Ends corruption state; if Exhilarate is taken, heals 30% of corruption bar.
  */
 const CANCEL_BAKALS_SPELL_ID = -2001;
 

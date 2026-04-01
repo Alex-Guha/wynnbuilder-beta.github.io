@@ -341,7 +341,7 @@ function _insert_top5(candidate) {
 // This lets us preserve the user's manually entered build as the initial
 // baseline so it isn't cleared when the solver starts.
 
-function _eval_current_build(snap, restrictions) {
+function _eval_current_build(snap, restrictions, blacklist) {
     // Collect all 8 item statMaps from the UI
     const items = [];
     const equip_sms = [];
@@ -356,6 +356,21 @@ function _eval_current_build(snap, restrictions) {
     // Check that at least one non-NONE armor/accessory exists
     const has_any = equip_sms.some(sm => !sm.has('NONE'));
     if (!has_any) { console.warn('[seed] rejected: no non-NONE items'); return null; }
+
+    // Reject if any unlocked item is in the blacklist
+    if (blacklist && blacklist.size > 0) {
+        for (let i = 0; i < 8; i++) {
+            const sm = equip_sms[i];
+            if (sm.has('NONE')) continue;
+            const input = document.getElementById(equipment_fields[i] + '-choice');
+            if (input?.dataset.solverFilled !== 'true') continue; // locked — user chose it
+            const name = sm.get('displayName') ?? sm.get('name') ?? '';
+            if (blacklist.has(name)) {
+                console.warn('[seed] rejected: unlocked item "' + name + '" is blacklisted');
+                return null;
+            }
+        }
+    }
 
     // Build statMap using worker_shims (same path as the search worker)
     const fixed_sms = [snap.weapon_sm];
@@ -1505,7 +1520,7 @@ function start_solver_search() {
 
     // Evaluate the current UI build as a seed — if it passes all constraints
     // it stays as top-1 until workers find something better.
-    _solver_state.seed_build = _eval_current_build(snap, restrictions);
+    _solver_state.seed_build = _eval_current_build(snap, restrictions, blacklist);
     if (_solver_state.seed_build) {
         console.log('[solver] seeded current build as baseline, score:', _solver_state.seed_build.score);
     }

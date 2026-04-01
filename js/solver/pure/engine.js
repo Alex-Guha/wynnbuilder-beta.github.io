@@ -485,7 +485,7 @@ function eval_combo_mana_check(p) {
         const sim = simulate_combo_mana_fast(
             p.parsed_combo, p.combo_base, hc, has_transcendence,
             p.boost_registry, p.scratch_row);
-        if (sim.has_hp_warning) return { passed: false, sim };
+        if (sim.has_hp_warning || sim.has_mana_warning) return { passed: false, sim };
         if (p.allow_downtime) return { passed: sim.end_mana > 0, sim };
         return { passed: (sim.start_mana - sim.end_mana) <= 5, sim };
     }
@@ -493,7 +493,7 @@ function eval_combo_mana_check(p) {
     const sim = simulate_combo_mana_hp(
         p.parsed_combo, p.combo_base, hc, has_transcendence,
         p.boost_registry, p.scratch_row);
-    if (sim.row_results.some(r => r.hp_warning)) return { passed: false, sim };
+    if (sim.row_results.some(r => r.hp_warning || r.mana_warning)) return { passed: false, sim };
     if (p.allow_downtime) return { passed: sim.end_mana > 0, sim };
     return { passed: (sim.start_mana - sim.end_mana) <= 5, sim };
 }
