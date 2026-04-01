@@ -27,7 +27,7 @@
 
     <!-- ═══════════════════════ SIDEBAR (desktop) ═══════════════════════════════ -->
     <div id="main-sidebar" class="sidebar dark-7 dark-shadow">
-        <a href="../builder/"><img src="../media/icons/new/builder.png" alt="WynnBuilder"
+        <a href="../builder/" onclick="var h=location.hash,i=h.indexOf('_');if(i>=0)sessionStorage.setItem('solver_ext',h.substring(i));this.href='../builder/'+location.search+location.hash"><img src="../media/icons/new/builder.png" alt="WynnBuilder"
                 title="WynnBuilder"><b>WynnBuilder</b></a>
         <a href=""><img src="../media/icons/new/builder.png" alt="WynnSolver" title="WynnSolver"><b>WynnSolver</b></a>
         <a href="../crafter/"><img src="../media/icons/new/crafter.png" alt="WynnCrafter"
@@ -59,7 +59,7 @@
                 onclick='toggle_tab("mobile-navbar-dropdown")'></button>
         </div>
         <div class="container-fluid scaled-font dark-3 px-3 py-3" id="mobile-navbar-dropdown" style="display: none;">
-            <a href="../builder/" class="w-100 mb-3 text-white" style="height: 5vh; text-decoration: none;"><img
+            <a href="../builder/" onclick="var h=location.hash,i=h.indexOf('_');if(i>=0)sessionStorage.setItem('solver_ext',h.substring(i));this.href='../builder/'+location.search+location.hash" class="w-100 mb-3 text-white" style="height: 5vh; text-decoration: none;"><img
                     src="../media/icons/new/builder.png" alt="" style="height: 100%;"> <span>WynnBuilder</span></a>
             <a href="" class="w-100 mb-3 text-white" style="height: 5vh; text-decoration: none;"><img
                     src="../media/icons/new/builder.png" alt="" style="height: 100%;"> <span>WynnSolver</span></a>
