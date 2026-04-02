@@ -9,18 +9,9 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 # Todo
 
 ### Bugs
-- Build seeding is not rejecting builds when there's a spell in the combo that fails mana
-
-### Looping Portions
-- Goal: users to not need to manually re-enter series of spells that are repeated with the same buffs over and over.
-- Allow looping to potentially happen until a resource runs out, be it mana or health or something else, or a fixed number of times.
-- Sometimes, there are variable timings in these loop portions, and they will still need to autocalculate values.
-
-I think the easiest way to do this is to take the user defined looped portion, and when a build is input and stats are defined, unroll it - as many times as it can be if it's resource limited.
-
-Some things we have to consider:
-- How do we present this in the UI and allow users to easily define rows as part of a loop
-- How do we encode this in the url and text import/export
+- SP issue
+	- Double Diamond Hydro Rings
+	- https://alex-guha.github.io/wynnbuilder-beta.github.io/solver/#CT0O0n-3Ol3XQ0kHmD2uHamWi6mb0ezzw2tf+V0_NPcdQh40J1W2OaV50QebU0v124002148G002ZO0
 
 ### Necessary Improvements
 - True DPS calculation

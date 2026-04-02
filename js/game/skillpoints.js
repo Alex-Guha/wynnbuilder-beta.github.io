@@ -1,8 +1,8 @@
 /*
  * Non exhaustive list of dependencies (add them here if you see them!)
  *
- * js/build_utils.js:skp_order
- * js/load_item.js:sets
+ * js/game/build_utils.js:skp_order
+ * js/data/load_item.js:sets
  */
 
 
@@ -96,7 +96,7 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
 
     let total_assigned = 0;
     for (let i = 0; i < 5; ++i) {
-        if(req_skillpoints[i] == 0)
+        if (req_skillpoints[i] == 0)
             continue; // no need to assign if req is 0 anyway
 
         if (req_skillpoints[i] > bonus_skillpoints[i]) {

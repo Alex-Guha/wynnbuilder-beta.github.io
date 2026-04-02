@@ -758,9 +758,45 @@ function _run_level_enum() {
 
     // Compute the maximum achievable level (sum of pool sizes - 1 per slot)
     let L_max = 0;
+    const _pool_maxes = [];
     for (const slot of free_slots) {
         const p = _get_pool(slot);
-        if (p) L_max += p.length - 1;
+        const pm = p ? p.length - 1 : 0;
+        L_max += pm;
+        _pool_maxes.push(pm);
+    }
+
+    // ── Subtree leaf count table (for SP-prune build tallying) ──────────────
+    //
+    // _subtree_leaf_count[d][L] = number of leaf builds in the subtree from
+    // depth d..N_free-1 with remaining level budget L.  Ignores ring symmetry
+    // and illegal-set blocking (slight overcount, acceptable for progress).
+    // Used to credit pruned subtrees to _checked so progress is accurate.
+
+    const _subtree_leaf_count = new Array(N_free);
+    if (N_free > 0) {
+        for (let d = 0; d < N_free; d++) {
+            _subtree_leaf_count[d] = new Float64Array(L_max + 1);
+        }
+        // Last slot: offset is forced to exactly remaining_L
+        const last_pm = _pool_maxes[N_free - 1];
+        for (let L = 0; L <= Math.min(L_max, last_pm); L++) {
+            _subtree_leaf_count[N_free - 1][L] = 1;
+        }
+        // Fill from N_free-2 down to 0 using prefix sums
+        for (let d = N_free - 2; d >= 0; d--) {
+            const pm = _pool_maxes[d];
+            const next = _subtree_leaf_count[d + 1];
+            // prefix[k] = sum of next[0..k-1]
+            const prefix = new Float64Array(L_max + 2);
+            for (let L = 0; L <= L_max; L++) {
+                prefix[L + 1] = prefix[L] + next[L];
+            }
+            for (let L = 0; L <= L_max; L++) {
+                const lo = Math.max(0, L - pm);
+                _subtree_leaf_count[d][L] = prefix[L + 1] - prefix[lo];
+            }
+        }
     }
 
     // ── Mid-tree SP pruning state & helpers ──────────────────────────────────
@@ -1010,7 +1046,10 @@ function _run_level_enum() {
             if (_sp_mid_tree_feasible(slot_idx + 1)) {
                 enumerate(slot_idx + 1, remaining_L - offset);
             } else {
-                _dbg_sp_prune_count++;
+                const pruned = _subtree_leaf_count[slot_idx + 1][remaining_L - offset];
+                _checked += pruned;
+                _dbg_sp_prune_count += pruned;
+                _maybe_progress();
             }
 
             _sp_unplace_free_item(item.statMap, slot_idx);
