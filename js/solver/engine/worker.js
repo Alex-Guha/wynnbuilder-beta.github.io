@@ -658,13 +658,8 @@ function _run_level_enum() {
         for (let i = 0; i < 8; i++) _scratch_sp_input[i] = _scratch_equip_8[i];
         _scratch_sp_input[8] = guild_tome_sm;
 
-        // Combined SP feasibility check + full calculation (single pass).
+        // SP calculation (always returns best-effort result, never null).
         const sp_result = calculate_skillpoints(_scratch_sp_input, weapon_sm, sp_budget, _scratch_sp_set_counts, _scratch_sp);
-        if (!sp_result) {
-            _dbg_sp_reject++;
-            _maybe_progress();
-            return;
-        }
         const base_sp = sp_result[0];
         const total_sp = sp_result[1];
         const assigned_sp = sp_result[2];
@@ -935,9 +930,11 @@ function _run_level_enum() {
                 + _sp_suffix_max_prov[next_depth][i];
             if (_sp_running_max_eff_req[i] <= optimistic_prov) continue;
             const deficit = _sp_running_max_eff_req[i] - optimistic_prov;
-            if (deficit > SP_PER_ATTR_CAP) return false;
+            // Relaxed: allow best-effort builds through.  Per-attr check
+            // removed (best-effort caps at SP_PER_ATTR_CAP).  Total check
+            // uses 2× budget so close-to-feasible subtrees are explored.
             total_deficit += deficit;
-            if (total_deficit > sp_budget) return false;
+            if (total_deficit > sp_budget * 2) return false;
         }
         return true;
     }
@@ -955,9 +952,9 @@ function _run_level_enum() {
             const prov = _sp_fixed_sum_prov[i] + _sp_running_free_prov[i];
             if (_sp_running_max_eff_req[i] <= prov) continue;
             const deficit = _sp_running_max_eff_req[i] - prov;
-            if (deficit > SP_PER_ATTR_CAP) return false;
+            // Relaxed: same as _sp_mid_tree_feasible — allow best-effort.
             total_deficit += deficit;
-            if (total_deficit > sp_budget) return false;
+            if (total_deficit > sp_budget * 2) return false;
         }
         return true;
     }

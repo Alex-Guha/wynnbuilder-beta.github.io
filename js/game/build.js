@@ -41,23 +41,15 @@ class Build {
         this.tomes = tomes
         this.weapon = weapon;
 
-        // calc skillpoints requires statmaps only
+        // calc skillpoints requires statmaps only (always returns best-effort, never null)
         let result = calculate_skillpoints(_wynn_order_equipment.map((x) => x.statMap), this.weapon.statMap);
-        if (!result) {
-            // Impossible build (single attr > SP_PER_ATTR_CAP). Use zeroed fallback.
-            this.base_skillpoints = [0, 0, 0, 0, 0];
-            this.total_skillpoints = [0, 0, 0, 0, 0];
-            this.assigned_skillpoints = 0;
-            this.activeSetCounts = new Map();
-        } else {
-            // How many skillpoints the player had to assign (5 numbers)
-            this.base_skillpoints = result[0];
-            // How many skillpoints the build ended up with (5 numbers)
-            this.total_skillpoints = result[1];
-            // How many skillpoints assigned (1 number, sum of base_skillpoints)
-            this.assigned_skillpoints = result[2];
-            this.activeSetCounts = result[3];
-        }
+        // How many skillpoints the player had to assign (5 numbers)
+        this.base_skillpoints = result[0];
+        // How many skillpoints the build ended up with (5 numbers)
+        this.total_skillpoints = result[1];
+        // How many skillpoints assigned (1 number, sum of base_skillpoints)
+        this.assigned_skillpoints = result[2];
+        this.activeSetCounts = result[3];
 
         this.initBuildStats();
     }  

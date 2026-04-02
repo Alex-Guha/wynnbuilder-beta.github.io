@@ -235,11 +235,6 @@ function _greedy_sp_alloc_main(build_sm, snap, locked) {
     equip_sms.push(snap.guild_tome_item.statMap);
 
     const sp_result = calculate_skillpoints(equip_sms, snap.weapon_sm, snap.sp_budget);
-    if (!sp_result) {
-        // SP infeasible with locked items — use zero SP
-        return { total_sp: [0, 0, 0, 0, 0], assigned_sp: 0 };
-    }
-
     for (let i = 0; i < 5; i++) {
         base_sp[i] = sp_result[0][i];
         total_sp[i] = sp_result[1][i];

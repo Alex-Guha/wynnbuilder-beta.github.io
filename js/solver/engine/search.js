@@ -406,7 +406,6 @@ function _eval_current_build(snap, restrictions, blacklist) {
     } else {
         const sp_equip = [...equip_sms, snap.guild_tome_item.statMap];
         const sp_result = calculate_skillpoints(sp_equip, snap.weapon_sm, snap.sp_budget);
-        if (!sp_result) { console.warn('[seed] rejected: SP infeasible'); return null; }
         base_sp = sp_result[0];
         total_sp = sp_result[1];
         assigned_sp = sp_result[2];

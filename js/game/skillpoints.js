@@ -33,8 +33,9 @@ function pull_req(req_skillpoints, item, is_bonus_item) {
  * @param {Object|null} scratch_sp - reusable arrays {bonus, req, assign, final, no_bonus}
  *                                   to eliminate per-call allocations (optional).
  *                                   Caller must .slice() return arrays before caching.
- * @returns {Array|null} [best_skillpoints, final_skillpoints, best_total, set_counts],
- *                       or null if sp_budget is exceeded or any single attr > SP_PER_ATTR_CAP.
+ * @returns {Array} [best_skillpoints, final_skillpoints, best_total, set_counts].
+ *                  Always returns a result (best-effort: caps per-attr at SP_PER_ATTR_CAP,
+ *                  scales down proportionally if total exceeds sp_budget).
  */
 function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_set_counts = null, scratch_sp = null) {
     let no_bonus_items;
@@ -94,17 +95,31 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
     }
     pull_req(req_skillpoints, weapon, false);
 
+    // Best-effort assignment: cap per-attr at SP_PER_ATTR_CAP, scale down
+    // proportionally if total exceeds budget.  Never returns null.
     let total_assigned = 0;
     for (let i = 0; i < 5; ++i) {
         if (req_skillpoints[i] == 0)
-            continue; // no need to assign if req is 0 anyway
+            continue;
 
         if (req_skillpoints[i] > bonus_skillpoints[i]) {
-            const delta = req_skillpoints[i] - bonus_skillpoints[i];
-            if (delta > SP_PER_ATTR_CAP) return null;
-            assign[i] = delta;
-            total_assigned += delta;
-            if (total_assigned > sp_budget) return null;
+            assign[i] = Math.min(req_skillpoints[i] - bonus_skillpoints[i], SP_PER_ATTR_CAP);
+            total_assigned += assign[i];
+        }
+    }
+    if (total_assigned > sp_budget) {
+        const scale = sp_budget / total_assigned;
+        total_assigned = 0;
+        for (let i = 0; i < 5; ++i) {
+            assign[i] = Math.floor(assign[i] * scale);
+            total_assigned += assign[i];
+        }
+        // Distribute rounding remainder from floor()
+        let rem = sp_budget - total_assigned;
+        for (let i = 0; i < 5 && rem > 0; ++i) {
+            const raw = req_skillpoints[i] > bonus_skillpoints[i]
+                ? Math.min(req_skillpoints[i] - bonus_skillpoints[i], SP_PER_ATTR_CAP) : 0;
+            if (assign[i] < raw) { assign[i]++; total_assigned++; rem--; }
         }
     }
 
