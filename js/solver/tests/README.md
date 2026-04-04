@@ -21,6 +21,8 @@ node js/solver/tests/test_solver_search.js archer     # only snapshots matching 
 node js/solver/tests/test_solver_search.js archer shaman  # multiple filters
 node js/solver/tests/test_enum_order.js
 node js/solver/tests/test_mana_sim.js
+node js/solver/tests/test_skillpoints.js              # skillpoint calculation
+node js/solver/tests/test_skillpoints.js --update     # mass-update expected values
 ```
 
 ## Test Files
@@ -31,6 +33,7 @@ node js/solver/tests/test_mana_sim.js
 | `test_enum_order.js` | Unified level-based enumeration algorithm |
 | `test_combo_damage.js` | Combo damage/healing cross-validation (builder vs solver paths) |
 | `test_mana_sim.js` | Mana simulation: fast path vs full `simulate_combo_mana_hp` cross-check |
+| `test_skillpoints.js` | `calculate_skillpoints` correctness against hand-made and random test cases |
 | `test_solver_search.js` | Full solver pipeline: pools, weights, pruning, worker enumeration |
 
 Supporting files:
@@ -40,6 +43,63 @@ Supporting files:
 | `harness.js` | VM sandbox, game data loader, URL decoder, atree processor, assertion library, snapshot helpers |
 | `worker_thread.js` | Node.js `worker_threads` adapter that wraps the solver's Web Worker for headless parallel execution |
 | `run_all.js` | Discovers and runs all `test_*.js` files, aggregates pass/fail/warn counts |
+| `gen_sp_cases.js` | Random test case generator for `test_skillpoints.js` |
+| `test_skillpoints.json` | Test case data for `test_skillpoints.js` (hand-made + generated) |
+
+## Adding a Skillpoint Test Case
+
+Test cases live in `test_skillpoints.json`. Each case specifies 8 equipment
+items + a weapon by name, and the expected skillpoint results.
+
+### Test case format
+
+```json
+{
+    "name": "my_test",
+    "items": ["Helmet", "Chestplate", "Leggings", "Boots", "Ring1", "Ring2", "Bracelet", "Necklace"],
+    "weapon": "Weapon Name",
+    "sp_budget": 200,
+    "expected": {
+        "assign": [0, 0, 0, 0, 0],
+        "total": [0, 0, 0, 0, 0],
+        "total_assigned": 0
+    }
+}
+```
+
+- **items**: 8 equipment names in slot order. Use `null` or NONE names
+  (`"No Helmet"`, `"No Chestplate"`, etc.) for empty slots.
+- **weapon**: Weapon name, or `null`/`"No Weapon"` for none.
+- **sp_budget** *(optional)*: Max total assignable SP. Defaults to Infinity.
+- **expected**: One of:
+  - `null` — not yet computed (emits a warning, not a failure).
+  - `"infeasible"` — `calculate_skillpoints` should return null.
+  - `{ assign, total, total_assigned }` — exact expected values.
+
+Hand-made cases are preserved when regenerating random cases (only `random_*`
+names get replaced).
+
+### Generating random cases
+
+```bash
+node js/solver/tests/gen_sp_cases.js 20                    # 20 random cases (expected=null)
+node js/solver/tests/gen_sp_cases.js 20 --feasible-only    # only feasible builds
+node js/solver/tests/gen_sp_cases.js 20 --fill-expected    # also compute expected values
+node js/solver/tests/gen_sp_cases.js 20 --append           # append instead of replacing random_ cases
+node js/solver/tests/gen_sp_cases.js 20 --level 80-121     # restrict item level range
+```
+
+### Mass-updating expected values
+
+When the skillpoint system changes and the current code is known correct:
+
+```bash
+node js/solver/tests/test_skillpoints.js --update
+```
+
+This recomputes all expected values from the current `calculate_skillpoints`
+and writes them back to `test_skillpoints.json`. **Do not run this while the
+code has known bugs** — the point is to snapshot known-correct behavior.
 
 ## Adding a Combo Damage Test Case
 
