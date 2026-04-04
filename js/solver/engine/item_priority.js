@@ -216,6 +216,75 @@ function _assemble_baseline_combo(build_sm, total_sp, snap) {
 // ── Step 6: Main-thread greedy SP allocator ─────────────────────────────────
 
 /**
+ * Best-effort SP allocation when calculate_skillpoints fails.
+ * Ignores cascade ordering — just allocates toward requirement floors
+ * proportionally, then lets greedy optimize the rest.
+ */
+function _best_effort_sp(equip_sms, weapon_sm, sp_budget) {
+    // 1. Gather free bonuses and per-attr max requirements (simplified: no cascade)
+    const free_bonus = [0, 0, 0, 0, 0];
+    const max_req = [0, 0, 0, 0, 0];
+
+    for (const item of equip_sms) {
+        const skp = item.get('skillpoints');
+        const req = item.get('reqs');
+        // Treat all SP bonuses as "free" (best-effort: assume all items activate)
+        for (let i = 0; i < 5; i++) {
+            free_bonus[i] += skp[i];
+            if (req[i] > max_req[i]) max_req[i] = req[i];
+        }
+    }
+    // Weapon requirements and bonuses
+    const w_req = weapon_sm.get('reqs');
+    const w_skp = weapon_sm.get('skillpoints');
+    for (let i = 0; i < 5; i++) {
+        if (w_req[i] > max_req[i]) max_req[i] = w_req[i];
+        free_bonus[i] += w_skp[i];
+    }
+
+    // 2. Compute per-attr demand = max(0, requirement - bonus), capped at SP_PER_ATTR_CAP
+    const demand = [0, 0, 0, 0, 0];
+    let total_demand = 0;
+    for (let i = 0; i < 5; i++) {
+        demand[i] = Math.max(0, max_req[i] - free_bonus[i]);
+        if (demand[i] > 100) demand[i] = 100;
+        total_demand += demand[i];
+    }
+
+    // 3. Allocate: if budget covers all demand, use it directly.
+    //    Otherwise, scale proportionally.
+    const base_sp = [0, 0, 0, 0, 0];
+    if (total_demand <= sp_budget) {
+        for (let i = 0; i < 5; i++) base_sp[i] = demand[i];
+    } else {
+        // Proportional allocation within budget
+        let allocated = 0;
+        for (let i = 0; i < 5; i++) {
+            base_sp[i] = Math.min(Math.floor(demand[i] * sp_budget / total_demand), 100);
+            allocated += base_sp[i];
+        }
+        // Distribute remaining budget from rounding (greedy by largest demand first)
+        let remaining = sp_budget - allocated;
+        const order = [0, 1, 2, 3, 4].sort((a, b) => demand[b] - demand[a]);
+        for (const idx of order) {
+            if (remaining <= 0) break;
+            const add = Math.min(demand[idx] - base_sp[idx], remaining, 100 - base_sp[idx]);
+            if (add > 0) { base_sp[idx] += add; remaining -= add; }
+        }
+    }
+
+    // 4. Compute total_sp = base_sp + free_bonus
+    const total_sp = [0, 0, 0, 0, 0];
+    let assigned_sp = 0;
+    for (let i = 0; i < 5; i++) {
+        total_sp[i] = base_sp[i] + free_bonus[i];
+        assigned_sp += base_sp[i];
+    }
+
+    return { base_sp, total_sp, assigned_sp };
+}
+
+/**
  * Greedy SP allocation — uses shared greedy_sp_allocate() from pure/engine.js.
  * Returns { total_sp: [5], assigned_sp }.
  */
@@ -236,8 +305,21 @@ function _greedy_sp_alloc_main(build_sm, snap, locked) {
 
     const sp_result = calculate_skillpoints(equip_sms, snap.weapon_sm, snap.sp_budget);
     if (!sp_result) {
-        // SP infeasible with locked items — use zero SP
-        return { total_sp: [0, 0, 0, 0, 0], assigned_sp: 0 };
+        // SP infeasible — use best-effort requirement-driven allocation,
+        // then greedy-optimize the remaining budget for score.
+        const effort = _best_effort_sp(equip_sms, snap.weapon_sm, snap.sp_budget);
+        const remaining = snap.sp_budget - effort.assigned_sp;
+        if (remaining > 0) {
+            function _trial_score() {
+                const cb = _assemble_baseline_combo(build_sm, effort.total_sp, snap);
+                return _sensitivity_eval_score(cb, snap);
+            }
+            const _default_caps = [150, 150, 150, 150, 150];
+            effort.assigned_sp += greedy_sp_allocate(
+                effort.base_sp, effort.total_sp, remaining, _default_caps, null, _trial_score, null
+            );
+        }
+        return { total_sp: effort.total_sp, assigned_sp: effort.assigned_sp };
     }
 
     for (let i = 0; i < 5; i++) {
