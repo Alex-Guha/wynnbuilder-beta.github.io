@@ -106,11 +106,6 @@
         "description": "Picking up emeralds heals you and nearby players for 8% max health.",
         "abilities": []
     },
-    "CAVALRYMAN": {
-        "displayName": "Cavalryman",
-        "description": "You may cast spells and attack with a -30% damage penalty while on a horse.",
-        "abilities": []
-    },
     "GUARDIAN": {
         "displayName": "Guardian",
         "description": "35% of damage taken by nearby allies is redirected to you.",
@@ -2930,7 +2925,7 @@
     },
     "SOLAR_WIND": {
         "displayName": "Solar Wind",
-        "description": "Thunderstorm disables Meteor and grants +5 thunderbolts which deal 100% Neutral damage each.",
+        "description": "Disables Meteor. Grants Thunderstorm +3 thunderbolts and +3 radius, which deal 100% Neutral damage and 110% Thunder damage each. Unstable now activates on Thunderstorm",
         "abilities": [
             {
                 "class": "Mage",
@@ -2957,7 +2952,7 @@
                         "multipliers": [
                             100,
                             0,
-                            0,
+                            110,
                             0,
                             0,
                             0
@@ -2968,7 +2963,7 @@
                         "target_part": "Total Damage",
                         "base_spell": 3,
                         "hits": {
-                            "Lightning Damage": 5
+                            "Lightning Damage": 3
                         }
                     }
                 ]

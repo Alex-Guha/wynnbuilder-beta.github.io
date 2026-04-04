@@ -10484,7 +10484,7 @@
         },
         {
             "display_name": "Crystallize",
-            "desc": "Lightweaver applies +10 Crystallized to enemies it hits.</br></br>Casting Ice Snake shatters enemies with 100 Crystallized, damaging and slowing them.</br></br>Crystallized starts decaying at a rate of -5 every second if none is applied for 5s.</br></br>Damage: [900%n/125%w/125%a]</br>Effect: 80% Slowness to Enemies</br>Duration: 3s",
+            "desc": "Lightweaver applies +7 Crystallized to enemies it hits.</br></br>Casting Ice Snake shatters enemies with 100 Crystallized, damaging and slowing them.</br></br>Crystallized starts decaying at a rate of -5 every second if none is applied for 5s.</br></br>Damage: [1600%n/200%w/200%a]</br>Effect: 80% Slowness to Enemies</br>Duration: 3s",
             "archetype": "Light Bender",
             "parents": [
                 "Interweave"
@@ -10511,12 +10511,12 @@
                             "name": "Shatter Damage",
                             "type": "damage",
                             "multipliers": [
-                                900,
+                                1600,
                                 0,
                                 0,
-                                125,
+                                200,
                                 0,
-                                125
+                                200
                             ]
                         }
                     ]
@@ -10525,7 +10525,7 @@
         },
         {
             "display_name": "Diffraction",
-            "desc": "When an enemy dies, leftover Crystallized is transferred to other nearby enemies.</br></br>Ophanim also applies +3 Crystallized.</br></br>Range: 8 Blocks",
+            "desc": "When an enemy dies, leftover Crystallized is transferred to other nearby enemies.</br></br>Ophanim also applies +2 Crystallized.</br></br>Range: 8 Blocks",
             "archetype": "Light Bender",
             "parents": [
                 "Crystallize"
