@@ -3687,7 +3687,7 @@
         },
         {
             "display_name": "Warding Wisps",
-            "desc": "Gain a Wisp after losing an Arrow Shield Charge. (Max 12)</br>Wisps possess nearby enemies for 3s, dealing damage every 0.75s and slowing them.</br>Effect: 20% Slowness",
+            "desc": "Gain a Wisp after losing an Arrow Shield Charge. (Max 12)</br>Wisps possess nearby enemies for 3s, dealing damage every 0.75s and slowing them.</br>Effect: 20% Slowness</br>Damage: [75%n/25%w]",
             "archetype": "Sharpshooter",
             "archetype_req": 12,
             "parents": [
@@ -3704,7 +3704,34 @@
                 "icon": "node_4"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "replace_spell",
+                    "name": "Warding Wisps",
+                    "base_spell": 12,
+                    "display": "DPS",
+                    "parts": [
+                        {
+                            "name": "Damage per Tick",
+                            "multipliers": [
+                                75,
+                                0,
+                                0,
+                                25,
+                                0,
+                                0
+                            ]
+                        },
+                        {
+                            "name": "DPS",
+                            "type": "total",
+                            "hits": {
+                                "Damage per Tick": 1.33333333333
+                            }
+                        }
+                    ]
+                }
+            ]
         },
         {
             "display_name": "Angelic Ascension",
@@ -16025,6 +16052,11 @@
                             "type": "stat",
                             "name": "damMult.Bullwhip:12.Hummingbird Hit",
                             "value": "Bullwhip.damage_boost"
+                        },
+                        {
+                            "type": "stat",
+                            "name": "damMult.Bullwhip:13.Patch Hit",
+                            "value": "Bullwhip.damage_boost"
                         }
                     ]
                 }
@@ -16996,7 +17028,34 @@
                 "icon": "node_1"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "replace_spell",
+                    "name": "Bleeding",
+                    "base_spell": 9,
+                    "display": "Bleed DPS",
+                    "parts": [
+                        {
+                            "name": "Bleeding Tick",
+                            "multipliers": [
+                                60,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0
+                            ]
+                        },
+                        {
+                            "name": "Bleed DPS",
+                            "type": "total",
+                            "hits": {
+                                "Bleeding Tick": 2.0
+                            }
+                        }
+                    ]
+                }
+            ]
         },
         {
             "display_name": "Friendly Fire",
@@ -17208,6 +17267,18 @@
                             "abil": "Totem",
                             "name": "totem_mul",
                             "value": 0.75
+                        },
+                        {
+                            "type": "prop",
+                            "abil": "Patchwork Abomination",
+                            "name": "melee_speed",
+                            "value": 0.24
+                        },
+                        {
+                            "type": "prop",
+                            "abil": "Patchwork Abomination",
+                            "name": "ranged_speed",
+                            "value": 0.171428571429
                         }
                     ]
                 }
@@ -18136,7 +18207,10 @@
                 "col": 1,
                 "icon": "node_3"
             },
-            "properties": {},
+            "properties": {
+                "melee_speed": 0.8,
+                "ranged_speed": 0.571428571429
+            },
             "effects": [
                 {
                     "type": "replace_spell",
@@ -18160,14 +18234,14 @@
                             "name": "Patch Close-Ranged DPS",
                             "type": "total",
                             "hits": {
-                                "Patch Hit": 0.8
+                                "Patch Hit": "Patchwork Abomination.melee_speed"
                             }
                         },
                         {
                             "name": "Patch Long-Ranged DPS",
                             "type": "total",
                             "hits": {
-                                "Patch Hit": 0.571428571429
+                                "Patch Hit": "Patchwork Abomination.ranged_speed"
                             }
                         }
                     ]
