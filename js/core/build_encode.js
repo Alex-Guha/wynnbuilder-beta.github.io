@@ -633,6 +633,13 @@ const _SOLVER_DEFAULTS = {
  *   [8]   combo_row_count (0-255)
  *     Per combo row:
  *       [7]   spell_node_id
+ *       --- If spell_node_id == 115 (Loop End) AND version >= 9:
+ *           Row ends here (7 bits total). No extra data.
+ *       --- If spell_node_id == 116 (Loop Start) AND version >= 9:
+ *           [4]   loop_cond_type (0=fixed count, 1=until OOM)
+ *           [8]   loop_cond_param (iteration count for fixed; 0 for until OOM)
+ *           Row ends here (19 bits total).
+ *       --- Otherwise:
  *       [7]   qty (0-127)
  *       [1]   mana_excl
  *       [1]   dmg_excl  (v7: reused as sign bit for Add Flat Mana rows)
@@ -681,17 +688,13 @@ function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
     const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-    // Check if any combo row has a melee_cd override → needs extended version.
-    const combo_rows_arr = params.combo_rows || [];
-    const needs_v8 = combo_rows_arr.some(r => r.melee_cd !== undefined);
+    // Always encode with the latest version (v9).
+    const _LOOP_START_NID = 116;
+    const _LOOP_END_NID = 115;
 
-    // Version: 3 bits. Use 0 as extension signal for v8+; otherwise v7.
-    if (needs_v8) {
-        bv.append(0, 3);       // extension signal
-        bv.append(8, 4);       // extended version = 8
-    } else {
-        bv.append(7, 3);       // v7 (full backward compat)
-    }
+    // Version: 3 bits = 0 (extension signal) + 4-bit extended version.
+    bv.append(0, 3);       // extension signal
+    bv.append(9, 4);       // extended version = 9
 
     // ── Presence bitmask (10 bits) ──
     // v3: bit 0 → roll_groups (4×7 bits), replaces v2's single roll field
@@ -764,6 +767,20 @@ function encodeSolverParams(params) {
         const node_id = row.spell_node_id & 0x7F;
         bv.append(node_id, 7);
 
+        // v9: LOOP_END — just the 7-bit node ID, no extra data.
+        if (node_id === _LOOP_END_NID) {
+            continue;  // node_id already appended above
+        }
+
+        // v9: LOOP_START — 4-bit condition type + 8-bit condition param.
+        if (node_id === _LOOP_START_NID) {
+            const cond_type = row.loop_cond_type ?? 0;
+            const cond_param = row.loop_cond_param ?? 0;
+            bv.append(cond_type & 0xF, 4);
+            bv.append(cond_param & 0xFF, 8);
+            continue;
+        }
+
         // v7: Add Flat Mana short row — qty can be negative, dmg_excl bit = sign.
         const _ADD_FLAT_MANA_NID = 117;  // ADD_FLAT_MANA_NODE_ID from solver/constants.js
         if (node_id === _ADD_FLAT_MANA_NID) {
@@ -812,8 +829,8 @@ function encodeSolverParams(params) {
             _encode_timing(bv, row.delay, dl_sc);
         }
 
-        // v8: per-row melee cooldown override (melee/powder-special rows only).
-        if (needs_v8) {
+        // v8+: per-row melee cooldown override (melee/powder-special rows only).
+        {
             const has_mcd = (row.melee_cd !== undefined) ? 1 : 0;
             bv.append(has_mcd, 1);
             if (has_mcd) {

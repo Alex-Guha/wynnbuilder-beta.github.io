@@ -1,8 +1,16 @@
 // ── Combo data serialization ──────────────────────────────────────────────────
 
-/** Serialize [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd}] to multi-line text. */
+/** Serialize [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd, loop_start, loop_end}] to multi-line text. */
 function combo_data_to_text(data) {
-    return data.map(({ qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd }) => {
+    return data.map(({ qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd, loop_start, loop_end }) => {
+        // Loop bracket pseudo-rows
+        if (loop_start) {
+            const cond = loop_start;
+            if (cond.type === LOOP_COND_UNTIL_OOM) return 'LOOP until_oom';
+            return 'LOOP ' + (cond.value || 2);
+        }
+        if (loop_end) return 'END LOOP';
+
         let line = qty + ' | ' + spell_name + ' | ' + boost_tokens_text;
         const has_timing = cast_time !== undefined && delay !== undefined;
         const has_mcd = melee_cd !== undefined;
@@ -15,12 +23,32 @@ function combo_data_to_text(data) {
     }).join('\n');
 }
 
-/** Parse multi-line text to [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd}]. */
+/** Parse multi-line text to [{qty, spell_name, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd, loop_start, loop_end}]. */
 function combo_text_to_data(text) {
     const result = [];
     for (const raw of text.split('\n')) {
         const line = raw.trim();
         if (!line || line.startsWith('#')) continue;
+
+        // Loop bracket lines
+        if (/^END\s+LOOP$/i.test(line)) {
+            result.push({ loop_end: true, qty: 0, spell_name: '', boost_tokens_text: '' });
+            continue;
+        }
+        const loop_match = line.match(/^LOOP\s+(.+)$/i);
+        if (loop_match) {
+            const cond_str = loop_match[1].trim();
+            let condition;
+            if (cond_str === 'until_oom') {
+                condition = { type: LOOP_COND_UNTIL_OOM };
+            } else {
+                const n = parseInt(cond_str);
+                condition = { type: LOOP_COND_COUNT, value: (isNaN(n) || n < 1) ? 2 : n };
+            }
+            result.push({ loop_start: condition, qty: 0, spell_name: '', boost_tokens_text: '' });
+            continue;
+        }
+
         const parts = line.split('|');
         const raw_qty         = parseFloat(parts[0]?.trim()) || 1;
         const spell_name      = (parts[1] ?? '').trim();
@@ -80,6 +108,8 @@ function spell_to_node_id(base_spell_id) {
     if (base_spell_id === MANA_RESET_SPELL_ID) return MANA_RESET_NODE_ID;
     if (base_spell_id === ADD_FLAT_MANA_SPELL_ID) return ADD_FLAT_MANA_NODE_ID;
     if (base_spell_id === MELEE_TIME_SPELL_ID) return MELEE_TIME_NODE_ID;
+    if (base_spell_id === LOOP_START_SPELL_ID) return LOOP_START_NODE_ID;
+    if (base_spell_id === LOOP_END_SPELL_ID) return LOOP_END_NODE_ID;
     // Check cancel state pseudo-spells
     for (const [state_name, cancel_spell_id] of STATE_CANCEL_IDS) {
         if (base_spell_id === cancel_spell_id) {
@@ -111,6 +141,8 @@ function node_id_to_spell_name(node_id, atree_merged) {
     if (node_id === MANA_RESET_NODE_ID) return 'Mana Reset';
     if (node_id === ADD_FLAT_MANA_NODE_ID) return 'Add Flat Mana';
     if (node_id === MELEE_TIME_NODE_ID) return 'Melee Time';
+    if (node_id === LOOP_START_NODE_ID) return 'Loop Start';
+    if (node_id === LOOP_END_NODE_ID) return 'Loop End';
     // Check cancel state pseudo-spells
     for (const [state_name, cancel_node_id] of STATE_CANCEL_NODE_IDS) {
         if (node_id === cancel_node_id) return 'Cancel ' + state_name;
@@ -151,6 +183,8 @@ function node_id_to_spell_value(node_id) {
     if (node_id === MANA_RESET_NODE_ID) return String(MANA_RESET_SPELL_ID);
     if (node_id === ADD_FLAT_MANA_NODE_ID) return String(ADD_FLAT_MANA_SPELL_ID);
     if (node_id === MELEE_TIME_NODE_ID) return String(MELEE_TIME_SPELL_ID);
+    if (node_id === LOOP_START_NODE_ID) return String(LOOP_START_SPELL_ID);
+    if (node_id === LOOP_END_NODE_ID) return String(LOOP_END_SPELL_ID);
     // Check cancel state pseudo-spells
     for (const [state_name, cancel_node_id] of STATE_CANCEL_NODE_IDS) {
         if (node_id === cancel_node_id) {

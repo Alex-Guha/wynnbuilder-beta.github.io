@@ -14,6 +14,7 @@ importScripts(
     '../../game/powders.js',
     '../../game/damage_calc.js',
     '../../game/shared_game_stats.js',
+    '../constants.js',
     '../debug_toggles.js',
     '../pure/spell.js',
     '../pure/boost.js',

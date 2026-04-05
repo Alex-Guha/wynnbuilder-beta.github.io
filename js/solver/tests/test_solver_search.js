@@ -337,7 +337,8 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
     }
 
     // ── 13. Combo cycle time ─────────────────────────────────────────────────
-    const combo_time = sp.mana_disabled ? 0 : ctx.compute_combo_cycle_time(parsedCombo, weaponSM);
+    const combo_time = sp.mana_disabled ? 0 : ctx.compute_combo_cycle_time(
+        ctx._unroll_loops_pure ? ctx._unroll_loops_pure(parsedCombo, {}) : parsedCombo, weaponSM);
 
     return {
         weapon: { statMap: weaponSM },

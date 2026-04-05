@@ -16,8 +16,9 @@
  * Spell-to-spell simulation: thin wrapper around simulate_combo_mana_hp().
  * Serializes DOM state → calls pure kernel → applies DOM auto-fills.
  *
- * Returns { end_mana, end_hp, max_hp, start_mana, max_mana, row_results[],
- *           spell_costs[], total_mana_cost, melee_hits, recast_penalty_total,
+ * Returns { start_mana, end_mana, max_mana, end_hp, max_hp, row_results[],
+ *           spell_costs[], total_mana_cost, total_mana_drain, melee_hits,
+ *           recast_penalty_total, mana_wasted, loop_iteration_counts,
  *           has_transcendence }.
  */
 function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, health_config, build) {
@@ -25,7 +26,12 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
 
     // ── Pre-pass: serialize DOM state into pure rows ──
     const pure_rows = [];
-    for (const { qty, sim_qty, spell, boost_tokens, dom_row, cast_time, delay, auto_delay, melee_cd_override, is_melee_time } of rows) {
+    for (const r of rows) {
+        // Loop bracket rows: pass through as markers
+        if (r.loop_start) { pure_rows.push({ loop_start: r.loop_start }); continue; }
+        if (r.loop_end) { pure_rows.push({ loop_end: true }); continue; }
+
+        const { qty, sim_qty, spell, boost_tokens, dom_row, cast_time, delay, auto_delay, melee_cd_override, is_melee_time } = r;
         const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
         const mana_excl = dom_row?.querySelector('.combo-mana-toggle')
             ?.classList.contains('mana-excluded') ?? false;
@@ -53,9 +59,12 @@ function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, heal
 
     // ── Auto-fill DOM elements from simulation results ──
     for (let i = 0; i < rows.length; i++) {
+        // Skip loop bracket rows (no DOM auto-fill needed)
+        if (rows[i].loop_start || rows[i].loop_end) continue;
         const dom_row = rows[i].dom_row;
         if (!dom_row) continue;
         const res = result.row_results[i];
+        if (!res) continue;
 
         // Generic: auto-fill state sliders (Corrupted, etc.)
         for (const bs of (health_config.buff_states ?? [])) {

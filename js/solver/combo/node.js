@@ -1,3 +1,62 @@
+/**
+ * Unroll loop brackets in a row array using iteration counts from simulation.
+ * Fixed-count loops use the condition value; condition-driven loops use sim results.
+ *
+ * @param {Array} rows - Original rows (may contain loop_start/loop_end markers)
+ * @param {Object} loop_iteration_counts - { rows_index → iteration_count } from sim
+ * @returns {Array} Flat array of spell-only rows (no loop markers), with
+ *   `_loop_iter` (0-based iteration index) and `_orig_idx` (index in original rows)
+ */
+function _unroll_loops(rows, loop_iteration_counts) {
+    const result = [];
+    let i = 0;
+    while (i < rows.length) {
+        const r = rows[i];
+        if (r.loop_start) {
+            // Find matching LOOP_END (linear scan, no nesting in v1)
+            let end_idx = -1;
+            for (let j = i + 1; j < rows.length; j++) {
+                if (rows[j].loop_end) { end_idx = j; break; }
+            }
+            if (end_idx === -1) {
+                // Orphaned LOOP_START — skip it
+                i++;
+                continue;
+            }
+            // Determine iteration count
+            const cond = r.loop_start;
+            let iters;
+            if (cond.type === LOOP_COND_COUNT) {
+                iters = cond.value || 1;
+            } else {
+                // Use simulation result
+                iters = loop_iteration_counts[i] || 1;
+            }
+            // Extract body rows (between start and end, exclusive)
+            const body = [];
+            for (let j = i + 1; j < end_idx; j++) {
+                if (!rows[j].loop_start && !rows[j].loop_end) {
+                    body.push({ row: rows[j], orig_idx: j });
+                }
+            }
+            // Unroll: duplicate body × iterations
+            for (let iter = 0; iter < iters; iter++) {
+                for (const { row: br, orig_idx } of body) {
+                    result.push({ ...br, _loop_iter: iter, _orig_idx: orig_idx });
+                }
+            }
+            i = end_idx + 1;
+        } else if (r.loop_end) {
+            // Orphaned LOOP_END — skip it
+            i++;
+        } else {
+            result.push({ ...r, _orig_idx: i });
+            i++;
+        }
+    }
+    return result;
+}
+
 class SolverComboTotalNode extends ComputeNode {
     constructor() {
         super('solver-combo-total');
@@ -76,16 +135,23 @@ class SolverComboTotalNode extends ComputeNode {
             r.mana_excl = r.dom_row?.querySelector('.combo-mana-toggle')
                 ?.classList.contains('mana-excluded') ?? false;
         }
-        this._auto_cycle_time = compute_combo_cycle_time(rows, base_stats);
+        // ── Unroll loops using simulation iteration counts ──
+        const loop_iters = sim_result?.loop_iteration_counts ?? {};
+        const unrolled = _unroll_loops(rows, loop_iters);
+
+        // Auto-compute cycle time on unrolled rows so loops are counted correctly.
+        this._auto_cycle_time = compute_combo_cycle_time(unrolled, base_stats);
         {
             const ct_display = document.getElementById('combo-cycle-time-display');
             if (ct_display) ct_display.textContent = this._auto_cycle_time > 0
                 ? `Cycle Time: ${this._auto_cycle_time}s` : '';
         }
 
-        // ── Pre-parse rows: extract DOM state for pure function ──
+        // ── Pre-parse unrolled rows: extract DOM state for pure function ──
         const parsed_rows = [];
-        for (const { qty, sim_qty, spell, boost_tokens, dom_row, is_melee_time } of rows) {
+        for (const r of unrolled) {
+            const { qty, sim_qty, spell, boost_tokens, dom_row, is_melee_time } = r;
+            if (!dom_row) continue;  // safety
             const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
             const dmg_excl = dom_row?.querySelector('.combo-dmg-toggle')
                 ?.classList.contains('dmg-excluded') ?? false;
@@ -99,7 +165,7 @@ class SolverComboTotalNode extends ComputeNode {
             // DPS hits override from DOM input
             const hits_inp = dom_row?.querySelector('.combo-row-hits');
             const dps_hits_override = hits_inp ? (parseFloat(hits_inp.value) || undefined) : undefined;
-            parsed_rows.push({ qty, sim_qty, spell, boost_tokens, dmg_excl, pseudo, dps_hits_override, dom_row, is_melee_time });
+            parsed_rows.push({ qty, sim_qty, spell, boost_tokens, dmg_excl, pseudo, dps_hits_override, dom_row, is_melee_time, _orig_idx: r._orig_idx, _loop_iter: r._loop_iter });
         }
 
         // ── Compute damage via shared pure function ──
@@ -144,10 +210,28 @@ class SolverComboTotalNode extends ComputeNode {
         let total_heal = dmg_result.total_healing;
 
         // ── DOM update pass ──
+        // Aggregate damage per original DOM row (unrolled rows may map to same DOM row).
+        const _dom_agg = new Map();  // orig_idx → { damage, healing, last_pr_idx }
         for (let i = 0; i < parsed_rows.length; i++) {
-            const row = parsed_rows[i];
             const pr = dmg_result.per_row[i];
+            const oi = parsed_rows[i]._orig_idx;
+            if (oi == null) continue;
+            if (!_dom_agg.has(oi)) {
+                _dom_agg.set(oi, { damage: 0, healing: 0, last_pr_idx: i });
+            }
+            const agg = _dom_agg.get(oi);
+            agg.damage += pr.damage;
+            agg.healing += pr.healing;
+            agg.last_pr_idx = i;  // keep last for popup/dps_info
+        }
+
+        // Update each original DOM row
+        for (const [oi, agg] of _dom_agg) {
+            const row = rows[oi];
+            if (!row || row.loop_start || row.loop_end) continue;
             const dom_row = row.dom_row;
+            const pr = dmg_result.per_row[agg.last_pr_idx];  // use last iteration for popup
+            const spell = row.spell;
 
             const dmg_wrap = dom_row?.querySelector('.combo-row-damage-wrap');
             const dmg_span = dmg_wrap?.querySelector('.combo-row-damage')
@@ -155,20 +239,26 @@ class SolverComboTotalNode extends ComputeNode {
             const dmg_popup = dmg_wrap?.querySelector('.combo-dmg-popup');
             const heal_span = dom_row?.querySelector('.combo-row-heal');
 
-            if (!row.spell || row.qty <= 0 || row.pseudo) {
-                if (dmg_span) dmg_span.textContent = '';
-                if (dmg_popup) { dmg_popup.textContent = ''; }
-                dmg_wrap?.classList.remove('has-popup', 'popup-locked');
-                if (heal_span) heal_span.textContent = '';
-                continue;
+            if (!spell || row.qty <= 0) {
+                // Check pseudo
+                const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
+                const is_pseudo = spell_id === MANA_RESET_SPELL_ID
+                    || [...STATE_CANCEL_IDS.values()].includes(spell_id);
+                if (is_pseudo || !spell || row.qty <= 0) {
+                    if (dmg_span) dmg_span.textContent = '';
+                    if (dmg_popup) { dmg_popup.textContent = ''; }
+                    dmg_wrap?.classList.remove('has-popup', 'popup-locked');
+                    if (heal_span) heal_span.textContent = '';
+                    continue;
+                }
             }
 
-            if (dmg_span) dmg_span.textContent = Math.round(pr.damage).toLocaleString()
-                + (spell_is_dps(row.spell) && !pr.dps_info ? ' DPS' : '');
+            if (dmg_span) dmg_span.textContent = Math.round(agg.damage).toLocaleString()
+                + (spell_is_dps(spell) && !pr.dps_info ? ' DPS' : '');
 
             if (heal_span) {
-                if (pr.healing > 0) {
-                    heal_span.textContent = '+' + Math.round(pr.healing).toLocaleString();
+                if (agg.healing > 0) {
+                    heal_span.textContent = '+' + Math.round(agg.healing).toLocaleString();
                 } else {
                     heal_span.textContent = '';
                 }
@@ -183,7 +273,7 @@ class SolverComboTotalNode extends ComputeNode {
                 if (hits_inp) hits_inp.max = String(max_rounded);
             }
 
-            // Populate the breakdown popup
+            // Populate the breakdown popup (shows single-iteration values)
             if (dmg_popup && pr.full_display && pr.full_display.avg > 0) {
                 let popup_html = renderSpellPopupHTML(pr.full_display, crit_chance, pr.spell_cost);
                 if (pr.dps_info) {
@@ -198,6 +288,20 @@ class SolverComboTotalNode extends ComputeNode {
             } else if (dmg_popup) {
                 dmg_popup.textContent = '';
                 dmg_wrap?.classList.remove('has-popup', 'popup-locked');
+            }
+        }
+
+        // ── Update LOOP_START rows with iteration count + damage subtotal ──
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            if (!r.loop_start) continue;
+            const result_span = r.dom_row?.querySelector('.combo-loop-result');
+            if (!result_span) continue;
+            const iters = loop_iters[i] || (r.loop_start.type === LOOP_COND_COUNT ? r.loop_start.value : 0);
+            if (iters > 0) {
+                result_span.textContent = '× ' + iters + ' iterations';
+            } else {
+                result_span.textContent = '';
             }
         }
 
@@ -252,6 +356,20 @@ class SolverComboTotalNode extends ComputeNode {
     _iterate_combo_rows() {
         const rows = [];
         for (const row of document.querySelectorAll('#combo-selection-rows .combo-row')) {
+            const rt = row.dataset.rowType;
+            if (rt === 'loop_start') {
+                const cond_type = parseInt(row.querySelector('.combo-loop-cond-type')?.value) || 0;
+                const count_val = parseInt(row.querySelector('.combo-loop-count')?.value) || 2;
+                const condition = cond_type === LOOP_COND_COUNT
+                    ? { type: LOOP_COND_COUNT, value: Math.max(1, Math.min(255, count_val)) }
+                    : { type: cond_type };
+                rows.push({ row, loop_start: condition });
+                continue;
+            }
+            if (rt === 'loop_end') {
+                rows.push({ row, loop_end: true });
+                continue;
+            }
             const qty = parseFloat(row.querySelector('.combo-row-qty')?.value) || 0;
             const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
             const toggles = row.querySelectorAll('.combo-row-boost-toggle.toggleOn');
@@ -262,9 +380,15 @@ class SolverComboTotalNode extends ComputeNode {
         return rows;
     }
 
-    /** Read rows for calculation — returns [{qty, spell, boost_tokens, dom_row}]. */
+    /** Read rows for calculation — returns [{qty, spell, boost_tokens, dom_row}] with loop markers. */
     _read_combo_rows(spell_map) {
-        return this._iterate_combo_rows().map(({ row, qty, spell_id, toggles, sliders, calcs }) => {
+        return this._iterate_combo_rows().map((iter_row) => {
+            const { row } = iter_row;
+            // Loop bracket rows: pass through as markers
+            if (iter_row.loop_start) return { loop_start: iter_row.loop_start, dom_row: row };
+            if (iter_row.loop_end) return { loop_end: true, dom_row: row };
+
+            const { qty, spell_id, toggles, sliders, calcs } = iter_row;
             const spell = spell_map.get(spell_id) ?? null;
             const boost_tokens = [];
             for (const btn of toggles) {
@@ -310,7 +434,13 @@ class SolverComboTotalNode extends ComputeNode {
     }
 
     _read_selection_rows_as_data() {
-        return this._iterate_combo_rows().map(({ row, qty, spell_id, toggles, sliders, calcs }) => {
+        return this._iterate_combo_rows().map((iter_row) => {
+            const { row } = iter_row;
+            // Loop bracket rows
+            if (iter_row.loop_start) return { loop_start: iter_row.loop_start, qty: 0, spell_name: '', boost_tokens_text: '' };
+            if (iter_row.loop_end) return { loop_end: true, qty: 0, spell_name: '', boost_tokens_text: '' };
+
+            const { qty, spell_id, toggles, sliders, calcs } = iter_row;
             const spell = this._spell_map_cache?.get(spell_id);
             let spell_name = spell?.name ?? '';
             if (spell_id === MANA_RESET_SPELL_ID) spell_name = 'Mana Reset';
@@ -378,7 +508,17 @@ class SolverComboTotalNode extends ComputeNode {
         const container = document.getElementById('combo-selection-rows');
         if (!container) return;
         container.innerHTML = '';
-        for (const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd } of data) {
+        for (const entry of data) {
+            // Loop bracket rows
+            if (entry.loop_start) {
+                container.appendChild(_build_loop_start_row(entry.loop_start));
+                continue;
+            }
+            if (entry.loop_end) {
+                container.appendChild(_build_loop_end_row());
+                continue;
+            }
+            const { qty, spell_name, spell_value, boost_tokens_text, mana_excl, dmg_excl, hits, cast_time, delay, melee_cd } = entry;
             // Resolve spell_value from spell_name when missing (text import).
             // This lets _refresh_selection_boosts filter boosts by spell before
             // _apply_pending_selection_data runs.
@@ -409,6 +549,7 @@ class SolverComboTotalNode extends ComputeNode {
             if (hits !== undefined && hits !== null) row.dataset.pendingHits = String(hits);
             container.appendChild(row);
         }
+        _update_loop_body_classes();
     }
 
     /**
@@ -562,6 +703,19 @@ class SolverComboTotalNode extends ComputeNode {
             mt_opt.textContent = 'Melee Time';
             if (!combo_is_advanced()) mt_opt.style.display = 'none';
             sel.appendChild(mt_opt);
+
+            // Loop Start / Loop End: advanced-mode-only options.
+            // Selecting these replaces the row with a loop bracket row (handled in ui.js).
+            const ls_opt = document.createElement('option');
+            ls_opt.value = String(LOOP_START_SPELL_ID);
+            ls_opt.textContent = 'Loop Start';
+            if (!combo_is_advanced()) ls_opt.style.display = 'none';
+            sel.appendChild(ls_opt);
+            const le_opt = document.createElement('option');
+            le_opt.value = String(LOOP_END_SPELL_ID);
+            le_opt.textContent = 'Loop End';
+            if (!combo_is_advanced()) le_opt.style.display = 'none';
+            sel.appendChild(le_opt);
 
             if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
         }

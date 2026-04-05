@@ -557,6 +557,17 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
                     ? atree_collect_spells.value : null;
 
                 const data = solver_params.combo_rows.map(r => {
+                    // Loop bracket rows
+                    if (r.loop_end) {
+                        return { loop_end: true, qty: 0, spell_name: '', boost_tokens_text: '' };
+                    }
+                    if (r.loop_start) {
+                        const cond = r.loop_cond_type === 1
+                            ? { type: 1 }  // LOOP_COND_UNTIL_OOM
+                            : { type: 0, value: r.loop_cond_param || 2 };  // LOOP_COND_COUNT
+                        return { loop_start: cond, qty: 0, spell_name: '', boost_tokens_text: '' };
+                    }
+
                     const spell_name = node_id_to_spell_name(r.spell_node_id, atree_mg);
                     const spell_value = node_id_to_spell_value(r.spell_node_id);
                     const boost_parts = r.boosts.map(b => {

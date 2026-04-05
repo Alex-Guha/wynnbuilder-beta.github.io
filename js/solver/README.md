@@ -9,9 +9,6 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 # Todo
 
 ### Bugs
-- SP issue
-	- Double Diamond Hydro Rings
-	- https://alex-guha.github.io/wynnbuilder-beta.github.io/solver/#CT0O0n-3Ol3XQ0kHmD2uHamWi6mb0ezzw2tf+V0_NPcdQh40J1W2OaV50QebU0v124002148G002ZO0
 
 ### Necessary Improvements
 - True DPS calculation

@@ -121,6 +121,10 @@ function _parse_combo_for_search(spell_map, weapon) {
     const rows = solver_combo_total_node._read_combo_rows(aug);
     return rows
         .map(r => {
+            // Loop bracket rows: pass through as markers for worker
+            if (r.loop_start) return { loop_start: r.loop_start };
+            if (r.loop_end) return { loop_end: true };
+
             // Pseudo-spells: include as marker rows for worker state tracking.
             const spell_id = parseInt(r.dom_row?.querySelector('.combo-row-spell')?.value);
             // Check cancel state pseudo-spells
@@ -170,7 +174,7 @@ function _parse_combo_for_search(spell_map, weapon) {
             }
             return entry;
         })
-        .filter(r => r.pseudo || (r.qty > 0 && r.spell && (spell_has_damage(r.spell) || spell_has_heal(r.spell) || r.spell.cost != null)));
+        .filter(r => r.loop_start || r.loop_end || r.pseudo || (r.qty > 0 && r.spell && (spell_has_damage(r.spell) || spell_has_heal(r.spell) || r.spell.cost != null)));
 }
 
 /**
@@ -243,7 +247,10 @@ function _build_solver_snapshot(restrictions) {
     const scoring_target = document.getElementById('solver-target')?.value ?? 'combo_damage';
 
     const mana_enabled = document.getElementById('combo-mana-btn')?.classList.contains('toggleOn') ?? true;
-    const combo_time = mana_enabled ? compute_combo_cycle_time(parsed_combo, weapon.statMap) : 0;
+    // Unroll fixed-count loops so cycle time accounts for repeated iterations.
+    const combo_time = mana_enabled
+        ? compute_combo_cycle_time(_unroll_loops_pure(parsed_combo, {}), weapon.statMap)
+        : 0;
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
 
     // Extract health_config so workers can dynamically compute per-candidate

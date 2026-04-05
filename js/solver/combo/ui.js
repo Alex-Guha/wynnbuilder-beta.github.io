@@ -50,8 +50,24 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     spell_sel.className = 'form-select form-select-sm text-light bg-dark combo-row-spell';
     spell_sel.innerHTML = '<option value="">— Select Attack —</option>';
     spell_sel.addEventListener('change', () => {
+        const sel_val = parseInt(spell_sel.value);
+        // Loop Start / Loop End: replace this row with a loop bracket row.
+        if (sel_val === LOOP_START_SPELL_ID) {
+            const replacement = _build_loop_start_row({ type: LOOP_COND_COUNT, value: 2 });
+            row.replaceWith(replacement);
+            _update_loop_body_classes();
+            if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+            return;
+        }
+        if (sel_val === LOOP_END_SPELL_ID) {
+            const replacement = _build_loop_end_row();
+            row.replaceWith(replacement);
+            _update_loop_body_classes();
+            if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+            return;
+        }
         // Add Flat Mana allows negative qty (mana drain); others don't.
-        const is_flat_mana = parseInt(spell_sel.value) === ADD_FLAT_MANA_SPELL_ID;
+        const is_flat_mana = sel_val === ADD_FLAT_MANA_SPELL_ID;
         qty_inp.min = is_flat_mana ? String(-COMBO_QTY_MAX) : '0';
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     });
@@ -156,6 +172,7 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     row.addEventListener('dragend', () => {
         row.classList.remove('dragging');
         row._drag_source = false;
+        _update_loop_body_classes();
         document.querySelectorAll('.combo-row.drag-over-top')
             .forEach(r => r.classList.remove('drag-over-top'));
     });
@@ -176,6 +193,7 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
         if (!dragging || dragging === row) return;
         const container = row.parentElement;
         if (container) container.insertBefore(dragging, row);
+        _update_loop_body_classes();
         if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
     });
 
@@ -208,6 +226,184 @@ function _build_selection_row(qty_val, pending_spell, pending_boosts, pending_ma
     return row;
 }
 
+// ── Loop bracket row builders ────────────────────────────────────────────────
+
+/**
+ * Build a LOOP_START pseudo-row.
+ * @param {{ type: number, value?: number }} condition
+ * @returns {HTMLElement}
+ */
+function _build_loop_start_row(condition) {
+    const row = document.createElement('div');
+    row.className = 'combo-row combo-loop-start d-flex gap-2 align-items-center';
+    row.dataset.rowType = 'loop_start';
+
+    const rm_btn = document.createElement('button');
+    rm_btn.className = 'btn btn-sm btn-outline-danger flex-shrink-0';
+    rm_btn.textContent = '×';
+    rm_btn.title = 'Remove loop start';
+    rm_btn.addEventListener('click', () => {
+        row.remove();
+        _update_loop_body_classes();
+        if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+    });
+
+    const label = document.createElement('span');
+    label.className = 'combo-loop-label';
+    label.textContent = 'Loop';
+
+    // Condition selector
+    const cond_sel = document.createElement('select');
+    cond_sel.className = 'form-select form-select-sm text-light bg-dark combo-loop-cond-type';
+    cond_sel.innerHTML = '<option value="0">Fixed Count</option><option value="1">Until OOM</option>';
+    cond_sel.value = String(condition.type);
+    cond_sel.addEventListener('change', () => {
+        count_inp.style.display = cond_sel.value === '0' ? '' : 'none';
+        if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+    });
+
+    const count_inp = document.createElement('input');
+    count_inp.type = 'number';
+    count_inp.className = 'combo-row-input combo-loop-count flex-shrink-0';
+    count_inp.style.cssText = 'text-align:center;';
+    count_inp.min = '1';
+    count_inp.max = '255';
+    count_inp.value = String(condition.value || 2);
+    count_inp.style.display = condition.type === LOOP_COND_COUNT ? '' : 'none';
+    count_inp.addEventListener('input', () => {
+        if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+    });
+
+    const result_span = document.createElement('span');
+    result_span.className = 'combo-loop-result';
+
+    // Drag support
+    row.draggable = true;
+    row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+        row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        _update_loop_body_classes();
+        document.querySelectorAll('.combo-row.drag-over-top')
+            .forEach(r => r.classList.remove('drag-over-top'));
+    });
+    row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const dragging = document.querySelector('.combo-row.dragging');
+        if (!dragging || dragging === row) return;
+        document.querySelectorAll('.combo-row.drag-over-top')
+            .forEach(r => r.classList.remove('drag-over-top'));
+        row.classList.add('drag-over-top');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over-top'));
+    row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over-top');
+        const dragging = document.querySelector('.combo-row.dragging');
+        if (!dragging || dragging === row) return;
+        const container = row.parentElement;
+        if (container) container.insertBefore(dragging, row);
+        _update_loop_body_classes();
+        if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+    });
+
+    row.append(rm_btn, label, cond_sel, count_inp, result_span);
+    return row;
+}
+
+/**
+ * Build a LOOP_END pseudo-row.
+ * @returns {HTMLElement}
+ */
+function _build_loop_end_row() {
+    const row = document.createElement('div');
+    row.className = 'combo-row combo-loop-end d-flex gap-2 align-items-center';
+    row.dataset.rowType = 'loop_end';
+
+    const rm_btn = document.createElement('button');
+    rm_btn.className = 'btn btn-sm btn-outline-danger flex-shrink-0';
+    rm_btn.textContent = '×';
+    rm_btn.title = 'Remove loop end';
+    rm_btn.addEventListener('click', () => {
+        row.remove();
+        _update_loop_body_classes();
+        if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+    });
+
+    const label = document.createElement('span');
+    label.className = 'combo-loop-label';
+    label.textContent = 'End';
+
+    // Drag support
+    row.draggable = true;
+    row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+        row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        _update_loop_body_classes();
+        document.querySelectorAll('.combo-row.drag-over-top')
+            .forEach(r => r.classList.remove('drag-over-top'));
+    });
+    row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const dragging = document.querySelector('.combo-row.dragging');
+        if (!dragging || dragging === row) return;
+        document.querySelectorAll('.combo-row.drag-over-top')
+            .forEach(r => r.classList.remove('drag-over-top'));
+        row.classList.add('drag-over-top');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over-top'));
+    row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over-top');
+        const dragging = document.querySelector('.combo-row.dragging');
+        if (!dragging || dragging === row) return;
+        const container = row.parentElement;
+        if (container) container.insertBefore(dragging, row);
+        _update_loop_body_classes();
+        if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
+    });
+
+    row.append(rm_btn, label);
+    return row;
+}
+
+/**
+ * Scan all combo rows and apply/remove the `loop-body` CSS class.
+ * Only rows between matched LOOP_START/LOOP_END pairs get indented.
+ */
+function _update_loop_body_classes() {
+    const container = document.getElementById('combo-selection-rows');
+    if (!container) return;
+    const rows = [...container.querySelectorAll('.combo-row')];
+    // Linear scan: pair each LOOP_START with the next LOOP_END after it.
+    let in_loop = false;
+    for (const row of rows) {
+        const rt = row.dataset.rowType;
+        if (rt === 'loop_start') {
+            in_loop = true;
+            row.classList.remove('loop-body');
+            continue;
+        }
+        if (rt === 'loop_end') {
+            if (in_loop) {
+                in_loop = false;
+            }
+            row.classList.remove('loop-body');
+            continue;
+        }
+        row.classList.toggle('loop-body', in_loop);
+    }
+}
+
 // ── Combo UI helpers (called from inline onclick in index.html) ───────────────
 
 function combo_add_row() {
@@ -218,6 +414,7 @@ function combo_add_row() {
         return;
     }
     container.appendChild(_build_selection_row(1));
+    _update_loop_body_classes();
     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
 }
 
@@ -399,6 +596,7 @@ document.addEventListener('click', (e) => {
 
 function combo_remove_row(btn) {
     btn.closest('.combo-row')?.remove();
+    _update_loop_body_classes();
     if (solver_combo_total_node) solver_combo_total_node.mark_dirty().update();
 }
 

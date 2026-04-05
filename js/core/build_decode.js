@@ -678,7 +678,7 @@ function decodeSolverParams(b64_str) {
         if (version === 0) {
             version = cursor.advanceBy(4);  // extended version (8-15)
         }
-        if (version > 8) {
+        if (version > 9) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -742,6 +742,22 @@ function decodeSolverParams(b64_str) {
         const combo_rows = [];
         for (let i = 0; i < combo_row_count; i++) {
             const spell_node_id = cursor.advanceBy(7);
+
+            // v9: LOOP_END — no extra data beyond the 7-bit node ID.
+            const _LOOP_END_NID = 115;
+            if (version >= 9 && spell_node_id === _LOOP_END_NID) {
+                combo_rows.push({ spell_node_id, loop_end: true });
+                continue;
+            }
+
+            // v9: LOOP_START — 4-bit condition type + 8-bit condition param.
+            const _LOOP_START_NID = 116;
+            if (version >= 9 && spell_node_id === _LOOP_START_NID) {
+                const loop_cond_type = cursor.advanceBy(4);
+                const loop_cond_param = cursor.advanceBy(8);
+                combo_rows.push({ spell_node_id, loop_start: true, loop_cond_type, loop_cond_param });
+                continue;
+            }
 
             // v7: Add Flat Mana short row — 16 bits total, dmg_excl bit = sign.
             const _ADD_FLAT_MANA_NID = 117;  // ADD_FLAT_MANA_NODE_ID from solver/constants.js

@@ -73,6 +73,38 @@ const ADD_FLAT_MANA_SPELL_ID = -2003;
 /** Reserved 7-bit node ID for Add Flat Mana in binary URL encoding. */
 const ADD_FLAT_MANA_NODE_ID = 117;
 
+// ── Loop pseudo-spells ──────────────────────────────────────────────────────
+
+/** Internal spell ID for the Loop Start pseudo-row. */
+const LOOP_START_SPELL_ID = -2004;
+/** Reserved 7-bit node ID for Loop Start in binary URL encoding. */
+const LOOP_START_NODE_ID = 116;
+
+/** Internal spell ID for the Loop End pseudo-row. */
+const LOOP_END_SPELL_ID = -2005;
+/** Reserved 7-bit node ID for Loop End in binary URL encoding. */
+const LOOP_END_NODE_ID = 115;
+
+/** Loop condition type constants. */
+const LOOP_COND_COUNT = 0;
+const LOOP_COND_UNTIL_OOM = 1;
+
+/** Safety cap for condition-driven loops. */
+const LOOP_SAFETY_CAP = 255;
+
+/**
+ * Normalize a loop condition.
+ * @param {number|string} type_or_count - Integer for fixed count, or condition type constant
+ * @param {Object} [params] - Additional params for non-count conditions
+ * @returns {{ type: number, value?: number }}
+ */
+function make_loop_condition(type_or_count, params) {
+    if (typeof type_or_count === 'number' && (type_or_count === Math.floor(type_or_count)) && type_or_count > 0) {
+        return { type: LOOP_COND_COUNT, value: type_or_count };
+    }
+    return { type: type_or_count, ...(params || {}) };
+}
+
 // ── Generic buff state cancel mappings ───────────────────────────────────────
 // Static spell ID → state name mapping for cancel pseudo-spells.
 // Do NOT auto-generate IDs — they appear in URL-encoded combos.
