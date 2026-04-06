@@ -853,6 +853,7 @@ body {
     min-width: 8em;
     border-color: rgba(255, 255, 255, 0.15) !important;
 }
+
 .combo-loop-cond-type:focus {
     border-color: rgba(255, 255, 255, 0.3) !important;
     box-shadow: none !important;
@@ -872,7 +873,7 @@ body {
 }
 
 .combo-loop-result {
-    margin-left: 39px !important;
+    margin-left: 30px !important;
 }
 
 /* Indent body rows between matched loop brackets */
