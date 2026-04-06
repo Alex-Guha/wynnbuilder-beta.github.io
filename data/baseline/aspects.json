@@ -1272,17 +1272,17 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Reduce Ghostly Trigger's cooldown by -1s.",
-          "abilities": []
-        },
-        {
-          "threshold": 15,
           "description": "Reduce Ghostly Trigger's cooldown by -1.5s.",
           "abilities": []
         },
         {
-          "threshold": 75,
+          "threshold": 15,
           "description": "Reduce Ghostly Trigger's cooldown by -2s.",
+          "abilities": []
+        },
+        {
+          "threshold": 75,
+          "description": "Reduce Ghostly Trigger's cooldown by -2.5s.",
           "abilities": []
         }
       ]

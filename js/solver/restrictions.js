@@ -581,3 +581,96 @@ function _validate_restriction_contradictions() {
 
 // Restriction URL persistence is now handled by the unified solver hash updater
 // in solver_graph_build.js (_schedule_solver_hash_update / _do_solver_hash_update).
+
+// ── Custom weight target rows ────────────────────────────────────────────────
+
+const CUSTOM_WEIGHT_TARGETS = [
+    { key: 'combo_dps', label: 'Combo DPS' },
+    { key: 'ehp', label: 'Effective HP' },
+    { key: 'ehpr', label: 'Effective HPR' },
+    { key: 'total_healing', label: 'Total Healing' },
+    { key: 'spd', label: 'Walk Speed' },
+    { key: 'poison', label: 'Poison' },
+    { key: 'lb', label: 'Loot Bonus' },
+    { key: 'xpb', label: 'XP Bonus' },
+];
+
+let _custom_weight_row_counter = 0;
+
+/**
+ * Show/hide the custom weight section based on the solver target dropdown.
+ */
+function solver_target_changed() {
+    const target = document.getElementById('solver-target')?.value;
+    const section = document.getElementById('custom-weight-section');
+    if (section) section.style.display = target === 'custom' ? '' : 'none';
+}
+
+function _cw_round_weight(e) {
+    const v = parseFloat(e.target.value);
+    if (!isFinite(v)) return;
+    const rounded = Math.round(v);
+    if (rounded !== v) e.target.value = rounded;
+}
+
+/**
+ * Appends a new custom weight row: × | target dropdown | weight input.
+ */
+function custom_weight_add_row() {
+    const container = document.getElementById('custom-weight-rows');
+    if (!container) return null;
+    const idx = ++_custom_weight_row_counter;
+    const row = document.createElement('div');
+    row.id = 'cw-row-' + idx;
+    row.className = 'combo-row d-flex align-items-center gap-1';
+
+    const options_html = CUSTOM_WEIGHT_TARGETS.map(
+        t => `<option value="${t.key}">${t.label}</option>`
+    ).join('');
+
+    row.innerHTML = `
+        <button class="btn btn-sm btn-outline-secondary px-1"
+                style="min-width:1.6em; font-size:0.8em; flex-shrink:0;"
+                onclick="custom_weight_remove_row(this)" title="Remove weight">×</button>
+        <select class="solver-select form-select form-select-sm flex-grow-1 cw-target-select"
+                id="cw-target-${idx}" style="min-width:0;">
+            ${options_html}
+        </select>
+        <input type="text" inputmode="decimal" class="combo-row-input cw-weight-input"
+               id="cw-weight-${idx}"
+               placeholder="weight" style="width:4.5em; text-align:center; flex-shrink:0;">
+    `;
+    container.appendChild(row);
+    const inp = row.querySelector('.cw-weight-input');
+    inp.addEventListener('blur', _cw_round_weight);
+    return row;
+}
+
+/**
+ * Removes a custom weight row when the × button is clicked.
+ */
+function custom_weight_remove_row(btn) {
+    const row = btn.closest('[id^="cw-row-"]');
+    if (row) row.remove();
+}
+
+/**
+ * Read all custom weight rows from DOM.
+ * @returns {Array<{target: string, weight: number}>} filtered (no zero/NaN weights)
+ */
+function read_custom_weights() {
+    const container = document.getElementById('custom-weight-rows');
+    if (!container) return [];
+    const rows = container.querySelectorAll('[id^="cw-row-"]');
+    const weights = [];
+    for (const row of rows) {
+        const sel = row.querySelector('.cw-target-select');
+        const inp = row.querySelector('.cw-weight-input');
+        if (!sel || !inp) continue;
+        const target = sel.value;
+        const weight = parseFloat(inp.value);
+        if (!target || !isFinite(weight) || weight === 0) continue;
+        weights.push({ target, weight });
+    }
+    return weights;
+}

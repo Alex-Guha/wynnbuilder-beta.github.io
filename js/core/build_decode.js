@@ -678,7 +678,7 @@ function decodeSolverParams(b64_str) {
         if (version === 0) {
             version = cursor.advanceBy(4);  // extended version (8-15)
         }
-        if (version > 8) {
+        if (version > 10) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -742,6 +742,22 @@ function decodeSolverParams(b64_str) {
         const combo_rows = [];
         for (let i = 0; i < combo_row_count; i++) {
             const spell_node_id = cursor.advanceBy(7);
+
+            // v9: LOOP_END — no extra data beyond the 7-bit node ID.
+            const _LOOP_END_NID = 115;
+            if (version >= 9 && spell_node_id === _LOOP_END_NID) {
+                combo_rows.push({ spell_node_id, loop_end: true });
+                continue;
+            }
+
+            // v9: LOOP_START — 4-bit condition type + 8-bit condition param.
+            const _LOOP_START_NID = 116;
+            if (version >= 9 && spell_node_id === _LOOP_START_NID) {
+                const loop_cond_type = cursor.advanceBy(4);
+                const loop_cond_param = cursor.advanceBy(8);
+                combo_rows.push({ spell_node_id, loop_start: true, loop_cond_type, loop_cond_param });
+                continue;
+            }
 
             // v7: Add Flat Mana short row — 16 bits total, dmg_excl bit = sign.
             const _ADD_FLAT_MANA_NID = 117;  // ADD_FLAT_MANA_NODE_ID from solver/constants.js
@@ -807,9 +823,21 @@ function decodeSolverParams(b64_str) {
             blacklist_ids.push(cursor.advanceBy(14));
         }
 
+        // ── Custom weights (v10+) ──
+        const custom_weights = [];
+        if (version >= 10) {
+            const cw_count = cursor.advanceBy(4);
+            for (let i = 0; i < cw_count; i++) {
+                const target_index = cursor.advanceBy(4);
+                const sign = cursor.advanceBy(1);
+                const abs_weight = cursor.advanceBy(16);
+                custom_weights.push({ target_index, weight: sign ? -abs_weight : abs_weight });
+            }
+        }
+
         return {
             roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, mana_disabled,
-            restrictions, combo_rows, blacklist_ids
+            restrictions, combo_rows, blacklist_ids, custom_weights
         };
     } catch (e) {
         console.warn('[decode] decodeSolverParams failed:', e);

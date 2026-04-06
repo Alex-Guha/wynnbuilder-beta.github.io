@@ -121,6 +121,10 @@ function _parse_combo_for_search(spell_map, weapon) {
     const rows = solver_combo_total_node._read_combo_rows(aug);
     return rows
         .map(r => {
+            // Loop bracket rows: pass through as markers for worker
+            if (r.loop_start) return { loop_start: r.loop_start };
+            if (r.loop_end) return { loop_end: true };
+
             // Pseudo-spells: include as marker rows for worker state tracking.
             const spell_id = parseInt(r.dom_row?.querySelector('.combo-row-spell')?.value);
             // Check cancel state pseudo-spells
@@ -170,7 +174,7 @@ function _parse_combo_for_search(spell_map, weapon) {
             }
             return entry;
         })
-        .filter(r => r.pseudo || (r.qty > 0 && r.spell && (spell_has_damage(r.spell) || spell_has_heal(r.spell) || r.spell.cost != null)));
+        .filter(r => r.loop_start || r.loop_end || r.pseudo || (r.qty > 0 && r.spell && (spell_has_damage(r.spell) || spell_has_heal(r.spell) || r.spell.cost != null)));
 }
 
 /**
@@ -241,9 +245,20 @@ function _build_solver_snapshot(restrictions) {
     const parsed_combo = _parse_combo_for_search(spell_map, weapon);
 
     const scoring_target = document.getElementById('solver-target')?.value ?? 'combo_dps';
+    let custom_weights = [];
+    if (scoring_target === 'custom') {
+        custom_weights = read_custom_weights();
+        if (custom_weights.length === 0) {
+            // Fall back to combo_dps if no valid weights entered
+            console.warn('[solver] Custom scoring selected but no valid weights — falling back to combo_dps');
+        }
+    }
 
     const mana_enabled = document.getElementById('combo-mana-btn')?.classList.contains('toggleOn') ?? true;
-    const combo_time = mana_enabled ? compute_combo_cycle_time(parsed_combo, weapon.statMap) : 0;
+    // Unroll fixed-count loops so cycle time accounts for repeated iterations.
+    const combo_time = mana_enabled
+        ? compute_combo_cycle_time(_unroll_loops_pure(parsed_combo, {}), weapon.statMap)
+        : 0;
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
 
     // Extract health_config so workers can dynamically compute per-candidate
@@ -309,7 +324,7 @@ function _build_solver_snapshot(restrictions) {
         weapon, weapon_sm, level, tomes, atree_raw, atree_mgd,
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
-        restrictions, button_states, slider_states, scoring_target,
+        restrictions, button_states, slider_states, scoring_target, custom_weights,
         combo_time, allow_downtime, hp_casting, has_dynamic_sliders, health_config, auto_slider_names: [...auto_slider_names], spell_base_costs,
     };
 }
@@ -341,7 +356,7 @@ function _insert_top5(candidate) {
 // This lets us preserve the user's manually entered build as the initial
 // baseline so it isn't cleared when the solver starts.
 
-function _eval_current_build(snap, restrictions) {
+function _eval_current_build(snap, restrictions, blacklist) {
     // Collect all 8 item statMaps from the UI
     const items = [];
     const equip_sms = [];
@@ -356,6 +371,21 @@ function _eval_current_build(snap, restrictions) {
     // Check that at least one non-NONE armor/accessory exists
     const has_any = equip_sms.some(sm => !sm.has('NONE'));
     if (!has_any) { console.warn('[seed] rejected: no non-NONE items'); return null; }
+
+    // Reject if any unlocked item is in the blacklist
+    if (blacklist && blacklist.size > 0) {
+        for (let i = 0; i < 8; i++) {
+            const sm = equip_sms[i];
+            if (sm.has('NONE')) continue;
+            const input = document.getElementById(equipment_fields[i] + '-choice');
+            if (input?.dataset.solverFilled !== 'true') continue; // locked — user chose it
+            const name = sm.get('displayName') ?? sm.get('name') ?? '';
+            if (blacklist.has(name)) {
+                console.warn('[seed] rejected: unlocked item "' + name + '" is blacklisted');
+                return null;
+            }
+        }
+    }
 
     // Build statMap using worker_shims (same path as the search worker)
     const fixed_sms = [snap.weapon_sm];
@@ -504,6 +534,7 @@ const SOLVER_TARGET_LABELS = {
     poison: 'Poison: ',
     lb: 'Loot Bonus: ',
     xpb: 'XP Bonus: ',
+    custom: 'Score: ',
 };
 
 function _format_solver_score(score, target) {
@@ -994,6 +1025,7 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         parsed_combo: snap.parsed_combo,
         boost_registry: snap.boost_registry,
         scoring_target: snap.scoring_target,
+        custom_weights: snap.custom_weights,
         combo_time: snap.combo_time,
         allow_downtime: snap.allow_downtime,
         hp_casting: snap.hp_casting,
@@ -1505,7 +1537,7 @@ function start_solver_search() {
 
     // Evaluate the current UI build as a seed — if it passes all constraints
     // it stays as top-1 until workers find something better.
-    _solver_state.seed_build = _eval_current_build(snap, restrictions);
+    _solver_state.seed_build = _eval_current_build(snap, restrictions, blacklist);
     if (_solver_state.seed_build) {
         console.log('[solver] seeded current build as baseline, score:', _solver_state.seed_build.score);
     }

@@ -194,6 +194,8 @@ function compute_recast_penalties(rows) {
     const penalty_per = (typeof RECAST_MANA_PENALTY !== 'undefined') ? RECAST_MANA_PENALTY : 5;
     let last_base = null, consec = 0, penalty = 0;
     for (const row of rows) {
+        // Skip loop bracket rows
+        if (row.loop_start || row.loop_end) continue;
         if (row.pseudo) {
             if (row.pseudo === 'mana_reset' && !row.mana_excl) {
                 last_base = null; consec = 0; penalty = 0;
@@ -306,22 +308,45 @@ function compute_drain_override(bs, current_mana, max_mana, current_hp, max_hp, 
 }
 
 /**
+ * Evaluate whether a loop should terminate.
+ * @param {{ type: number, value?: number }} condition
+ * @param {{ mana: number, hp: number, iteration: number, mana_warning: boolean, hp_warning: boolean }} sim_state
+ * @returns {boolean} true if the loop should STOP
+ */
+function loop_condition_met(condition, sim_state) {
+    const safety = (typeof LOOP_SAFETY_CAP !== 'undefined') ? LOOP_SAFETY_CAP : 255;
+    if (sim_state.iteration >= safety) return true;
+    switch (condition.type) {
+        case LOOP_COND_COUNT:
+            return sim_state.iteration >= (condition.value || 1);
+        case LOOP_COND_UNTIL_OOM:
+            // Stop if mana or HP depleted (warnings set during iteration body)
+            return sim_state.mana_warning || sim_state.hp_warning;
+        default:
+            return true;  // Unknown condition type → don't loop
+    }
+}
+
+/**
  * Pure mana+HP simulation kernel for Blood Pact / Bak'al's Grasp / Corruption /
  * Massacre / Mindless Slaughter. Shared by both main thread and worker. DOM-free.
  *
  * Uses generic buff_state / trigger mechanism from extract_health_config().
  * Melee-cooldown-aware wall-clock timing model.
  *
- * @param {Object[]} rows - Pre-parsed combo rows. Each row:
- *   { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast }
- *   pseudo: null | 'cancel_state:<name>' | 'mana_reset'
+ * @param {Object[]} rows - Pre-parsed combo rows. Each row is one of:
+ *   - Spell row: { qty, spell, boost_tokens, mana_excl, pseudo, recast_penalty_per_cast }
+ *     pseudo: null | 'cancel_state:<name>' | 'mana_reset' | 'add_flat_mana'
+ *   - Loop start: { loop_start: { type, value? } }
+ *   - Loop end:   { loop_end: true }
  * @param {Map} base_stats - Aggregated build statMap
  * @param {Object} health_config - From extract_health_config()
  * @param {boolean} has_transcendence - Whether ARCANES major ID is active
  * @param {Object[]} boost_registry - Boost registry for apply_combo_row_boosts
- * @returns {Object} { end_mana, start_mana, max_mana, end_hp, max_hp,
- *                     row_results[], spell_costs[], total_mana_cost, melee_hits,
- *                     recast_penalty_total }
+ * @returns {Object} { start_mana, end_mana, max_mana, end_hp, max_hp,
+ *                     row_results[], spell_costs[], total_mana_cost, total_mana_drain,
+ *                     melee_hits, recast_penalty_total, mana_wasted,
+ *                     loop_iteration_counts }
  */
 function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcendence, boost_registry, scratch_row) {
     const mr = base_stats.get('mr') ?? 0;
@@ -375,7 +400,60 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
     let melee_hits = 0;
     let recast_penalty_total = 0;
 
-    for (const row of rows) {
+    // Loop tracking state
+    let _loop_body_start = -1;      // index of first body row after LOOP_START
+    let _loop_condition = null;     // condition object from LOOP_START
+    let _loop_iteration = 0;       // current iteration count
+    let _loop_had_mana_warn = false;
+    let _loop_had_hp_warn = false;
+    const _loop_iteration_counts = {}; // rows_index → iteration_count (for LOOP_START rows)
+
+    // Pre-allocate row_results 1:1 with rows so auto-fill can index by row position.
+    for (let i = 0; i < rows.length; i++) {
+        row_results.push(null);
+    }
+
+    for (let _ri = 0; _ri < rows.length; _ri++) {
+        const row = rows[_ri];
+
+        // ── Loop bracket handling ──
+        if (row.loop_start) {
+            // Only start a loop if we're not already in one (no nesting)
+            if (_loop_condition == null) {
+                _loop_body_start = _ri + 1;
+                _loop_condition = row.loop_start;
+                _loop_iteration = 0;
+                _loop_had_mana_warn = false;
+                _loop_had_hp_warn = false;
+            }
+            row_results[_ri] = { blood_pact_bonus: 0, state_values: _snapshot_states(active_states),
+                hp_warning: false, mana_warning: false, mana_lost: 0, mana_gained: 0, elapsed_time, row_dt: 0 };
+            continue;
+        }
+
+        if (row.loop_end) {
+            if (_loop_condition != null) {
+                _loop_iteration++;
+                const should_stop = loop_condition_met(_loop_condition, {
+                    mana, hp, iteration: _loop_iteration,
+                    mana_warning: _loop_had_mana_warn, hp_warning: _loop_had_hp_warn,
+                });
+                if (!should_stop) {
+                    // Jump back to body start (row after LOOP_START)
+                    _ri = _loop_body_start - 1;  // -1 because for-loop increments
+                    _loop_had_mana_warn = false;
+                    _loop_had_hp_warn = false;
+                    continue;
+                }
+                // Final iteration — store iteration count keyed by the LOOP_START row index
+                _loop_iteration_counts[_loop_body_start - 1] = _loop_iteration;
+                _loop_condition = null;
+            }
+            row_results[_ri] = { blood_pact_bonus: 0, state_values: _snapshot_states(active_states),
+                hp_warning: false, mana_warning: false, mana_lost: 0, mana_gained: 0, elapsed_time, row_dt: 0 };
+            continue;
+        }
+
         const { qty, spell, boost_tokens, mana_excl, pseudo,
                 cast_time: row_cast_time, delay: row_delay, auto_delay = true, melee_cd_override } = row;
         const _mana_before = mana;
@@ -396,15 +474,17 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                 st.value = 0;
                 state_melee_hits[state_name] = 0;
             }
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
-                mana_lost: Math.max(0, _mana_before - mana), mana_gained: 0, elapsed_time, row_dt: elapsed_time - _time_before });
+            row_results[_ri] = { blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: Math.max(0, _mana_before - mana), mana_gained: 0, elapsed_time, row_dt: elapsed_time - _time_before };
             continue;
         }
 
-        // Mana Reset pseudo-spell
+        // Mana Reset pseudo-spell: refill mana to max and reset recast counter
         if (pseudo === 'mana_reset') {
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
-                mana_lost: Math.max(0, _mana_before - mana), mana_gained: 0, elapsed_time, row_dt: elapsed_time - _time_before });
+            const mana_gained_amt = mana_excl ? 0 : max_mana - mana;
+            if (!mana_excl) mana = max_mana;
+            row_results[_ri] = { blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: Math.max(0, _mana_before - mana), mana_gained: mana_gained_amt, elapsed_time, row_dt: elapsed_time - _time_before };
             continue;
         }
 
@@ -415,21 +495,21 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
                 if (uncapped_afm > max_mana) mana_wasted += uncapped_afm - max_mana;
                 mana = Math.max(0, Math.min(max_mana, uncapped_afm));
             }
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
-                mana_lost: Math.max(0, _mana_before - mana), mana_gained: 0, elapsed_time, row_dt: elapsed_time - _time_before });
+            row_results[_ri] = { blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: Math.max(0, _mana_before - mana), mana_gained: 0, elapsed_time, row_dt: elapsed_time - _time_before };
             continue;
         }
 
         if (qty <= 0 || !spell) {
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
-                mana_lost: 0, mana_gained: 0, elapsed_time, row_dt: 0 });
+            row_results[_ri] = { blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: 0, mana_gained: 0, elapsed_time, row_dt: 0 };
             continue;
         }
 
         // Mana-excluded rows: skip cost/regen tracking entirely
         if (mana_excl) {
-            row_results.push({ blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
-                mana_lost: 0, mana_gained: 0, elapsed_time, row_dt: 0 });
+            row_results[_ri] = { blood_pact_bonus: 0, state_values: _snapshot_states(active_states), hp_warning: false, mana_warning: false,
+                mana_lost: 0, mana_gained: 0, elapsed_time, row_dt: 0 };
             continue;
         }
 
@@ -712,10 +792,14 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
             spell_costs.push({ name: spell.name, qty: sim_qty, cost: cost_per, recast_penalty: row_recast });
         }
 
-        row_results.push({ blood_pact_bonus: avg_blood_bonus, state_values: _snapshot_states(active_states, row_deact),
+        // Track warnings for loop termination checks
+        if (hp_warning) _loop_had_hp_warn = true;
+        if (mana_warning) _loop_had_mana_warn = true;
+
+        row_results[_ri] = { blood_pact_bonus: avg_blood_bonus, state_values: _snapshot_states(active_states, row_deact),
             hp_warning, mana_warning, computed_delay: row_computed_delay,
             mana_lost: Math.max(0, _mana_before - mana), mana_gained: row_mana_gained, elapsed_time, row_dt: elapsed_time - _time_before,
-            cast_time: eff_cast_time, delay: eff_delay });
+            cast_time: eff_cast_time, delay: eff_delay };
     }
 
     return {
@@ -731,6 +815,7 @@ function simulate_combo_mana_hp(rows, base_stats, health_config, has_transcenden
         melee_hits,
         recast_penalty_total,
         mana_wasted,
+        loop_iteration_counts: _loop_iteration_counts,
     };
 }
 
@@ -787,7 +872,45 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
         _fast_states[bs.state_name] = { active: false, activated_at: 0 };
     }
 
-    for (const row of rows) {
+    // Loop tracking for fast sim
+    let _fast_loop_body_start = -1;
+    let _fast_loop_condition = null;
+    let _fast_loop_iteration = 0;
+    let _fast_loop_mana_warn = false;
+    let _fast_loop_hp_warn = false;
+
+    for (let _fi = 0; _fi < rows.length; _fi++) {
+        const row = rows[_fi];
+
+        // Loop bracket handling
+        if (row.loop_start) {
+            if (_fast_loop_condition == null) {
+                _fast_loop_body_start = _fi + 1;
+                _fast_loop_condition = row.loop_start;
+                _fast_loop_iteration = 0;
+                _fast_loop_mana_warn = false;
+                _fast_loop_hp_warn = false;
+            }
+            continue;
+        }
+        if (row.loop_end) {
+            if (_fast_loop_condition != null) {
+                _fast_loop_iteration++;
+                const should_stop = loop_condition_met(_fast_loop_condition, {
+                    mana, hp, iteration: _fast_loop_iteration,
+                    mana_warning: _fast_loop_mana_warn, hp_warning: _fast_loop_hp_warn,
+                });
+                if (!should_stop) {
+                    _fi = _fast_loop_body_start - 1;
+                    _fast_loop_mana_warn = false;
+                    _fast_loop_hp_warn = false;
+                    continue;
+                }
+                _fast_loop_condition = null;
+            }
+            continue;
+        }
+
         const { qty, spell, boost_tokens, mana_excl, pseudo,
                 cast_time: row_cast_time, delay: row_delay, auto_delay = true, melee_cd_override } = row;
 
@@ -953,6 +1076,10 @@ function simulate_combo_mana_fast(rows, base_stats, health_config, has_transcend
             }
             _advance_time_fast(effective_post);
         }
+
+        // Propagate row warnings to loop termination trackers
+        if (has_hp_warning) _fast_loop_hp_warn = true;
+        if (has_mana_warning) _fast_loop_mana_warn = true;
     }
 
     return { start_mana, end_mana: mana, max_mana, has_hp_warning, has_mana_warning, mana_wasted, total_mana_drain };

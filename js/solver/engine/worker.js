@@ -14,6 +14,7 @@ importScripts(
     '../../game/powders.js',
     '../../game/damage_calc.js',
     '../../game/shared_game_stats.js',
+    '../constants.js',
     '../debug_toggles.js',
     '../pure/spell.js',
     '../pure/boost.js',
@@ -101,11 +102,19 @@ const _scratch_equip_8 = new Array(8);
 const _scratch_sp_input = new Array(9);    // 8 equips + guild_tome
 let _scratch_all_equip = null;             // sized at init: 8 + tome_sms.length + 1 (weapon)
 const _scratch_sp = {
-    bonus: [0, 0, 0, 0, 0],
-    req: [0, 0, 0, 0, 0],
-    assign: [0, 0, 0, 0, 0],
-    final: [0, 0, 0, 0, 0],
-    no_bonus: [],  // sized at init (max 9: weapon + up to 8 crafted items)
+    assign:          [0, 0, 0, 0, 0],
+    final:           [0, 0, 0, 0, 0],
+    free_bonus:      [0, 0, 0, 0, 0],
+    max_passive_req: [0, 0, 0, 0, 0],
+    post_floor:      [0, 0, 0, 0, 0],
+    running_bonus:   [0, 0, 0, 0, 0],
+    best_assign:     [0, 0, 0, 0, 0],
+    save_stack:      new Array(45),      // 9 depths * 5 attrs
+    ord_items:       new Array(9),
+    ord_reqs:        new Array(9),
+    ord_skp:         new Array(9),
+    no_bonus:        [],  // sized at init (max 9: weapon + up to 8 crafted items)
+    _no_bonus_len:   0,
 };
 
 /**
@@ -312,7 +321,8 @@ function _eval_score(combo_base, thresh_stats) {
     return eval_score_dispatch(_cfg.scoring_target, combo_base,
         () => _eval_combo_damage(combo_base),
         () => _eval_combo_healing(combo_base),
-        thresh_stats ?? _assemble_threshold_stats(combo_base));
+        thresh_stats ?? _assemble_threshold_stats(combo_base),
+        _cfg.custom_weights);
 }
 
 // get_item_display_name() — shared from pure/engine.js
@@ -761,9 +771,45 @@ function _run_level_enum() {
 
     // Compute the maximum achievable level (sum of pool sizes - 1 per slot)
     let L_max = 0;
+    const _pool_maxes = [];
     for (const slot of free_slots) {
         const p = _get_pool(slot);
-        if (p) L_max += p.length - 1;
+        const pm = p ? p.length - 1 : 0;
+        L_max += pm;
+        _pool_maxes.push(pm);
+    }
+
+    // ── Subtree leaf count table (for SP-prune build tallying) ──────────────
+    //
+    // _subtree_leaf_count[d][L] = number of leaf builds in the subtree from
+    // depth d..N_free-1 with remaining level budget L.  Ignores ring symmetry
+    // and illegal-set blocking (slight overcount, acceptable for progress).
+    // Used to credit pruned subtrees to _checked so progress is accurate.
+
+    const _subtree_leaf_count = new Array(N_free);
+    if (N_free > 0) {
+        for (let d = 0; d < N_free; d++) {
+            _subtree_leaf_count[d] = new Float64Array(L_max + 1);
+        }
+        // Last slot: offset is forced to exactly remaining_L
+        const last_pm = _pool_maxes[N_free - 1];
+        for (let L = 0; L <= Math.min(L_max, last_pm); L++) {
+            _subtree_leaf_count[N_free - 1][L] = 1;
+        }
+        // Fill from N_free-2 down to 0 using prefix sums
+        for (let d = N_free - 2; d >= 0; d--) {
+            const pm = _pool_maxes[d];
+            const next = _subtree_leaf_count[d + 1];
+            // prefix[k] = sum of next[0..k-1]
+            const prefix = new Float64Array(L_max + 2);
+            for (let L = 0; L <= L_max; L++) {
+                prefix[L + 1] = prefix[L] + next[L];
+            }
+            for (let L = 0; L <= L_max; L++) {
+                const lo = Math.max(0, L - pm);
+                _subtree_leaf_count[d][L] = prefix[L + 1] - prefix[lo];
+            }
+        }
     }
 
     // ── Mid-tree SP pruning state & helpers ──────────────────────────────────
@@ -802,12 +848,14 @@ function _run_level_enum() {
             const is_crafted = sm.get('crafted');
 
             if (!is_crafted) {
-                for (let i = 0; i < 5; i++) _sp_fixed_sum_prov[i] += skp[i];
+                for (let i = 0; i < 5; i++) {
+                    if (skp[i] > 0) _sp_fixed_sum_prov[i] += skp[i];
+                }
             }
 
-            // Effective requirements: undo self-contribution for non-crafted bonus items
+            // Raw requirements (cascade: no self-contribution undoing)
             for (let i = 0; i < 5; i++) {
-                const eff = (!is_crafted && req[i] > 0) ? req[i] + skp[i] : req[i];
+                const eff = req[i];
                 if (eff > _sp_fixed_max_eff_req[i])
                     _sp_fixed_max_eff_req[i] = eff;
             }
@@ -817,9 +865,11 @@ function _run_level_enum() {
         if (guild_tome_sm && !guild_tome_sm.has('NONE')) {
             const skp = guild_tome_sm.get('skillpoints');
             const req = guild_tome_sm.get('reqs');
-            for (let i = 0; i < 5; i++) _sp_fixed_sum_prov[i] += skp[i];
             for (let i = 0; i < 5; i++) {
-                const eff = (req[i] > 0) ? req[i] + skp[i] : req[i];
+                if (skp[i] > 0) _sp_fixed_sum_prov[i] += skp[i];
+            }
+            for (let i = 0; i < 5; i++) {
+                const eff = req[i];
                 if (eff > _sp_fixed_max_eff_req[i])
                     _sp_fixed_max_eff_req[i] = eff;
             }
@@ -853,13 +903,15 @@ function _run_level_enum() {
         const is_crafted = sm.get('crafted');
 
         if (!is_crafted) {
-            for (let i = 0; i < 5; i++) _sp_running_free_prov[i] += skp[i];
+            for (let i = 0; i < 5; i++) {
+                if (skp[i] > 0) _sp_running_free_prov[i] += skp[i];
+            }
         }
 
-        // Effective requirements: undo self-contribution for non-crafted bonus items
+        // Raw requirements (cascade: no self-contribution undoing)
         const eff = _sp_slot_eff_req[depth];
         for (let i = 0; i < 5; i++) {
-            eff[i] = (!is_crafted && req[i] > 0) ? req[i] + skp[i] : req[i];
+            eff[i] = req[i];
         }
 
         for (let i = 0; i < 5; i++) {
@@ -874,7 +926,9 @@ function _run_level_enum() {
     function _sp_unplace_free_item(sm, depth) {
         if (!sm.get('crafted')) {
             const skp = sm.get('skillpoints');
-            for (let i = 0; i < 5; i++) _sp_running_free_prov[i] -= skp[i];
+            for (let i = 0; i < 5; i++) {
+                if (skp[i] > 0) _sp_running_free_prov[i] -= skp[i];
+            }
         }
 
         // Recompute running max from fixed baseline + slots 0..depth-1
@@ -1013,7 +1067,10 @@ function _run_level_enum() {
             if (_sp_mid_tree_feasible(slot_idx + 1)) {
                 enumerate(slot_idx + 1, remaining_L - offset);
             } else {
-                _dbg_sp_prune_count++;
+                const pruned = _subtree_leaf_count[slot_idx + 1][remaining_L - offset];
+                _checked += pruned;
+                _dbg_sp_prune_count += pruned;
+                _maybe_progress();
             }
 
             _sp_unplace_free_item(item.statMap, slot_idx);

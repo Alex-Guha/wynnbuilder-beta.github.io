@@ -220,6 +220,7 @@ select.solver-select {
     color: #fff !important;
     border-color: rgba(33, 37, 41, 1) !important;
     font-weight: bold;
+    flex: 1 1 0 !important;
     /* remove the default browser arrow tint that can clash with dark bg */
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23aaaaaa' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
 }
@@ -819,6 +820,67 @@ body {
     box-shadow: 0 -2px 0 rgba(255, 255, 255, 0.45);
 }
 
+/* ── Loop bracket rows ──────────────────────────────────────────────────────── */
+
+.combo-loop-start,
+.combo-loop-end {
+    font-size: 0.8125rem;
+    color: #adb5bd;
+    padding: 0;
+    min-height: 0;
+}
+
+.combo-loop-start .combo-loop-label,
+.combo-loop-end .combo-loop-label {
+    font-weight: 600;
+    color: #7eb8da;
+}
+
+.combo-loop-start .combo-loop-condition {
+    color: #adb5bd;
+    font-size: 0.75rem;
+}
+
+.combo-loop-start .combo-loop-result {
+    color: #6cc070;
+    font-size: 0.75rem;
+    margin-left: auto;
+}
+
+/* Loop condition select: match combo-row-input border */
+.combo-loop-cond-type {
+    flex: 999 1 0;
+    min-width: 8em;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+.combo-loop-cond-type:focus {
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    box-shadow: none !important;
+}
+
+/* Loop count input: match boosts button width */
+.combo-loop-count {
+    width: 5.5em !important;
+}
+
+/* Loop label: same width and spacing as combo-row-qty */
+.combo-loop-label {
+    display: inline-block;
+    width: 42px;
+    text-align: center;
+    box-sizing: content-box;
+}
+
+.combo-loop-result {
+    margin-left: 39px !important;
+}
+
+/* Indent body rows between matched loop brackets */
+.loop-body {
+    border-left: 2px solid rgba(126, 184, 218, 0.35);
+    padding-left: 0.5em;
+}
+
 /* ── Solver result rows ──────────────────────────────────────────────────────── */
 
 .solver-result-row {
@@ -1348,6 +1410,7 @@ ul.search-box {
     color: #7aaccc;
     border-color: #7aaccc;
 }
+
 #solver-info-btn.btn-outline-info:hover,
 #solver-info-btn.btn-outline-info:focus {
     background-color: rgba(122, 172, 204, 0.15);

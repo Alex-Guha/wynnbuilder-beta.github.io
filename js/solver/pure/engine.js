@@ -276,14 +276,68 @@ function eval_combo_healing(parsed_combo, combo_base, boost_registry, scratch_ro
  * }
  * @returns {{ total_damage, total_healing, per_row, hp_sim }}
  */
+/**
+ * DOM-free loop unroller for the pure engine (worker + main thread).
+ * Same logic as _unroll_loops() in combo/node.js but operates on plain row objects.
+ */
+function _unroll_loops_pure(rows, loop_iteration_counts) {
+    const result = [];
+    let i = 0;
+    while (i < rows.length) {
+        const r = rows[i];
+        if (r.loop_start) {
+            let end_idx = -1;
+            for (let j = i + 1; j < rows.length; j++) {
+                if (rows[j].loop_end) { end_idx = j; break; }
+            }
+            if (end_idx === -1) { i++; continue; }
+            const cond = r.loop_start;
+            let iters = (cond.type === LOOP_COND_COUNT)
+                ? (cond.value || 1)
+                : (loop_iteration_counts[i] || 1);
+            const body = [];
+            for (let j = i + 1; j < end_idx; j++) {
+                if (!rows[j].loop_start && !rows[j].loop_end) body.push(rows[j]);
+            }
+            for (let iter = 0; iter < iters; iter++) {
+                for (const br of body) result.push({ ...br });
+            }
+            i = end_idx + 1;
+        } else if (r.loop_end) {
+            i++;
+        } else {
+            result.push(r);
+            i++;
+        }
+    }
+    return result;
+}
+
 function eval_combo_damage_with_bp(combo_base, weapon_sm, parsed_combo, bp_config, opts) {
     const { hp_casting, health_config, boost_registry, atree_merged } = bp_config;
     const { detailed = false, scratch_row = null, debug = false, debug_label = '',
             cached_hp_sim = null } = opts || {};
 
     const crit = skillPointsToPercentage(combo_base.get('dex') || 0);
-    let damage_rows = parsed_combo;
+
+    // Check if parsed_combo contains loop markers
+    const has_loops = parsed_combo.some(r => r.loop_start || r.loop_end);
+    let flat_combo = parsed_combo;
     let hp_sim = null;
+
+    if (has_loops) {
+        // Phase 1: run simulation with loop markers to determine iteration counts
+        const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
+        const loop_sim = simulate_combo_mana_hp(
+            parsed_combo, combo_base, health_config ?? { hp_casting: false, health_cost: 0, damage_boost: null, buff_states: [], exit_triggers: [] },
+            has_transcendence, boost_registry, scratch_row);
+        // Phase 2: unroll loops
+        flat_combo = _unroll_loops_pure(parsed_combo, loop_sim.loop_iteration_counts ?? {});
+        // Recompute recast penalties on the unrolled flat array
+        compute_recast_penalties(flat_combo);
+    }
+
+    let damage_rows = flat_combo;
 
     const has_dyn = bp_config.has_dynamic_sliders ?? !!(
         health_config?.damage_boost?.slider_name ||
@@ -292,16 +346,16 @@ function eval_combo_damage_with_bp(combo_base, weapon_sm, parsed_combo, bp_confi
     if ((hp_casting || has_dyn) && health_config) {
         const has_transcendence = combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
         // Use cache only if it has row_results (fast sim lacks them)
-        const usable_cache = cached_hp_sim?.row_results ? cached_hp_sim : null;
+        const usable_cache = (!has_loops && cached_hp_sim?.row_results) ? cached_hp_sim : null;
         hp_sim = usable_cache ?? simulate_combo_mana_hp(
-            parsed_combo, combo_base, health_config, has_transcendence,
+            flat_combo, combo_base, health_config, has_transcendence,
             boost_registry, scratch_row);
 
         // Use pre-computed slider names if available, otherwise extract
         const bp_name = bp_config.bp_slider_name ?? (health_config.damage_boost?.slider_name ?? null);
         const ssn = bp_config.state_slider_names ?? extract_slider_names(health_config).state_slider_names;
 
-        damage_rows = inject_blood_pact_boosts(parsed_combo, hp_sim, bp_name, ssn);
+        damage_rows = inject_blood_pact_boosts(flat_combo, hp_sim, bp_name, ssn);
     }
 
     const result = compute_combo_damage_totals(
@@ -405,10 +459,29 @@ function greedy_sp_loop(base_sp, total_sp, remaining, cap_total, trial_score_fn)
  * @param {Function} eval_healing_fn - () => number
  * @param {Map|null} thresh_stats - pre-cloned stats for non-damage targets (or null to use combo_base)
  */
-function eval_score_dispatch(scoring_target, combo_base, eval_damage_fn, eval_healing_fn, thresh_stats) {
+function eval_score_dispatch(scoring_target, combo_base, eval_damage_fn, eval_healing_fn, thresh_stats, custom_weights) {
     const target = scoring_target ?? 'combo_dps';
     if (target === 'combo_dps') return eval_damage_fn();
     if (target === 'total_healing') return eval_healing_fn();
+    if (target === 'custom' && custom_weights && custom_weights.length > 0) {
+        let sum = 0;
+        let _damage = undefined, _healing = undefined;
+        const stats = thresh_stats ?? combo_base;
+        for (const { target: sub, weight } of custom_weights) {
+            let sub_score;
+            if (sub === 'combo_dps') {
+                if (_damage === undefined) _damage = eval_damage_fn();
+                sub_score = _damage;
+            } else if (sub === 'total_healing') {
+                if (_healing === undefined) _healing = eval_healing_fn();
+                sub_score = _healing;
+            } else {
+                sub_score = eval_indirect_stat(stats, sub);
+            }
+            sum += weight * sub_score;
+        }
+        return sum;
+    }
     const stats = thresh_stats ?? combo_base;
     return eval_indirect_stat(stats, target);
 }
@@ -471,12 +544,17 @@ function eval_combo_mana_check(p) {
     const hc = p.health_config ?? DEFAULT_HEALTH_CONFIG;
     const has_transcendence = p.combo_base.get('activeMajorIDs')?.has('ARCANES') ?? false;
 
+    // until_oom loops intentionally deplete mana — mana warnings are expected,
+    // not failures. Only HP warnings remain failure conditions.
+    const COND_OOM = (typeof LOOP_COND_UNTIL_OOM !== 'undefined') ? LOOP_COND_UNTIL_OOM : 1;
+    const has_oom_loop = p.parsed_combo.some(r => r.loop_start?.type === COND_OOM);
+
     // BP builds: full simulation (damage calc reuses row_results via cached sim).
     if (p.hp_casting && hc.health_cost > 0) {
         const sim = simulate_combo_mana_hp(
             p.parsed_combo, p.combo_base, hc, has_transcendence,
             p.boost_registry, p.scratch_row);
-        if (sim.row_results.some(r => r.hp_warning)) return { passed: false, sim };
+        if (sim.row_results.some(r => r?.hp_warning)) return { passed: false, sim };
         return { passed: true, sim };  // BP: skip mana gating, spells paid with HP
     }
 
@@ -486,6 +564,8 @@ function eval_combo_mana_check(p) {
             p.parsed_combo, p.combo_base, hc, has_transcendence,
             p.boost_registry, p.scratch_row);
         if (sim.has_hp_warning) return { passed: false, sim };
+        if (!has_oom_loop && sim.has_mana_warning) return { passed: false, sim };
+        if (has_oom_loop) return { passed: true, sim };
         if (p.allow_downtime) return { passed: sim.end_mana > 0, sim };
         return { passed: (sim.start_mana - sim.end_mana) <= 5, sim };
     }
@@ -493,7 +573,9 @@ function eval_combo_mana_check(p) {
     const sim = simulate_combo_mana_hp(
         p.parsed_combo, p.combo_base, hc, has_transcendence,
         p.boost_registry, p.scratch_row);
-    if (sim.row_results.some(r => r.hp_warning)) return { passed: false, sim };
+    if (sim.row_results.some(r => r?.hp_warning)) return { passed: false, sim };
+    if (!has_oom_loop && sim.row_results.some(r => r?.mana_warning)) return { passed: false, sim };
+    if (has_oom_loop) return { passed: true, sim };
     if (p.allow_downtime) return { passed: sim.end_mana > 0, sim };
     return { passed: (sim.start_mana - sim.end_mana) <= 5, sim };
 }

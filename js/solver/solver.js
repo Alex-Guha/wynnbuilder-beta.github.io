@@ -390,6 +390,25 @@ function _restore_from_url(solver_params) {
         _validate_restriction_contradictions();
     }
 
+    // Custom weights (binary: array of {target_index, weight})
+    if (solver_params.custom_weights && solver_params.custom_weights.length > 0) {
+        const sel = document.getElementById('solver-target');
+        if (sel) {
+            sel.value = 'custom';
+            solver_target_changed();
+        }
+        for (const { target_index, weight } of solver_params.custom_weights) {
+            const target_obj = CUSTOM_WEIGHT_TARGETS[target_index];
+            if (!target_obj) continue;
+            const row = custom_weight_add_row();
+            if (!row) continue;
+            const target_sel = row.querySelector('.cw-target-select');
+            const weight_inp = row.querySelector('.cw-weight-input');
+            if (target_sel) target_sel.value = target_obj.key;
+            if (weight_inp) weight_inp.value = weight;
+        }
+    }
+
     // Blacklist rows (binary: array of item IDs)
     if (solver_params.blacklist_ids && solver_params.blacklist_ids.length > 0) {
         for (let item_id of solver_params.blacklist_ids) {
@@ -557,6 +576,17 @@ function _restore_atree_and_combo(decoded_sp, solver_params) {
                     ? atree_collect_spells.value : null;
 
                 const data = solver_params.combo_rows.map(r => {
+                    // Loop bracket rows
+                    if (r.loop_end) {
+                        return { loop_end: true, qty: 0, spell_name: '', boost_tokens_text: '' };
+                    }
+                    if (r.loop_start) {
+                        const cond = r.loop_cond_type === 1
+                            ? { type: 1 }  // LOOP_COND_UNTIL_OOM
+                            : { type: 0, value: r.loop_cond_param || 2 };  // LOOP_COND_COUNT
+                        return { loop_start: cond, qty: 0, spell_name: '', boost_tokens_text: '' };
+                    }
+
                     const spell_name = node_id_to_spell_name(r.spell_node_id, atree_mg);
                     const spell_value = node_id_to_spell_value(r.spell_node_id);
                     const boost_parts = r.boosts.map(b => {

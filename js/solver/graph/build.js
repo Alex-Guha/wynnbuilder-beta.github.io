@@ -294,6 +294,23 @@ function _collect_solver_params() {
     const combo_rows = [];
     if (typeof solver_combo_total_node !== 'undefined' && solver_combo_total_node) {
         for (const row of document.querySelectorAll('#combo-selection-rows .combo-row')) {
+            // Loop bracket rows: encode as special short entries
+            const rt = row.dataset.rowType;
+            if (rt === 'loop_start') {
+                const cond_type = parseInt(row.querySelector('.combo-loop-cond-type')?.value) || 0;
+                const count_val = parseInt(row.querySelector('.combo-loop-count')?.value) || 2;
+                combo_rows.push({
+                    spell_node_id: LOOP_START_NODE_ID,
+                    loop_cond_type: cond_type,
+                    loop_cond_param: cond_type === LOOP_COND_COUNT ? Math.min(255, count_val) : 0,
+                });
+                continue;
+            }
+            if (rt === 'loop_end') {
+                combo_rows.push({ spell_node_id: LOOP_END_NODE_ID });
+                continue;
+            }
+
             const qty_raw = parseFloat(row.querySelector('.combo-row-qty')?.value) || 0;
             const spell_id = parseInt(row.querySelector('.combo-row-spell')?.value);
             if (isNaN(spell_id)) continue;
@@ -395,6 +412,17 @@ function _collect_solver_params() {
         }
     }
 
+    // Custom weights: read from DOM, convert target keys to indices for binary encoding
+    const raw_weights = read_custom_weights();
+    const scoring_target = document.getElementById('solver-target')?.value ?? 'combo_dps';
+    const custom_weights = [];
+    if (scoring_target === 'custom' && raw_weights.length > 0) {
+        for (const { target, weight } of raw_weights) {
+            const idx = CUSTOM_WEIGHT_TARGETS.findIndex(t => t.key === target);
+            if (idx >= 0) custom_weights.push({ target_index: idx, weight });
+        }
+    }
+
     return { roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, mana_disabled,
-             restrictions, combo_rows, blacklist_ids };
+             restrictions, combo_rows, blacklist_ids, custom_weights };
 }

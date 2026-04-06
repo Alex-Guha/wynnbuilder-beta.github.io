@@ -8,13 +8,11 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 
 # Todo
 
-- looping combo portions
-- True DPS calculation
-- Weighted multi-target solving
-- Let's add a new toggle to the combo section that appears when in advanced mode: "Debug". When in debug, show per row mana and timing info, either under the row or on hovering some element
+### Bugs
 
 ### Necessary Improvements
 - Ghostly Trigger (non-possession) changes atkTier to sfast for the 3 twain's arcs
+- Let's add a new toggle to the combo section that appears when in advanced mode: "Debug". When in debug, show per row mana and timing info, either under the row or on hovering some element
 - Testing setup to measure the time it takes to find a build, across many builds. This would be used to test priority weighting changes.
     - Better yet, what's the score for the best build found in N minutes, and how many checked/feasible/met reqs in that time
 - Rewrite: (the tech debt is stacking up.)
@@ -44,6 +42,7 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 ### Long term
 - Premade archetype combo selectors
 - Tree-assembler: "I want ability X, Y, and Z, give me a tree that gets all 3 if possible"
+- Allow builds marginally outside the non-mana requirements to be displayed separately, maybe repurposing the last 5 in the top 15
 
 - Consider:
 > CPS thingy into damage solver as sometimes people (idk all, but at least i will) slow down/accelerate their cycle depends on their situation, like sustain or burst
