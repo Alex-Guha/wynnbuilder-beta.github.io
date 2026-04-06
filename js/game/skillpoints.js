@@ -266,16 +266,39 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
             }
 
             if (cap_ok) {
-                // Lower-bound pruning: current total + remaining post_floor gaps
-                let lb = new_total;
-                for (let j = 0; j < 5; j++) {
-                    if (post_floor[j] > assign[j]) lb += post_floor[j] - assign[j];
+                for (let j = 0; j < 5; j++) running_bonus[j] += skp_n[j];
+
+                // Intermediate sustainability: after applying item n's bonus,
+                // all previously activated items must remain self-sustaining
+                // (requirements met even without their own bonus contribution).
+                let sustain_ok = true;
+                for (let m = 0; m < k; m++) {
+                    if (!(used & (1 << m))) continue;
+                    for (let j = 0; j < 5; j++) {
+                        if (ord_reqs[m][j] > 0) {
+                            const demand = ord_reqs[m][j] + ord_skp[m][j] - free_bonus[j] - running_bonus[j];
+                            if (demand > assign[j]) {
+                                if (demand > SP_PER_ATTR_CAP) { sustain_ok = false; break; }
+                                new_total += demand - assign[j];
+                                assign[j] = demand;
+                            }
+                        }
+                    }
+                    if (!sustain_ok) break;
                 }
-                if (lb < best_total) {
-                    for (let j = 0; j < 5; j++) running_bonus[j] += skp_n[j];
-                    _bt(depth + 1, used | (1 << n), new_total);
-                    for (let j = 0; j < 5; j++) running_bonus[j] -= skp_n[j];
+
+                if (sustain_ok) {
+                    // Lower-bound pruning: current total + remaining post_floor gaps
+                    let lb = new_total;
+                    for (let j = 0; j < 5; j++) {
+                        if (post_floor[j] > assign[j]) lb += post_floor[j] - assign[j];
+                    }
+                    if (lb < best_total) {
+                        _bt(depth + 1, used | (1 << n), new_total);
+                    }
                 }
+
+                for (let j = 0; j < 5; j++) running_bonus[j] -= skp_n[j];
             }
 
             // Restore assign
