@@ -459,10 +459,29 @@ function greedy_sp_loop(base_sp, total_sp, remaining, cap_total, trial_score_fn)
  * @param {Function} eval_healing_fn - () => number
  * @param {Map|null} thresh_stats - pre-cloned stats for non-damage targets (or null to use combo_base)
  */
-function eval_score_dispatch(scoring_target, combo_base, eval_damage_fn, eval_healing_fn, thresh_stats) {
+function eval_score_dispatch(scoring_target, combo_base, eval_damage_fn, eval_healing_fn, thresh_stats, custom_weights) {
     const target = scoring_target ?? 'combo_damage';
     if (target === 'combo_damage') return eval_damage_fn();
     if (target === 'total_healing') return eval_healing_fn();
+    if (target === 'custom' && custom_weights && custom_weights.length > 0) {
+        let sum = 0;
+        let _damage = undefined, _healing = undefined;
+        const stats = thresh_stats ?? combo_base;
+        for (const { target: sub, weight } of custom_weights) {
+            let sub_score;
+            if (sub === 'combo_damage') {
+                if (_damage === undefined) _damage = eval_damage_fn();
+                sub_score = _damage;
+            } else if (sub === 'total_healing') {
+                if (_healing === undefined) _healing = eval_healing_fn();
+                sub_score = _healing;
+            } else {
+                sub_score = eval_indirect_stat(stats, sub);
+            }
+            sum += weight * sub_score;
+        }
+        return sum;
+    }
     const stats = thresh_stats ?? combo_base;
     return eval_indirect_stat(stats, target);
 }

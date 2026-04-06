@@ -678,7 +678,7 @@ function decodeSolverParams(b64_str) {
         if (version === 0) {
             version = cursor.advanceBy(4);  // extended version (8-15)
         }
-        if (version > 9) {
+        if (version > 10) {
             console.warn('[decode] decodeSolverParams: unknown version', version);
             return null;
         }
@@ -823,9 +823,21 @@ function decodeSolverParams(b64_str) {
             blacklist_ids.push(cursor.advanceBy(14));
         }
 
+        // ── Custom weights (v10+) ──
+        const custom_weights = [];
+        if (version >= 10) {
+            const cw_count = cursor.advanceBy(4);
+            for (let i = 0; i < cw_count; i++) {
+                const target_index = cursor.advanceBy(4);
+                const sign = cursor.advanceBy(1);
+                const abs_weight = cursor.advanceBy(16);
+                custom_weights.push({ target_index, weight: sign ? -abs_weight : abs_weight });
+            }
+        }
+
         return {
             roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, mana_disabled,
-            restrictions, combo_rows, blacklist_ids
+            restrictions, combo_rows, blacklist_ids, custom_weights
         };
     } catch (e) {
         console.warn('[decode] decodeSolverParams failed:', e);

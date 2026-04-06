@@ -709,10 +709,6 @@ const _INFO_ENTRIES = [
         hiddenCheck: () => !document.getElementById('combo-mana-btn')?.classList.contains('toggleOn')
     },
     {
-        id: 'filters-title', text: 'Item filtering options',
-        detail: 'These can be used to limit the items the solver has to search through.'
-    },
-    {
         id: 'dir-str', text: 'Toggle which item SP to consider',
         detail: 'Disable these to exclude any items that require that skillpoint type. Used to limit the pool of items to search through.'
     },

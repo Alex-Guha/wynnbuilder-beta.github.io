@@ -412,6 +412,17 @@ function _collect_solver_params() {
         }
     }
 
+    // Custom weights: read from DOM, convert target keys to indices for binary encoding
+    const raw_weights = read_custom_weights();
+    const scoring_target = document.getElementById('solver-target')?.value ?? 'combo_damage';
+    const custom_weights = [];
+    if (scoring_target === 'custom' && raw_weights.length > 0) {
+        for (const { target, weight } of raw_weights) {
+            const idx = CUSTOM_WEIGHT_TARGETS.findIndex(t => t.key === target);
+            if (idx >= 0) custom_weights.push({ target_index: idx, weight });
+        }
+    }
+
     return { roll_groups, sfree, dir_enabled, lvl_min, lvl_max, nomaj, gtome, dtime, mana_disabled,
-             restrictions, combo_rows, blacklist_ids };
+             restrictions, combo_rows, blacklist_ids, custom_weights };
 }

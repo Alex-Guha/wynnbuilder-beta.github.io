@@ -668,6 +668,12 @@ const _SOLVER_DEFAULTS = {
  *   [4]   blacklist_count (0-15)
  *     Per blacklist entry:
  *       [14]  item_id (0-16383)
+ *   --- v10+ ---
+ *   [4]   custom_weight_count (0-15)
+ *     Per custom weight:
+ *       [4]   target_index (index into CUSTOM_WEIGHT_TARGETS, 0-15)
+ *       [1]   sign (0=positive, 1=negative)
+ *       [16]  abs_weight (0-65535)
  *
  * @param {Object} params
  * @param {Object} params.roll_groups - Per-group roll percentages {damage, mana, healing, misc} (0-100 each)
@@ -688,21 +694,21 @@ function encodeSolverParams(params) {
     const bv = new EncodingBitVector(0, 0);
     const max_lvl = (typeof MAX_PLAYER_LEVEL !== 'undefined') ? MAX_PLAYER_LEVEL : 121;
 
-    // Always encode with the latest version (v9).
+    // Always encode with the latest version (v10).
     const _LOOP_START_NID = 116;
     const _LOOP_END_NID = 115;
 
     // Version: 3 bits = 0 (extension signal) + 4-bit extended version.
     bv.append(0, 3);       // extension signal
-    bv.append(9, 4);       // extended version = 9
+    bv.append(10, 4);
 
     // ── Presence bitmask (10 bits) ──
     // v3: bit 0 → roll_groups (4×7 bits), replaces v2's single roll field
     const rg = params.roll_groups || _SOLVER_DEFAULTS.roll_groups;
-    const roll_dmg  = Math.max(0, Math.min(100, rg.damage  ?? 85));
-    const roll_mana = Math.max(0, Math.min(100, rg.mana    ?? 100));
+    const roll_dmg = Math.max(0, Math.min(100, rg.damage ?? 85));
+    const roll_mana = Math.max(0, Math.min(100, rg.mana ?? 100));
     const roll_heal = Math.max(0, Math.min(100, rg.healing ?? 85));
-    const roll_misc = Math.max(0, Math.min(100, rg.misc    ?? 85));
+    const roll_misc = Math.max(0, Math.min(100, rg.misc ?? 85));
     const sfree = params.sfree & 0xFF;
     const dir = params.dir_enabled & 0x1F;
     const lvl_min = Math.max(0, Math.min(max_lvl - 1, (params.lvl_min || 1) - 1));
@@ -846,6 +852,17 @@ function encodeSolverParams(params) {
     bv.append(Math.min(15, blacklist_ids.length), 4);
     for (let i = 0; i < Math.min(15, blacklist_ids.length); i++) {
         bv.append(blacklist_ids[i] & 0x3FFF, 14);
+    }
+
+    // ── Custom weights (v10+) ──
+    const cw = params.custom_weights || [];
+    bv.append(Math.min(15, cw.length), 4);
+    for (let i = 0; i < Math.min(15, cw.length); i++) {
+        const entry = cw[i];
+        bv.append(entry.target_index & 0xF, 4);
+        const sign = entry.weight < 0 ? 1 : 0;
+        bv.append(sign, 1);
+        bv.append(Math.min(65535, Math.abs(Math.round(entry.weight))), 16);
     }
 
     return bv.toB64();

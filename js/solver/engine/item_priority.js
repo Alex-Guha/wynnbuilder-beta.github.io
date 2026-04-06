@@ -168,7 +168,8 @@ function _sensitivity_eval_score(combo_base, snap) {
     return eval_score_dispatch(snap.scoring_target, combo_base,
         () => _eval_sensitivity_combo_damage(combo_base, snap).total_damage,
         () => _eval_sensitivity_combo_healing(combo_base, snap),
-        null);
+        null,
+        snap.custom_weights);
 }
 
 // ── Step 4: Baseline statMap construction ───────────────────────────────────

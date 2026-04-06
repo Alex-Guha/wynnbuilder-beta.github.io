@@ -245,6 +245,14 @@ function _build_solver_snapshot(restrictions) {
     const parsed_combo = _parse_combo_for_search(spell_map, weapon);
 
     const scoring_target = document.getElementById('solver-target')?.value ?? 'combo_damage';
+    let custom_weights = [];
+    if (scoring_target === 'custom') {
+        custom_weights = read_custom_weights();
+        if (custom_weights.length === 0) {
+            // Fall back to combo_damage if no valid weights entered
+            console.warn('[solver] Custom scoring selected but no valid weights — falling back to combo_damage');
+        }
+    }
 
     const mana_enabled = document.getElementById('combo-mana-btn')?.classList.contains('toggleOn') ?? true;
     // Unroll fixed-count loops so cycle time accounts for repeated iterations.
@@ -316,7 +324,7 @@ function _build_solver_snapshot(restrictions) {
         weapon, weapon_sm, level, tomes, atree_raw, atree_mgd,
         static_boosts, radiance_boost, sp_budget,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
-        restrictions, button_states, slider_states, scoring_target,
+        restrictions, button_states, slider_states, scoring_target, custom_weights,
         combo_time, allow_downtime, hp_casting, has_dynamic_sliders, health_config, auto_slider_names: [...auto_slider_names], spell_base_costs,
     };
 }
@@ -526,6 +534,7 @@ const SOLVER_TARGET_LABELS = {
     poison: 'Poison: ',
     lb: 'Loot Bonus: ',
     xpb: 'XP Bonus: ',
+    custom: 'Score: ',
 };
 
 function _format_solver_score(score, target) {
@@ -1016,6 +1025,7 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         parsed_combo: snap.parsed_combo,
         boost_registry: snap.boost_registry,
         scoring_target: snap.scoring_target,
+        custom_weights: snap.custom_weights,
         combo_time: snap.combo_time,
         allow_downtime: snap.allow_downtime,
         hp_casting: snap.hp_casting,

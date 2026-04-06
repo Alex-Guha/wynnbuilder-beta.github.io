@@ -1020,9 +1020,9 @@
                     <div id="summary-stats" class="text-nowrap"></div>
                 </div>
 
-                <!-- ─── Filters / Requirements ─── -->
-                <div class="mb-2 scaled-font dark-5 rounded dark-shadow">
-                    <div id="filters-title" class="fw-bold dark-4 rounded-top p-1 text-center">Filters</div>
+                <!-- ─── Solver ─── -->
+                <div class="mb-2 scaled-font dark-5 rounded dark-shadow" id="solver-run-section">
+                    <div class="fw-bold dark-4 rounded-top p-1 text-center">Solver</div>
 
                     <!-- Build Direction -->
                     <div class="px-2 pt-2 pb-1 d-flex gap-1 dir-btn-row mb-1">
@@ -1084,16 +1084,14 @@
                                 Item</button>
                         </div>
                     </div>
-                </div>
 
-                <!-- ─── Solver run controls ─── -->
-                <div class="mb-2 scaled-font dark-5 rounded dark-shadow" id="solver-run-section">
-                    <div class="fw-bold dark-4 rounded-top p-1 text-center">Solver</div>
+                    <hr class="mx-2 my-1 border-secondary">
+
                     <div class="px-2 py-2">
-                        <div class="d-flex align-items-center gap-1 mb-2">
+                        <div class="d-flex align-items-center gap-1">
                             <span class="text-secondary small" style="white-space:nowrap">Target:</span>
                             <select id="solver-target" class="solver-select form-select form-select-sm" style="flex:1"
-                                title="What the solver optimizes for">
+                                title="What the solver optimizes for" onchange="solver_target_changed()">
                                 <option value="combo_damage">Combo Damage</option>
                                 <option value="ehp">Effective HP</option>
                                 <option value="ehpr">Effective HPR</option>
@@ -1102,9 +1100,16 @@
                                 <option value="poison">Poison</option>
                                 <option value="lb">Loot Bonus</option>
                                 <option value="xpb">XP Bonus</option>
+                                <option value="custom">Custom</option>
                             </select>
                         </div>
-                        <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                        <!-- Custom weight rows (hidden unless target=custom) -->
+                        <div id="custom-weight-section" style="display:none">
+                            <div id="custom-weight-rows" class="d-flex flex-column gap-1 mt-1"></div>
+                            <button id="custom-weight-add-btn" class="btn btn-sm btn-outline-secondary mt-1"
+                                onclick="custom_weight_add_row()">+ Add Target Weight</button>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap mb-1 mt-2">
                             <div class="d-flex align-items-center gap-1 w-100">
                                 <button id="solver-run-btn" class="btn btn-sm btn-outline-success flex-grow-1"
                                     onclick="toggle_solver()">Solve</button>

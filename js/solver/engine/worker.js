@@ -318,7 +318,8 @@ function _eval_score(combo_base, thresh_stats) {
     return eval_score_dispatch(_cfg.scoring_target, combo_base,
         () => _eval_combo_damage(combo_base),
         () => _eval_combo_healing(combo_base),
-        thresh_stats ?? _assemble_threshold_stats(combo_base));
+        thresh_stats ?? _assemble_threshold_stats(combo_base),
+        _cfg.custom_weights);
 }
 
 // get_item_display_name() — shared from pure/engine.js
