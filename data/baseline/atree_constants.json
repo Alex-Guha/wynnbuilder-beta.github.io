@@ -7660,9 +7660,7 @@
             "desc": "Click Combo: RIGHT-LEFT-LEFT </br> Conjures a slow but powerful meteor from the sky, dealing massive damage over a large area. </br> Mana Cost: 50 </br><span class='mc-white'>Total Damage</span>: 400% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 330%)   </br>&emsp;(<span class='eDam'>Earth</span>: 70%) </br>Range: 18 Blocks </br>Area of Effect: 5 Blocks (Circle-Shaped)",
             "parents": [],
             "dependencies": [],
-            "blockers": [
-                "Ophanim"
-            ],
+            "blockers": [],
             "cost": 1,
             "display": {
                 "row": 0,
@@ -10542,12 +10540,12 @@
                             "name": "Shatter Damage",
                             "type": "damage",
                             "multipliers": [
-                                1600,
+                                1500,
                                 0,
                                 0,
-                                200,
+                                250,
                                 0,
-                                200
+                                250
                             ]
                         }
                     ]
@@ -14526,46 +14524,14 @@
             ],
             "dependencies": [],
             "blockers": [],
-            "cost": 1,
+            "cost": 2,
             "display": {
                 "row": 51,
                 "col": 4,
                 "icon": "node_3"
             },
             "properties": {},
-            "effects": [
-                {
-                    "type": "replace_spell",
-                    "name": "Serpent's Garden",
-                    "base_spell": 16,
-                    "display": "Total DPS",
-                    "parts": [
-                        {
-                            "name": "Damage per Tick",
-                            "multipliers": [
-                                200,
-                                100,
-                                0,
-                                0,
-                                0,
-                                100
-                            ]
-                        },
-                        {
-                            "name": "Total DPS",
-                            "hits": {
-                                "Damage per Tick": 4
-                            }
-                        }
-                    ]
-                },
-                {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Momentum",
-                    "slider_max": 5
-                }
-            ]
+            "effects": []
         }
     ],
     "Shaman": [
