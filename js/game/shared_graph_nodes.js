@@ -162,10 +162,10 @@ class ItemPowderingNode extends ComputeNode {
     constructor(name) { super(name); }
 
     compute_func(input_map) {
-        const powdering  = input_map.get('powdering');
+        const powdering = input_map.get('powdering');
         const input_item = input_map.get('item');
-        const item       = input_item.copy();
-        const max_slots  = item.statMap.get('slots');
+        const item = input_item.copy();
+        const max_slots = item.statMap.get('slots');
         item.statMap.set('powders', powdering.slice(0, max_slots));
         if (item.statMap.get('category') === 'armor') {
             applyArmorPowders(item.statMap);
@@ -178,7 +178,7 @@ class ItemPowderingNode extends ComputeNode {
 
 // ── Base item display node ───────────────────────────────────────────────────
 
-const _TIER_CLASSES        = ['Normal','Unique','Rare','Legendary','Fabled','Mythic','Set','Crafted','Custom'];
+const _TIER_CLASSES = ['Normal', 'Unique', 'Rare', 'Legendary', 'Fabled', 'Mythic', 'Set', 'Crafted', 'Custom'];
 const _TIER_SHADOW_CLASSES = _TIER_CLASSES.map(t => t + '-shadow');
 
 /**
@@ -190,17 +190,17 @@ const _TIER_SHADOW_CLASSES = _TIER_CLASSES.map(t => t + '-shadow');
 class BaseItemDisplayNode extends ComputeNode {
     constructor(name, eq) {
         super(name);
-        this.input_field  = document.getElementById(eq + '-choice');
+        this.input_field = document.getElementById(eq + '-choice');
         this.health_field = document.getElementById(eq + '-health') || null;
-        this.level_field  = document.getElementById(eq + '-lv')     || null;
-        this.item_image   = document.getElementById(eq + '-img')    || null;
-        this.fail_cb      = true;
+        this.level_field = document.getElementById(eq + '-lv') || null;
+        this.item_image = document.getElementById(eq + '-img') || null;
+        this.fail_cb = true;
     }
 
     /** Called when item is null or NONE. Override for slot-unlocked styling, etc. */
     _on_empty(_item) { return null; }
     /** Called after setting tier/health/level on a valid item. Override for lock UI, etc. */
-    _on_display(_item) {}
+    _on_display(_item) { }
 
     compute_func(input_map) {
         const [item] = input_map.values();
@@ -210,7 +210,7 @@ class BaseItemDisplayNode extends ComputeNode {
         this.input_field.classList.add('text-light');
         if (this.item_image) this.item_image.classList.remove(..._TIER_SHADOW_CLASSES);
         if (this.health_field) this.health_field.textContent = '0';
-        if (this.level_field)  this.level_field.textContent  = '0';
+        if (this.level_field) this.level_field.textContent = '0';
 
         if (!item) {
             this.input_field.classList.add('is-invalid');
@@ -223,8 +223,8 @@ class BaseItemDisplayNode extends ComputeNode {
         const tier = item.statMap.get('tier');
         this.input_field.classList.add(tier);
         if (this.health_field) this.health_field.textContent = item.statMap.get('hp') || '0';
-        if (this.level_field)  this.level_field.textContent  = item.statMap.get('lvl') || '0';
-        if (this.item_image)   this.item_image.classList.add(tier + '-shadow');
+        if (this.level_field) this.level_field.textContent = item.statMap.get('lvl') || '0';
+        if (this.item_image) this.item_image.classList.add(tier + '-shadow');
         this._on_display(item);
         return null;
     }
@@ -256,8 +256,8 @@ class BaseItemInputNode extends InputNode {
 
     /** Look up an item by text (CI-/CR- hash, itemMap name, tomeMap name). */
     _lookup(item_text) {
-        if (item_text.slice(0, 3) === 'CI-') return decodeCustom({hash: item_text.substring(3)});
-        if (item_text.slice(0, 3) === 'CR-') return decodeCraft({hash: item_text.substring(3)});
+        if (item_text.slice(0, 3) === 'CI-') return decodeCustom({ hash: item_text.substring(3) });
+        if (item_text.slice(0, 3) === 'CR-') return decodeCraft({ hash: item_text.substring(3) });
         if (itemMap.has(item_text)) return new Item(itemMap.get(item_text));
         if (tomeMap.has(item_text)) return new Item(tomeMap.get(item_text));
         return null;
@@ -290,23 +290,23 @@ class BaseItemInputNode extends InputNode {
  */
 function compute_boosts() {
     let damage_boost = 0;
-    let str_boost    = 0;
-    let vuln_boost   = 0;
-    let def_boost    = 0;
+    let str_boost = 0;
+    let vuln_boost = 0;
+    let def_boost = 0;
     for (const [key, value] of damageMultipliers) {
         const elem = document.getElementById(key + '-boost');
         if (elem && elem.classList.contains('toggleOn')) {
             if (value > damage_boost) { damage_boost = value; }
-            if (key === 'warscream')       { def_boost  += 0.20; }
+            if (key === 'warscream') { def_boost += 0.20; }
             else if (key === 'emboldeningcry') { def_boost += 0.05; str_boost += 0.08; }
-            else if (key === 'eldritchcall')   { vuln_boost += 0.15; }
+            else if (key === 'eldritchcall') { vuln_boost += 0.15; }
         }
     }
     const res = new Map();
-    res.set('damMult.Potion',        100 * damage_boost);
-    res.set('damMult.Strength',      100 * str_boost);
+    res.set('damMult.Potion', 100 * damage_boost);
+    res.set('damMult.Strength', 100 * str_boost);
     res.set('damMult.Vulnerability', 100 * vuln_boost);
-    res.set('defMult.Potion',        100 * def_boost);
+    res.set('defMult.Potion', 100 * def_boost);
 
     if (document.getElementById('judgement-boost')?.classList.contains('toggleOn')) {
         res.set('damMult.Judgement', 20);
@@ -316,17 +316,17 @@ function compute_boosts() {
 }
 
 /**
- * Apply Radiance (+20%) and/or Divine Honor (+10%) scaling to a StatMap.
+ * Apply Radiance (+20%) and/or Divine Honor (+5%) scaling to a StatMap.
  * Returns the input unchanged when neither is active; otherwise returns a new Map.
  */
 function compute_radiance(statmap) {
     if (!statmap) return new Map();
 
     let boost = 1;
-    if (document.getElementById('radiance-boost')?.classList.contains('toggleOn'))    { boost += 0.15; }
-    if (document.getElementById('divinehonor-boost')?.classList.contains('toggleOn')) { boost += 0.10; }
-    if (document.getElementById('shine-boost')?.classList.contains('toggleOn'))      { boost += 0.05; }
-    if (document.getElementById('judgement-boost')?.classList.contains('toggleOn'))   { boost = 1.4; }
+    if (document.getElementById('radiance-boost')?.classList.contains('toggleOn')) { boost += 0.15; }
+    if (document.getElementById('divinehonor-boost')?.classList.contains('toggleOn')) { boost += 0.05; }
+    if (document.getElementById('shine-boost')?.classList.contains('toggleOn')) { boost += 0.05; }
+    if (document.getElementById('judgement-boost')?.classList.contains('toggleOn')) { boost = 1.4; }
 
     if (boost === 1) return statmap;
 
