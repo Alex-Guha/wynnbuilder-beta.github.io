@@ -29,7 +29,7 @@ const { performance } = require('perf_hooks');
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const JS_ROOT = path.join(REPO_ROOT, 'js');
 const SNAP_DIR = path.join(__dirname, 'snapshots');
-const LATEST_VERSION = '2.2.0.20';
+const LATEST_VERSION = '2.2.0.21';
 
 // ── Sandbox ──────────────────────────────────────────────────────────────────
 

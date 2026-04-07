@@ -757,7 +757,6 @@ function displayExpandedIngredient(ingred, parent_id) {
         "thorns", 
         "expd", 
         "spd", 
-        "atkTier", 
         "poison",  
         "spRegen", 
         "eSteal", 

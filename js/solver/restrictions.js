@@ -633,7 +633,7 @@ function custom_weight_add_row() {
                 style="min-width:1.6em; font-size:0.8em; flex-shrink:0;"
                 onclick="custom_weight_remove_row(this)" title="Remove weight">×</button>
         <select class="solver-select form-select form-select-sm flex-grow-1 cw-target-select"
-                id="cw-target-${idx}" style="min-width:0;">
+                id="cw-target-${idx}" style="min-width:0; flex: 1 1 0 !important;">
             ${options_html}
         </select>
         <input type="text" inputmode="decimal" class="combo-row-input cw-weight-input"
