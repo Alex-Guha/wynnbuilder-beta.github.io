@@ -2863,7 +2863,7 @@
     },
     "FINAL_GAMBIT": {
         "displayName": "Final Gambit",
-        "description": "When Second Chance Activates, all allies within 10 blocks of you get a 20% damage boost for 15s.",
+        "description": "When Second Chance activates, all allies within 10 blocks of you get a 20% damage boost for 15s.",
         "abilities": [
             {
                 "class": "Warrior",
