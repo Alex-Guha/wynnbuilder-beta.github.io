@@ -90,7 +90,3 @@ When baseline data files change, the corresponding IndexedDB version constants i
 | `aspects.json` | `ASPECT_DB_VERSION` | `js/data/load_aspect.js` |
 
 Note: `atree.json` and `majid.json` are loaded directly from the versioned data directory (not via IndexedDB), so they don't have a DB version constant.
-
-## On live vs beta
-
-On **live** (wynnbuilder.github.io), data generation is automated via CI. On **beta**, data is generated and committed manually using the steps above. See `py_script/README.md` for the full workflow details.

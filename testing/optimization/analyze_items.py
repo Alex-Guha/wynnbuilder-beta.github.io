@@ -3,6 +3,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def max_id(item, id_name, invert=False):
     """
     Calculate the "max roll" for a given ID.
@@ -14,12 +15,12 @@ def max_id(item, id_name, invert=False):
         id_name     string      name of the ID to get
         invert      bool        Whether to "invert" (raw cost and %cost have funny
                                 0.7-1.3 positive roll and 0.3-1.3 negative roll)
-    
+
     Return:
         val: float -- max roll id value.
     """
     id_val = item.get(id_name, 0)
-    if id_val == 0: # if the ID isn't present, its just going to be zero
+    if id_val == 0:  # if the ID isn't present, its just going to be zero
         return 0
 
     if item.get('fixID', False):
@@ -29,12 +30,13 @@ def max_id(item, id_name, invert=False):
     # roll the ID. Negative roll (and invert) max roll is 0.7; positive max is 1.3.
     if bool(id_val < 0) != bool(invert):    # logical XOR
         val = round(id_val * 0.7)
-    else:   #if bool(id_val > 0) != bool(invert):
+    else:  # if bool(id_val > 0) != bool(invert):
         val = round(id_val * 1.3)
 
     if val == 0:    # if we rounded to zero, then restore the id as sign(base_val).
         val = id_val / abs(id_val)
     return val
+
 
 def mv(item, base_costs):
     """
@@ -55,7 +57,7 @@ def mv(item, base_costs):
     """
     cost_reductions = sorted([
         max_id(item, 'spRaw1', True) + base_costs[0]*max_id(item, 'spPct1', True)/100,
-        #max_id(item, 'spRaw2', True) + base_costs[1]*max_id(item, 'spPct2', True)/100,
+        # max_id(item, 'spRaw2', True) + base_costs[1]*max_id(item, 'spPct2', True)/100,
         max_id(item, 'spRaw3', True) + base_costs[2]*max_id(item, 'spPct3', True)/100,
         max_id(item, 'spRaw4', True) + base_costs[3]*max_id(item, 'spPct4', True)/100,
     ])
@@ -66,6 +68,7 @@ def mv(item, base_costs):
         + max_id(item, 'mr')/5
         + cost_mv
     )
+
 
 ###########################
 # constants for damage calc.
@@ -79,6 +82,8 @@ percent_all_ids = ['sdPct', 'rSdPct']
 # the mini lists are sub-sums, the big list gets max'd over (elemental damage works like this.)
 percent_max_id_groups = list(zip([x+'DamPct' for x in 'etwfa'] + [x+'SdPct' for x in 'etwfa']))  # exclude neutral lel
 ###########################
+
+
 def damage(item, weapon_base):
     """
     Compute effective damage bonus.
@@ -106,8 +111,7 @@ weapon_base = 700
 base_costs = [35, 20, 35, 35]
 item_type = 'leggings'
 
-# TODO: Changeme to point to a copy of wynnbuilder's compress.json file!
-items = json.load(open("../../compress.json"))['items']
+items = json.load(open("../../data/baseline/compressed/compress.json"))['items']
 #################################
 
 
@@ -117,7 +121,7 @@ names = dict()
 for item in items:
     if item['type'] == item_type and item['lvl'] > level_threshold:
         # Edit me to see other comparisons!
-        #point = (mv(item, base_costs), damage(item, weapon_base))
+        # point = (mv(item, base_costs), damage(item, weapon_base))
         point = (max_id(item, 'spd'), item.get('hp', 0) + max_id(item, 'hpBonus'))
 
         points.append(point)
@@ -132,6 +136,6 @@ points = np.array(points)
 plt.figure()
 plt.scatter(points[:, 0], points[:, 1])
 # and add annotations.
-for point, txt in names.items(): 
+for point, txt in names.items():
     plt.annotate(txt, point)
 plt.show()
