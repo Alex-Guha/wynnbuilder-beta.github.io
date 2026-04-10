@@ -1,0 +1,43 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Build site with branch previews
+        run: |
+          # Master as the base site
+          git worktree add ../master origin/master
+          cp -r ../master _site
+          rm -rf _site/.git
+
+          # Add a preview for every non-master remote branch
+          for branch in $(git branch -r --format='%(refname:short)' | sed 's|origin/||' | grep -v '^master$' | grep -v '^HEAD$'); do
+            echo "Adding preview for: $branch"
+            git worktree add "../branch-$branch" "origin/$branch"
+            mkdir -p "_site/_preview/$branch"
+            cp -r "../branch-$branch/." "_site/_preview/$branch/"
+            rm -rf "_site/_preview/$branch/.git"
+            git worktree remove "../branch-$branch"
+          done
+
+          git worktree remove ../master
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: '_site'
+      - uses: actions/deploy-pages@v5
