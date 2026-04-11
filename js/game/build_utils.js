@@ -146,8 +146,7 @@ let nonRolledIDs = [
     "nDam_", "fDam_", "wDam_", "aDam_", "tDam_", "eDam_",
     "majorIds",
     "damMobs",
-    "defMobs",
-    "atkTier"
+    "defMobs"
 ];
 let rolledIDs = [
     "hprPct",
@@ -162,6 +161,7 @@ let rolledIDs = [
     "thorns",
     "expd",
     "spd",
+    "atkTier",
     "poison",
     "hpBonus",
     "spRegen",
@@ -217,7 +217,12 @@ function expandItem(item) {
     } else { //The item does not have fixed IDs.
         for (const id of rolledIDs) {
             let val = (item[id] || 0);
-            if (val == 0) {
+
+            if (typeof val == 'object' && val['static']) {
+                // Static IDs that are per-item based
+                maxRolls.set(id,val['raw']);
+                minRolls.set(id,val['raw']);
+            } else if (val == 0) {
                 // NOTE: DO NOT remove this case! idRound behavior does not round to 0!
                 maxRolls.set(id,0);
                 minRolls.set(id,0);
@@ -319,7 +324,7 @@ function idRound(id){
 // ── Shared stat assembly constants and functions ─────────────────────────────
 // Used by both Build.initBuildStats() and solver worker_shims.js.
 
-const STATMAP_STATIC_IDS = ["hp", "eDef", "tDef", "wDef", "fDef", "aDef", "str", "dex", "int", "def", "agi", "damMobs", "defMobs", "atkTier"];
+const STATMAP_STATIC_IDS = ["hp", "eDef", "tDef", "wDef", "fDef", "aDef", "str", "dex", "int", "def", "agi", "damMobs", "defMobs"];
 const STATMAP_STATIC_ID_SET = new Set(STATMAP_STATIC_IDS);
 
 const STATMAP_MUST_IDS = [
@@ -331,7 +336,8 @@ const STATMAP_MUST_IDS = [
     "nMdPct","nMdRaw","nSdPct","nSdRaw","nDamPct","nDamRaw","nDamAddMin","nDamAddMax",
     "mdPct","mdRaw","sdPct","sdRaw","damPct","damRaw","damAddMin","damAddMax",
     "rMdPct","rMdRaw","rSdPct","rSdRaw","rDamPct","rDamRaw","rDamAddMin","rDamAddMax",
-    "healPct","critDamPct"
+    "healPct","critDamPct",
+    "atkTier"
 ];
 
 /**

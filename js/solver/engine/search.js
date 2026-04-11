@@ -256,8 +256,14 @@ function _build_solver_snapshot(restrictions) {
 
     const mana_enabled = document.getElementById('combo-mana-btn')?.classList.contains('toggleOn') ?? true;
     // Unroll fixed-count loops so cycle time accounts for repeated iterations.
+    // Build a minimal stats map for cycle time from the weapon's expanded item data.
+    // atkTier is a rolled ID, so read from maxRolls rather than the item statMap directly.
+    const weapon_cycle_sm = new Map([
+        ['atkSpd', weapon.statMap.get('atkSpd')],
+        ['atkTier', weapon.statMap.get('maxRolls')?.get('atkTier') ?? 0]
+    ]);
     const combo_time = mana_enabled
-        ? compute_combo_cycle_time(_unroll_loops_pure(parsed_combo, {}), weapon.statMap)
+        ? compute_combo_cycle_time(_unroll_loops_pure(parsed_combo, {}), weapon_cycle_sm)
         : 0;
     const allow_downtime = document.getElementById('combo-downtime-btn')?.classList.contains('toggleOn') ?? false;
 

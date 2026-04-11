@@ -57,6 +57,7 @@ cp atree_constants_min.json ../data/$VER/atree.json
 cp aspects_min.json         ../data/$VER/aspects.json
 cp major_ids_min.json       ../data/$VER/majid.json
 python3 compress_json.py ../data/baseline/clean.json ../data/$VER/items.json
+python3 compress_json.py ../data/baseline/clean.json ../data/baseline/compressed/compress.json
 python3 compress_json.py ../data/baseline/ingreds_clean.json ../data/$VER/ingreds.json
 python3 compress_json.py ../data/baseline/tomes.json ../data/$VER/tomes.json
 python3 compress_json.py ../data/baseline/recipes.json ../data/$VER/recipes.json
@@ -71,8 +72,10 @@ python3 encoding_gen_const.py $VER --write
 
 For smaller updates that only touch atree, aspects, major IDs, or items:
 
-```
-cd /path/to/wynnbuilder-beta.github.io/py_script && python atree-generateID.py && cp atree_constants_min.json ../data/$VER/atree.json && cp aspects_min.json ../data/$VER/aspects.json && cp major_ids_min.json ../data/$VER/majid.json && python compress_json.py ../data/baseline/clean.json ../data/$VER/items.json
+```bash
+VER=X.X.X.X
+
+cd py_script && python atree-generateID.py && cp atree_constants_min.json ../data/$VER/atree.json && cp aspects_min.json ../data/$VER/aspects.json && cp major_ids_min.json ../data/$VER/majid.json && python compress_json.py ../data/baseline/clean.json ../data/$VER/items.json && compress_json.py ../data/baseline/clean.json ../data/baseline/compressed/compress.json
 ```
 
 ## Bumping DB version constants
@@ -87,7 +90,3 @@ When baseline data files change, the corresponding IndexedDB version constants i
 | `aspects.json` | `ASPECT_DB_VERSION` | `js/data/load_aspect.js` |
 
 Note: `atree.json` and `majid.json` are loaded directly from the versioned data directory (not via IndexedDB), so they don't have a DB version constant.
-
-## On live vs beta
-
-On **live** (wynnbuilder.github.io), data generation is automated via CI. On **beta**, data is generated and committed manually using the steps above. See `py_script/README.md` for the full workflow details.

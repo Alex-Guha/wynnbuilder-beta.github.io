@@ -122,6 +122,14 @@ tome_type_translation = {
     'lootrun_tome': 'lootrunTome',
 }
 
+known_static_ids = {
+    'rawStrength',
+    'rawDexterity',
+    'rawIntelligence',
+    'rawDefence',
+    'rawAgility'
+}
+
 def translate_entry(entry):
     """
     Convert an api entry into an appropriate parsed item.
@@ -132,6 +140,12 @@ def translate_entry(entry):
     """
     # sketchily infer what kind of item we're dealing with, and translate it appropriately.
     if "type" in entry:
+        # this is disgusting! turn IDs static based off of having no range
+        if 'identifications' in entry and 'identified' not in entry:
+            for (id, value) in entry['identifications'].items():
+                if not isinstance(value, dict) and abs(value) > 1 and id not in known_static_ids: # yay! we have a rollable item with a static id
+                    entry['identifications'][id] = {'static': True, 'raw':value}
+
         if entry['type'] in ['weapon', 'armour']:
             # only items have this field.
             res = recursive_translate(entry, {}, "item", translate_single_item)
@@ -249,15 +263,6 @@ attack_speed_dict = {
     "SUPERFAST": "SUPER_FAST"
 }
 
-rarity_dict = {
-    "mythic": "Mythic",
-    "fabled": "Fabled",
-    "legendary": "Legendary",
-    "rare": "Rare",
-    "unique": "Unique",
-    "normal": "Normal"
-}
-
 ing_tier_dict = {
     "TIER_0": 0,
     "TIER_1": 1,
@@ -293,15 +298,16 @@ for item in items:
                 major_ids_map[major_ids_reverse_map[majid_name]]['description'] = desc
             majorIds.append(major_ids_reverse_map[majid_name])
         item['majorIds'] = majorIds
-    
-    if 'tier' in item and item['tier'] in rarity_dict:
-        item['tier'] = rarity_dict[item['tier']]
 
     if 'atkSpd' in item and item['atkSpd'] in attack_speed_dict:
         item['atkSpd'] = attack_speed_dict[item['atkSpd']]
 
     if 'lore' in item:
         item['lore'] = re.sub('<[^<]+?>', '', item['lore']).strip()
+
+    # why have you done this to us nepmia
+    if 'restrict' in item and item['restrict'] == "none":
+        del item['restrict']
 
     if not (item["name"] in id_map):
         while max_id in used_ids:

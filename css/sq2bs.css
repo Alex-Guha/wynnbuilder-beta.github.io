@@ -193,6 +193,13 @@ input.aspect-input:not(.is-invalid) {
     font-weight: bold;
 }
 
+.warning-yellow {
+    color: #ffdd57;
+    font-size: 1.875rem;
+    margin-bottom: 0;
+    font-weight: bold;
+}
+
 .scaled-item-icon {
     width: 6rem;
 }
@@ -259,7 +266,7 @@ input.aspect-input:not(.is-invalid) {
         width: 2.8rem;
     }
 
-    .warning {
+    .warning, .warning-yellow {
         font-size: .7rem;
     }
 
@@ -324,7 +331,7 @@ input.aspect-input:not(.is-invalid) {
         width: 2.8rem;
     }
 
-    .warning {
+    .warning, .warning-yellow {
         font-size: .7rem;
     }
 
@@ -389,7 +396,7 @@ input.aspect-input:not(.is-invalid) {
         width: 3.5rem;
     }
 
-    .warning {
+    .warning, .warning-yellow {
         font-size: .8rem;
     }
 

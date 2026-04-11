@@ -337,8 +337,13 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
     }
 
     // ── 13. Combo cycle time ─────────────────────────────────────────────────
+    // atkTier is a rolled ID — read from maxRolls rather than the item statMap directly.
+    const weapon_cycle_sm = new Map([
+        ['atkSpd', weaponSM.get('atkSpd')],
+        ['atkTier', weaponSM.get('maxRolls')?.get('atkTier') ?? 0]
+    ]);
     const combo_time = sp.mana_disabled ? 0 : ctx.compute_combo_cycle_time(
-        ctx._unroll_loops_pure ? ctx._unroll_loops_pure(parsedCombo, {}) : parsedCombo, weaponSM);
+        ctx._unroll_loops_pure ? ctx._unroll_loops_pure(parsedCombo, {}) : parsedCombo, weapon_cycle_sm);
 
     return {
         weapon: { statMap: weaponSM },

@@ -934,21 +934,6 @@
                 "class": "Mage",
                 "base_abil": "Distortion",
                 "dependencies": [
-                    "Distortion"
-                ],
-                "effects": [
-                    {
-                        "type": "stat_scaling",
-                        "slider": true,
-                        "slider_name": "Distortion",
-                        "slider_max_mult": 2
-                    }
-                ]
-            },
-            {
-                "class": "Mage",
-                "base_abil": "Distortion",
-                "dependencies": [
                     "Devitalize"
                 ],
                 "effects": [
@@ -969,62 +954,16 @@
                 "class": "Mage",
                 "base_abil": "Distortion",
                 "dependencies": [
-                    "Time Vortex"
+                    "Etheric Slash"
                 ],
                 "effects": [
                     {
                         "type": "stat_scaling",
                         "slider": true,
                         "slider_name": "Distortion",
-                        "requirement": 25,
                         "output": {
                             "type": "stat",
-                            "name": "damMult.Distortion:4.Damage per Tick"
-                        },
-                        "scaling": [
-                            -0.64
-                        ]
-                    }
-                ]
-            },
-            {
-                "class": "Mage",
-                "base_abil": "Distortion",
-                "dependencies": [
-                    "Time Vortex",
-                    "Influx Shift"
-                ],
-                "effects": [
-                    {
-                        "type": "stat_scaling",
-                        "slider": true,
-                        "slider_name": "Distortion",
-                        "requirement": 25,
-                        "output": {
-                            "type": "stat",
-                            "name": "damMult.Distortion:4.Damage per Tick"
-                        },
-                        "scaling": [
-                            -0.224
-                        ]
-                    }
-                ]
-            },
-            {
-                "class": "Mage",
-                "base_abil": "Distortion",
-                "dependencies": [
-                    "Vacuokinesis"
-                ],
-                "effects": [
-                    {
-                        "type": "stat_scaling",
-                        "slider": true,
-                        "slider_name": "Distortion",
-                        "requirement": 40,
-                        "output": {
-                            "type": "stat",
-                            "name": "damMult.Distortion:0.Vacuokinesis"
+                            "name": "damRaw"
                         },
                         "scaling": [
                             -0.4
@@ -1036,50 +975,12 @@
                 "class": "Mage",
                 "base_abil": "Distortion",
                 "dependencies": [
-                    "Vacuokinesis",
-                    "Influx Shift"
-                ],
-                "effects": [
-                    {
-                        "type": "stat_scaling",
-                        "slider": true,
-                        "slider_name": "Distortion",
-                        "requirement": 40,
-                        "output": {
-                            "type": "stat",
-                            "name": "damMult.Distortion:0.Vacuokinesis"
-                        },
-                        "scaling": [
-                            -0.14
-                        ]
-                    }
-                ]
-            },
-            {
-                "class": "Mage",
-                "base_abil": "Distortion",
-                "dependencies": [
                     "Meteor Shower"
                 ],
-                "effects": [
-                    {
-                        "type": "stat_scaling",
-                        "slider": true,
-                        "slider_name": "Distortion",
-                        "round": true,
-                        "output": [
-                            {
-                                "type": "prop",
-                                "abil": "Distortion",
-                                "name": "meteorCount"
-                            }
-                        ],
-                        "scaling": [
-                            -0.00833333333333
-                        ],
-                        "max": 2
-                    }
-                ]
+                "properties": {
+                    "meteorRate": -0.02
+                },
+                "effects": []
             }
         ]
     },
@@ -1178,12 +1079,12 @@
                         "target_part": "Damage per Tick",
                         "behavior": "overwrite",
                         "multipliers": [
-                            0,
-                            80,
-                            80,
-                            80,
-                            80,
-                            80
+                            66.66,
+                            66.66,
+                            66.66,
+                            66.66,
+                            66.66,
+                            66.66
                         ]
                     }
                 ]
@@ -2148,7 +2049,7 @@
     },
     "DAUNTLESS_INFERNO": {
         "displayName": "Dauntless Inferno",
-        "description": "Courage casts a series of 5 infernos that expand after the last, dealing [fire]125% each, and grants 20% resistance instead of a damage boost.",
+        "description": "Courage casts a series of 5 infernos that expand after the last, dealing [fire]150% each, and grants 20% resistance instead of a damage boost.",
         "abilities": [
             {
                 "class": "Any",
@@ -3005,6 +2906,26 @@
                         }
                     }
                 ]
+            },
+            {
+                "class": "Mage",
+                "base_abil": "Induced Instability",
+                "dependencies": [
+                    "Thunderstorm"
+                ],
+                "effects": [
+                    {
+                        "type": "raw_stat",
+                        "toggle": "Activate Unstable",
+                        "bonuses": [
+                            {
+                                "type": "stat",
+                                "name": "damMult.Unstable:3.Lightning Damage",
+                                "value": 400
+                            }
+                        ]
+                    }
+                ]
             }
         ]
     },
@@ -3355,7 +3276,7 @@
     },
     "REGICIDES_VANTAGE": {
         "displayName": "Regicide",
-        "description": "Your projectiles and abilities deal more damage the further away you are from your target, by 2% per block, up to a cap of 120%.",
+        "description": "Your projectiles and abilities deal more damage the further away you are from your target, by 2% per block, up to a cap of 120%",
         "abilities": [
             {
                 "class": "Archer",
@@ -3457,7 +3378,7 @@
         "abilities": []
     },
     "BURNT_SHADOWS": {
-        "displayName": "+Burnt Shadows",
+        "displayName": "Burnt Shadows",
         "description": "Buried Light is faster and is controlled by the direction you face. Enemies in the light instead take [fire]80% and recieve 10% more damage.",
         "abilities": [
             {
@@ -3599,12 +3520,38 @@
     "UNSTABLE_REACTION": {
         "displayName": "Unstable Reaction",
         "description": "Judrajim no longer ramps in damage after each hit. When it expires, it releases 115% of its potential in an explosion.",
-        "abilities": []
-    },
-    "": {
-        "displayName": "֎",
-        "description": "֎",
-        "abilities": []
+        "abilities": [
+            {
+                "class": "Mage",
+                "base_abil": "Arcane Transfer",
+                "dependencies": [
+                    "Judrajim"
+                ],
+                "properties": {},
+                "effects": [
+                    {
+                        "type": "raw_stat",
+                        "bonuses": [
+                            {
+                                "type": "stat",
+                                "name": "damMult.UnstableReaction:10.Scaled Tick",
+                                "value": 15
+                            },
+                            {
+                                "type": "stat",
+                                "name": "damMult.UnstableReaction:10.Ramp Tick",
+                                "value": 15
+                            },
+                            {
+                                "type": "stat",
+                                "name": "damMult.UnstableReaction:10.Ramp Base",
+                                "value": 15
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     },
     "LIVING_MUSEUM": {
         "displayName": "Living Museum",
@@ -3634,6 +3581,11 @@
     "ELVEN_CURRENT": {
         "displayName": "Elven Current",
         "description": "Escape can be re-cast twice in mid-air.",
+        "abilities": []
+    },
+    "TORMENT_LITURGY": {
+        "displayName": "Torment Liturgy",
+        "description": "Shadow Siphon now immediately refreshes Vanish when triggered.",
         "abilities": []
     }
 }
