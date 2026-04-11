@@ -445,9 +445,6 @@ function displayExpandedItem(item, parent_id) {
 
                     let p_elem;
                     let id_style;
-                    if (id === "atkTier") {
-                        id_style = item.get(id) > 0 ? "positive" : item.get(id) < 0 ? "negative" : undefined;
-                    }
                     // TODO: wtf is this if statement
                     if (!(item.get("tier") === "Crafted" && item.get("category") === "armor" && id === "hp") && (!skp_order.includes(id)) || (skp_order.includes(id) && item.get("tier") !== "Crafted" && parent_div.nodeName === "table")) { //skp warp
                         p_elem = displayFixedID(parent_div, id, item.get(id), elemental_format, id_style);
@@ -486,9 +483,6 @@ function displayExpandedItem(item, parent_id) {
             else if (rolledIDs.includes(id) &&
                 ((item.get("maxRolls") && item.get("maxRolls").get(id))
                     || (item.get("minRolls") && item.get("minRolls").get(id)))) {
-                if (last_id_type === "fixed") {
-                    parent_div.appendChild(make_elem('div', ["row", "my-1"]));
-                }
                 let style = "positive";
                 if (item.get("minRolls").get(id) < 0) {
                     style = "negative";
@@ -496,18 +490,33 @@ function displayExpandedItem(item, parent_id) {
                 if (reversedIDs.includes(id)) {
                     style === "positive" ? style = "negative" : style = "positive";
                 }
-                if (fix_id) {
+                if (!fix_id && item.get("minRolls").get(id) === item.get("maxRolls").get(id)) {
+                    // Static rolled ID (e.g. atkTier with {static: true}) — display
+                    // as fixed above the divider, grouped with other fixed IDs.
                     p_elem = document.createElement("div");
                     p_elem.classList.add("col", "text-nowrap");
                     displayFixedID(p_elem, id, item.get("minRolls").get(id), elemental_format, style);
                     parent_div.appendChild(p_elem);
+                    last_command = id;
+                    last_id_type = "fixed";
                 }
                 else {
-                    let row = displayRolledID(item, id, elemental_format);
-                    parent_div.appendChild(row);
+                    if (last_id_type === "fixed") {
+                        parent_div.appendChild(make_elem('div', ["row", "my-1"]));
+                    }
+                    if (fix_id) {
+                        p_elem = document.createElement("div");
+                        p_elem.classList.add("col", "text-nowrap");
+                        displayFixedID(p_elem, id, item.get("minRolls").get(id), elemental_format, style);
+                        parent_div.appendChild(p_elem);
+                    }
+                    else {
+                        let row = displayRolledID(item, id, elemental_format);
+                        parent_div.appendChild(row);
+                    }
+                    last_command = id;
+                    last_id_type = "rolled";
                 }
-                last_command = id;
-                last_id_type = "rolled";
             } else {
                 // :/
             }
