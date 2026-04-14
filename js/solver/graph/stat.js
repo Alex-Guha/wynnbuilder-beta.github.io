@@ -63,14 +63,14 @@ function displaySolverSummary(parent_id, stats) {
     const defStats = getDefenseStats(stats);
     // defStats: [totalHp, [ehp_agi, ehp_noagi], totalHpr, [ehpr…], [def%, agi%], [eledefs…]]
     parent.append(
-        row('Total HP:',         Math.round(parseFloat(defStats[0])), 'Health'),
-        row('Effective HP:',     Math.round(parseFloat(defStats[1][0]))),
-        row('HP Regen (Total):', Math.round(parseFloat(defStats[2])), 'Health'),
+        row('Total HP:', Math.round(parseFloat(defStats[0])), 'Health'),
+        row('Effective HP:', Math.round(parseFloat(defStats[1][0]))),
+        row('HP Regen (Final):', Math.round(parseFloat(defStats[2])), 'Health'),
         Object.assign(document.createElement('hr'), { className: 'row my-2' }),
     );
 
     const mr = stats.get('mr') ?? 0;
-    if (mr) parent.append(row('Mana Regen:', mr + '/5s', 'wDam'));
+    parent.append(row('Total Mana Regen:', (mr + BASE_MANA_REGEN) + '/5s', 'wDam'));
 
     const ms = stats.get('ms') ?? 0;
     if (ms) {
@@ -80,6 +80,10 @@ function displaySolverSummary(parent_id, stats) {
         const mph = Math.round(ms / 3.0 / baseDamageMultiplier[adjAtkSpd] * 10) / 10;
         parent.append(row('\u279C Mana per hit:', mph, 'wDam'));
     }
+
+    const maxMana = stats.get('maxMana') ?? 0;
+    const int_mana = Math.floor(skillPointsToPercentage(stats.get('int') ?? 0) * 100);
+    parent.append(row('Total Mana:', 100 + maxMana + int_mana, 'wDam'));
 
     const ls = stats.get('ls') ?? 0;
     if (ls) {
