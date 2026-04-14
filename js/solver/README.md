@@ -9,6 +9,8 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 # Todo
 
 ### Bugs
+- Puppet Explosion is fixed cap rn
+- Totem is considered a DPS spell, but the qty input is counting as multiple spell casts.
 
 ### Necessary Improvements
 - True DPS calculation

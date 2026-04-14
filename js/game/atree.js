@@ -110,6 +110,12 @@ stat_scaling: {
   slider_max_mult: Optional[float]          // Multiplicative factor applied to slider_max after all additive
                                             //     slider_max contributions are merged. Multiple sources multiply together.
   slider_default: Optional[int]             // affected by behavior
+  combo_only: Optional[bool]                // default: false. When true, the slider is exposed only through
+                                            //     the solver's combo boost menu (js/solver/combo/boost.js)
+                                            //     and is NOT rendered on the atree-page sliders area.
+                                            //     atree_compute_scaling falls back to slider_default for
+                                            //     these sliders when no DOM state is present, so builder
+                                            //     damage calcs reflect the intended baseline.
   inputs: Optional[list[scaling_target]]    // List of things to scale. Omit this if using slider
 
   output: Optional[scaling_target | List[scaling_target]] // One of the following:
@@ -634,7 +640,9 @@ const atree_make_interactives = new (class extends ComputeNode {
         let to_process = [];
         for (const [abil_id, ability] of merged_abils) {
             for (const effect of ability.effects) {
-                if (effect['type'] === "stat_scaling" && effect['slider'] === true) {
+                // combo_only sliders are exposed only through the solver's combo boost
+                // menu (js/solver/combo/boost.js) and must not render on the atree page.
+                if (effect['type'] === "stat_scaling" && effect['slider'] === true && !effect.combo_only) {
                     to_process.push([effect, abil_id, ability]);
                 }
                 if (effect['type'] === "raw_stat" && effect['toggle']) {

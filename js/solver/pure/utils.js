@@ -86,7 +86,11 @@ function atree_compute_scaling(atree_merged, pre_scale_stats, button_states, sli
                 let { positive = true, round = true } = effect;
                 if (slider) {
                     if (behavior == "modify" && !slider_states.has(effect.slider_name)) continue;
-                    const slider_val = slider_states.get(effect.slider_name) ?? 0;
+                    // combo_only sliders have no DOM input on the atree page, so
+                    // slider_states won't contain them. Fall back to slider_default
+                    // so builder-side damage calcs reflect the intended baseline.
+                    const slider_val = slider_states.get(effect.slider_name)
+                        ?? (effect.combo_only ? (effect.slider_default ?? 0) : 0);
                     if (requirement > slider_val) continue;
                     const input_value = slider_val - requirement;
                     if (multiplicative) {
