@@ -1,7 +1,8 @@
 *.swp
 *.bat
 *.json
-!data/*/*.json
+!data/**/*.json
+data/temp/
 sets/
 
 .idea/

@@ -255,7 +255,7 @@ if __name__ == "__main__":
                 print("\nWARNING: There's a change in data between old and new data. please make sure that this is intended before writing.")
 
     if write_premission:
-        with open("encoding_consts.json", "w") as outfile:
+        with open("../data/temp/encoding_consts.json", "w") as outfile:
             json.dump(bit_len_map, outfile, indent=2)
         with open(f"../data/{version}/encoding_consts.json", "w") as outfile:
             json.dump(bit_len_map, outfile)

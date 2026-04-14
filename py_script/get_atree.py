@@ -184,6 +184,6 @@ if __name__ == "__main__":
                         description = stylize_description(ability["description"])
                         old_ability["desc"] = description
 
-    with open("../data/baseline/atree_constants.json", "w") as output_file:
+    with open("../data/temp/atree_constants.json", "w") as output_file:
         json.dump(new_tree_data, output_file, indent=4)
 
