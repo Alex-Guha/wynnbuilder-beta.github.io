@@ -228,6 +228,10 @@ function _build_solver_snapshot(restrictions) {
     if (!has_real_guild_tome) {
         const gtome_mode = restrictions.guild_tome ?? 0;
         if (gtome_mode === 1) {
+            // TODO: Standard mode currently inflates sp_budget by +4 with no
+            // per-attribute constraint, allowing the solver to split the bonus
+            // across attributes (e.g. [102,102,0,0,0]).
+
             // Standard: +4 freely assignable SP (solver picks optimal distribution)
             sp_budget = levelToSkillPoints(level) + 4;
         } else if (gtome_mode === 2) {

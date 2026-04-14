@@ -9195,8 +9195,7 @@
             },
             "properties": {
                 "meteorCount": 1,
-                "meteorRate": 0.05,
-                "meteor_attack_frequency": 4
+                "meteorRate": 0.05
             },
             "effects": [
                 {
@@ -9212,16 +9211,8 @@
                 {
                     "type": "add_spell_prop",
                     "base_spell": 3,
-                    "target_part": "Meteor Shower DPS",
-                    "display": "Meteor Shower DPS",
-                    "hits": {
-                        "Total Damage": "Distortion.meteor_attack_frequency"
-                    }
-                },
-                {
-                    "type": "add_spell_prop",
-                    "base_spell": 3,
                     "target_part": "Total Meteor Shower",
+                    "display": "Total Meteor Shower",
                     "hits": {
                         "Total Damage": "Distortion.meteorCount"
                     }
