@@ -121,10 +121,21 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
             }
         }
 
+        // Flat damage: for DPS spells, any sibling root damage parts outside the
+        // DPS chain (e.g. Totem + Totemic Smash's "Smash Damage", Puppet Master +
+        // Exploding Puppets' "Puppet Explosion") contribute to total damage but
+        // must not be qty-scaled (qty represents DPS duration, not cast count).
+        let flat_per_cast = 0;
+        const dps_chain_root = dps_info?.dps_chain_root
+            ?? (spell_is_dps(mod_spell) ? _find_dps_display_root(mod_spell) : null);
+        if (dps_chain_root) {
+            flat_per_cast = computeSpellFlatDamage(stats, weapon_sm, mod_spell, crit_chance, dps_chain_root);
+        }
+
         const eff_qty = row.is_melee_time
             ? compute_melee_time_hits(qty, base_stats, SPELL_CAST_DELAY, row.melee_cd_override)
             : qty;
-        const row_damage = dmg_excl ? 0 : per_cast * eff_qty;
+        const row_damage = dmg_excl ? 0 : (per_cast * eff_qty + flat_per_cast);
         const heal_per_cast = computeSpellHealingTotal(stats, mod_spell);
         const row_healing = heal_per_cast * eff_qty;
 
@@ -150,6 +161,7 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
                 stat_deltas: Object.keys(_deltas).length ? _deltas : undefined,
                 dps: eff_dps_name ? { name: eff_dps_name, hits: eff_dps_hits, preset: !!row.dps_per_hit_name } : undefined,
                 per_cast: Math.round(per_cast),
+                flat_per_cast: flat_per_cast ? Math.round(flat_per_cast) : undefined,
                 row_damage: Math.round(row_damage),
                 heal_per_cast: heal_per_cast ? Math.round(heal_per_cast) : undefined,
                 row_healing: row_healing ? Math.round(row_healing) : undefined,
@@ -166,7 +178,7 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
         const spell_cost = (detailed && mod_spell.cost != null)
             ? getSpellCost(stats, mod_spell) : null;
 
-        per_row.push({ damage: per_cast, healing: heal_per_cast, full_display, spell_cost, dps_info });
+        per_row.push({ damage: per_cast, flat_damage: flat_per_cast, healing: heal_per_cast, full_display, spell_cost, dps_info });
     }
 
     if (debug) {

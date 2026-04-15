@@ -167,8 +167,13 @@ function evalSpellBuilderAvg(spell, stats, weaponSM, crit_chance, displayPartNam
     let display_result = target
         ? results.find(r => r?.name === target)
         : null;
-    if (!display_result) {
-        display_result = [...results].reverse().find(r => r?.display && r?.type === 'damage');
+    if (!display_result || display_result.type !== 'damage') {
+        // Prefer structural DPS root (covers atree-overridden display).
+        ctx.__spell_tmp2 = spell;
+        const dps_name = vm.runInContext('_find_dps_root_name(__spell_tmp2)', ctx);
+        delete ctx.__spell_tmp2;
+        display_result = (dps_name && results.find(r => r?.name === dps_name))
+            ?? [...results].reverse().find(r => r?.display && r?.type === 'damage');
     }
     if (!display_result || display_result.type !== 'damage') return 0;
 

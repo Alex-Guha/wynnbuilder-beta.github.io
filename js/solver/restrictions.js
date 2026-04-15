@@ -329,7 +329,8 @@ function get_restrictions() {
         if (!stat_input || !op_select || !val_input) continue;
         const stat_key = stat_input.dataset?.statKey || null;
         const stat_label = stat_input.value.trim();
-        const value = parseFloat(val_input.value);
+        const raw = val_input.value.trim();
+        const value = raw === '' ? 0 : parseFloat(raw);
         if ((!stat_key && !stat_label) || isNaN(value)) continue;
         stat_thresholds.push({
             stat: stat_key || stat_label,
@@ -515,7 +516,8 @@ function _validate_restriction_contradictions() {
         if (!stat_input || !op_select || !val_input) continue;
         const stat_key = stat_input.dataset?.statKey;
         if (!stat_key) continue;
-        const value = parseFloat(val_input.value);
+        const raw = val_input.value.trim();
+        const value = raw === '' ? 0 : parseFloat(raw);
         if (isNaN(value)) continue;
         if (!by_stat.has(stat_key)) by_stat.set(stat_key, []);
         by_stat.get(stat_key).push({ op: op_select.value, value, val_input });

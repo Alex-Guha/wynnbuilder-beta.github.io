@@ -279,7 +279,7 @@ def main():
                 abilDict[classType][abil["display_name"]] = _id
                 _id += 1
 
-        with open("atree_ids.json", "w", encoding='utf-8') as id_dest:
+        with open("../data/temp/atree_ids.json", "w", encoding='utf-8') as id_dest:
             json.dump(abilDict, id_dest, ensure_ascii=False, indent=4)
 
         translate_all(abilDict, data)
@@ -291,7 +291,7 @@ def main():
                 for abil in v['abilities']:
                     clazz = abil['class']
                     translate_abil(abilDict[clazz], abil, tree=False)
-            with open("major_ids_min.json", "w", encoding='utf-8') as maj_id_out:
+            with open("../data/temp/major_ids_min.json", "w", encoding='utf-8') as maj_id_out:
                 json.dump(maj_id_dat, maj_id_out, ensure_ascii=False, separators=(',', ':'))
 
         with open("../data/baseline/aspects.json") as aspects_file:
@@ -301,10 +301,10 @@ def main():
                     for aspect_tier in aspect['tiers']:
                         for abil in aspect_tier['abilities']:
                             translate_abil(abilDict[clazz], abil, tree=False)
-            with open("aspects_min.json", "w", encoding='utf-8') as aspects_out:
+            with open("../data/temp/aspects_min.json", "w", encoding='utf-8') as aspects_out:
                 json.dump(aspect_dat, aspects_out, ensure_ascii=False, separators=(',', ':'))
-        
-        with open('atree_constants_min.json', 'w', encoding='utf-8') as json_dest:
+
+        with open('../data/temp/atree_constants_min.json', 'w', encoding='utf-8') as json_dest:
             json.dump(data, json_dest, ensure_ascii=False, separators=(',', ':'))
 
 if __name__ == "__main__":
