@@ -595,6 +595,8 @@ const CUSTOM_WEIGHT_TARGETS = [
     { key: 'poison', label: 'Poison' },
     { key: 'lb', label: 'Loot Bonus' },
     { key: 'xpb', label: 'XP Bonus' },
+    // Appended (index 8) — do NOT reorder earlier entries; target_index is URL-encoded.
+    { key: 'combo_damage', label: 'Combo Damage' },
 ];
 
 let _custom_weight_row_counter = 0;
@@ -606,6 +608,11 @@ function solver_target_changed() {
     const target = document.getElementById('solver-target')?.value;
     const section = document.getElementById('custom-weight-section');
     if (section) section.style.display = target === 'custom' ? '' : 'none';
+    // Re-render the combo total panel so the label/value switch between
+    // "Combo DPS: N DPS" and "Combo Total: N".
+    if (typeof solver_combo_total_node !== 'undefined' && solver_combo_total_node) {
+        solver_combo_total_node.mark_dirty().update();
+    }
 }
 
 function _cw_round_weight(e) {

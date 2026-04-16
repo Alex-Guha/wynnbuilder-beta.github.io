@@ -340,8 +340,16 @@ class SolverComboTotalNode extends ComputeNode {
         }
 
         if (total_elem) {
-            const dps = this._auto_cycle_time > 0 ? total / this._auto_cycle_time : total;
-            total_elem.textContent = Math.round(dps).toLocaleString() + ' DPS';
+            const target = document.getElementById('solver-target')?.value ?? 'combo_dps';
+            const label_elem = document.getElementById('combo-total-label');
+            if (target === 'combo_damage') {
+                if (label_elem) label_elem.textContent = 'Combo Total:';
+                total_elem.textContent = Math.round(total).toLocaleString();
+            } else {
+                if (label_elem) label_elem.textContent = 'Combo DPS:';
+                const dps = this._auto_cycle_time > 0 ? total / this._auto_cycle_time : total;
+                total_elem.textContent = Math.round(dps).toLocaleString() + ' DPS';
+            }
         }
 
         this._update_mana_display(base_stats, sim_result);

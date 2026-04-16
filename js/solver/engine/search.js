@@ -537,6 +537,7 @@ function _format_compact(n) {
 
 const SOLVER_TARGET_LABELS = {
     combo_dps: '',
+    combo_damage: 'Damage: ',
     ehp: 'EHP: ',
     ehpr: 'EHPR: ',
     total_healing: 'Healing: ',
@@ -1466,7 +1467,9 @@ function start_solver_search() {
         if (err_el) err_el.textContent = 'Set a weapon before solving.';
         return;
     }
-    const _combo_required = snap.scoring_target === 'combo_dps' || snap.scoring_target === 'total_healing';
+    const _combo_required = snap.scoring_target === 'combo_dps'
+        || snap.scoring_target === 'combo_damage'
+        || snap.scoring_target === 'total_healing';
     if (_combo_required && snap.parsed_combo.length === 0) {
         if (err_el) err_el.textContent = 'Add combo rows with spells before solving.';
         return;

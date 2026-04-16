@@ -46,8 +46,9 @@ function _eval_sensitivity_combo_healing(combo_base, snap) {
  */
 function _sensitivity_eval_score(combo_base, snap) {
     return eval_score_dispatch(snap.scoring_target, combo_base,
-        () => {
+        (mode) => {
             const dmg = _eval_sensitivity_combo_damage(combo_base, snap).total_damage;
+            if (mode === 'total') return dmg;
             const combo_time = compute_combo_cycle_time(
                 snap.parsed_combo, snap.weapon_sm, combo_base.get('atkTier') ?? 0);
             return combo_time > 0 ? dmg / combo_time : dmg;

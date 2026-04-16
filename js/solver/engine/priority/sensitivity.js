@@ -53,9 +53,9 @@ function _compute_sensitivity_weights(snap, locked, pools) {
     // 6. Fallback check: zero baseline for combo_dps means no damage at all
     //    (e.g. no combo rows, or weapon does 0 damage). Other targets (spd, poison)
     //    can legitimately start at 0 with few locked items.
-    if (baseline_score === 0 && target === 'combo_dps') {
+    if (baseline_score === 0 && (target === 'combo_dps' || target === 'combo_damage')) {
         if (SOLVER_DEBUG_SENSITIVITY) {
-            console.log('[solver][sensitivity] baseline combo_dps = 0, falling back to legacy weights');
+            console.log(`[solver][sensitivity] baseline ${target} = 0, falling back to legacy weights`);
         }
         return null;
     }
@@ -409,7 +409,7 @@ function _augment_sensitivity_weights(result, snap, restrictions, pools) {
         const has_melee = (snap.parsed_combo ?? []).some(
             r => (r.spell?.scaling ?? 'spell') === 'melee');
 
-        if (has_melee && target === 'combo_dps' && combo_base && pools) {
+        if (has_melee && (target === 'combo_dps' || target === 'combo_damage') && combo_base && pools) {
             // Compute corrected ms from pool medians
             const pool_ms_medians = [];
             for (const pool of Object.values(pools)) {

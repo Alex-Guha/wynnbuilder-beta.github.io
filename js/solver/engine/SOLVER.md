@@ -41,7 +41,7 @@ Key pieces captured:
 - **Radiance boost** — floating multiplier (1.0–1.4) based on Radiance / Divine Honor / Shine / Judgement toggles.
 - **Parsed combo** — the ordered list of `{qty, spell, boost_tokens, dmg_excl, mana_excl, recast_penalty_per_cast}` rows. `dmg_excl` skips the row in damage scoring; `mana_excl` skips it in mana cost calculation. Powder-special spells are synthesised and inserted. Pseudo-spell rows (`cancel_bakals`, `mana_reset`, `LOOP_START`, `LOOP_END`) are included for state tracking. Loop brackets enclose repeated body rows; `LOOP_START` carries a condition (`{type, value}` — fixed count or `until_oom`), and iteration counts are determined at evaluation time via the mana/HP simulation. **Add Flat Mana** rows use a short encoding (v7+): qty can be negative (dmg_excl bit repurposed as sign), and no hits/boosts/timing fields are written. **Recast penalties** are precomputed per-row based on the combo sequence (consecutive same-spell casts incur +5 mana per recast).
 - **Boost registry** — built from `build_combo_boost_registry`; maps boost token names to their stat/prop contributions.
-- **Scoring target** — from `#solver-target` dropdown: `combo_dps` (default), `ehp`, `ehp_no_agi`, `total_hp`, `hpr`, `ehpr`, `total_healing`, `spd`, `poison`, `lb`, `xpb`.
+- **Scoring target** — from `#solver-target` dropdown: `combo_dps` (default), `combo_damage`, `ehp`, `ehp_no_agi`, `total_hp`, `hpr`, `ehpr`, `total_healing`, `spd`, `poison`, `lb`, `xpb`.
 - **Mana constraint** — `combo_time` (seconds) and `allow_downtime` flag. Additional mana can be injected via "Add Flat Mana" combo rows.
 - **Blood Pact** — when active (`hp_casting = true`), spells cost HP instead of mana. The snapshot includes `health_config` (extracted from atree) so workers can dynamically compute blood pact bonuses and corruption percentages per candidate. Calculated boost tokens (Blood Pact %, Corrupted) are stripped from parsed_combo rows — workers recompute them dynamically.
 - **Spell base costs** — `spell_base_costs` for final spell cost restrictions.
@@ -240,6 +240,7 @@ Checks all restrictions against fully assembled stats. EHP, EHP-no-agi, total HP
 ### Scoring (`_eval_score`)
 Dispatches based on `scoring_target`:
 - **`combo_dps`**: calls `compute_combo_damage_totals` (unified function in pure/engine.js) with all combo rows, boost registry, and atree, then divides by per-build `compute_combo_cycle_time()` to produce DPS. Blood Pact builds inject dynamically-computed blood pact bonus and corruption % tokens per row from the cached simulation.
+- **`combo_damage`**: same as `combo_dps` but returns raw `total_damage` per combo cycle (no division by cycle time). Useful when cycle timing is irrelevant (e.g. burst / single-opportunity scoring).
 - **`total_healing`**: per-row `computeSpellHealingTotal`.
 - **`ehp`**: `getDefenseStats()[1][0]` (agility-weighted).
 - **`ehp_no_agi`**: `getDefenseStats()[1][1]`.

@@ -268,7 +268,7 @@ function _check_thresholds(stats, thresholds) {
     return check_thresholds(stats, thresholds, _cfg.spell_base_costs);
 }
 
-function _eval_combo_damage(combo_base, debug) {
+function _eval_combo_damage(combo_base, debug, mode) {
     const result = eval_combo_damage_with_bp(combo_base, _cfg.weapon_sm, _cfg.parsed_combo, {
         hp_casting: _cfg.hp_casting,
         has_dynamic_sliders: _cfg.has_dynamic_sliders,
@@ -285,6 +285,7 @@ function _eval_combo_damage(combo_base, debug) {
     });
     _cached_hp_sim = null;  // consume cache
     const total_damage = result.total_damage;
+    if (mode === 'total') return total_damage;
     const combo_time = compute_combo_cycle_time(
         _cfg.parsed_combo, _cfg.weapon_sm, combo_base.get('atkTier') ?? 0);
     return combo_time > 0 ? total_damage / combo_time : total_damage;
@@ -319,7 +320,7 @@ function _eval_combo_healing(combo_base) {
  */
 function _eval_score(combo_base, thresh_stats) {
     return eval_score_dispatch(_cfg.scoring_target, combo_base,
-        () => _eval_combo_damage(combo_base),
+        (mode) => _eval_combo_damage(combo_base, false, mode),
         () => _eval_combo_healing(combo_base),
         thresh_stats ?? _assemble_threshold_stats(combo_base),
         _cfg.custom_weights);
@@ -533,7 +534,7 @@ function _run_level_enum() {
         const remaining = sp_budget - assigned_sp;
 
         const target = _cfg.scoring_target ?? 'combo_dps';
-        const need_thresh = (target !== 'combo_dps' && target !== 'total_healing');
+        const need_thresh = (target !== 'combo_dps' && target !== 'combo_damage' && target !== 'total_healing');
 
         function _trial_score() {
             const cb = _assemble_combo_stats(build_sm, total_sp, weapon_sm);
@@ -699,8 +700,9 @@ function _run_level_enum() {
         const combo_base = _assemble_combo_stats(build_sm, total_sp, weapon_sm);
 
         // Compute thresh_stats once: used for threshold gate and non-damage scoring
+        const _tgt = _cfg.scoring_target ?? 'combo_dps';
         const need_thresh = restrictions.stat_thresholds.length > 0
-            || (_cfg.scoring_target ?? 'combo_dps') !== 'combo_dps';
+            || (_tgt !== 'combo_dps' && _tgt !== 'combo_damage');
         let thresh_stats = need_thresh ? _assemble_threshold_stats(combo_base) : null;
 
         // Threshold check

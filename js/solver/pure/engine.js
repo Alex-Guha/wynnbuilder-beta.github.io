@@ -473,17 +473,21 @@ function greedy_sp_loop(base_sp, total_sp, remaining, cap_total, trial_score_fn)
  */
 function eval_score_dispatch(scoring_target, combo_base, eval_damage_fn, eval_healing_fn, thresh_stats, custom_weights) {
     const target = scoring_target ?? 'combo_dps';
-    if (target === 'combo_dps') return eval_damage_fn();
+    if (target === 'combo_dps') return eval_damage_fn('dps');
+    if (target === 'combo_damage') return eval_damage_fn('total');
     if (target === 'total_healing') return eval_healing_fn();
     if (target === 'custom' && custom_weights && custom_weights.length > 0) {
         let sum = 0;
-        let _damage = undefined, _healing = undefined;
+        let _dps = undefined, _total_dmg = undefined, _healing = undefined;
         const stats = thresh_stats ?? combo_base;
         for (const { target: sub, weight } of custom_weights) {
             let sub_score;
             if (sub === 'combo_dps') {
-                if (_damage === undefined) _damage = eval_damage_fn();
-                sub_score = _damage;
+                if (_dps === undefined) _dps = eval_damage_fn('dps');
+                sub_score = _dps;
+            } else if (sub === 'combo_damage') {
+                if (_total_dmg === undefined) _total_dmg = eval_damage_fn('total');
+                sub_score = _total_dmg;
             } else if (sub === 'total_healing') {
                 if (_healing === undefined) _healing = eval_healing_fn();
                 sub_score = _healing;

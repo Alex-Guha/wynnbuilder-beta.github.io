@@ -1093,6 +1093,7 @@
                             <select id="solver-target" class="solver-select form-select form-select-sm" style="flex:1"
                                 title="What the solver optimizes for" onchange="solver_target_changed()">
                                 <option value="combo_dps">Combo DPS</option>
+                                <option value="combo_damage">Combo Damage</option>
                                 <option value="ehp">Effective HP</option>
                                 <option value="ehpr">Effective HPR</option>
                                 <option value="total_healing">Total Healing</option>
@@ -1222,7 +1223,7 @@
                     <!-- ── Combo dps + time/mana ── -->
                     <div class="px-2 pb-2 border-top border-dark-7">
                         <div class="d-flex align-items-center gap-2 mt-2 combo-total-row">
-                            <span class="fw-bold">Combo DPS:</span>
+                            <span class="fw-bold" id="combo-total-label">Combo DPS:</span>
                             <span class="Damage fw-bold" id="combo-total-avg">—</span>
                             <span class="text-secondary small">(avg)</span>
                             <div class="ms-auto">
