@@ -190,7 +190,7 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
 
 // ── Shared engine helpers ───────────────────────────────────────────────────
 // Used by both the search worker and the main-thread evaluators
-// (item_priority.js, search.js).
+// (priority/sensitivity.js, search.js).
 
 /**
  * Check stat threshold constraints (ge/le).
@@ -273,7 +273,7 @@ function eval_combo_healing(parsed_combo, combo_base, boost_registry, scratch_ro
 /**
  * Evaluate combo damage with full Blood Pact flow.
  * Handles: hp_casting check → simulate → extract slider names → inject boosts → damage totals.
- * Shared by worker, item_priority, and search.js debug path.
+ * Shared by worker, priority/sensitivity, and search.js debug path.
  *
  * @param {Map} combo_base - Aggregated+scaled build statMap
  * @param {Map} weapon_sm - Weapon statMap

@@ -1,6 +1,6 @@
 # Solver Search — Logic Flow
 
-This document describes the abstract logic of the WynnSolver search pipeline, from user click to ranked results. The code spans four files: `engine/search.js` (main thread orchestration), `engine/item_priority.js` (sensitivity weights, dominance pruning, priority scoring), `engine/worker.js` (per-worker enumeration), and `engine/worker_shims.js` (DOM-free incremental stat helpers).
+This document describes the abstract logic of the WynnSolver search pipeline, from user click to ranked results. The code spans: `engine/search.js` (main thread orchestration), `engine/priority/` (sensitivity weights, priority scoring, and dominance pruning — split across `helpers.js`, `sensitivity_baseline.js`, `sensitivity.js`, `priority.js`, `dominance.js`), `engine/worker.js` (per-worker enumeration), and `engine/worker_shims.js` (DOM-free incremental stat helpers).
 
 The solver searches through a priority-ordered tree for builds that maximize a scoring target. Item priority is determined by **sensitivity-based weights**: the main thread builds a baseline build, perturbs each stat, and measures how much the score changes. Items with stats that strongly influence the score are ranked higher. This ensures the best builds surface early in the level-based enumeration.
 
@@ -328,8 +328,8 @@ All default to `false`. Flip in `js/solver/debug_toggles.js`:
 
 | Flag | Subsystem | Output |
 |------|-----------|--------|
-| `SOLVER_DEBUG_PRIORITY` | item_priority.js (main) | Effective weights, priority scores, pool ordering (top 20 per slot) |
-| `SOLVER_DEBUG_DOMINANCE` | item_priority.js (main) | Per-slot pruning counts, dominator/dominatee pairs, stat comparisons |
-| `SOLVER_DEBUG_SENSITIVITY` | item_priority.js (main) | Baseline stats/score, per-stat sensitivities sorted by magnitude, SP sensitivities, constraint/mana bonuses, dominance classification |
+| `SOLVER_DEBUG_PRIORITY` | priority/priority.js (main) | Effective weights, priority scores, pool ordering (top 20 per slot) |
+| `SOLVER_DEBUG_DOMINANCE` | priority/dominance.js (main) | Per-slot pruning counts, dominator/dominatee pairs, stat comparisons |
+| `SOLVER_DEBUG_SENSITIVITY` | priority/sensitivity.js, priority/dominance.js (main) | Baseline stats/score, per-stat sensitivities sorted by magnitude, SP sensitivities, constraint/mana bonuses, dominance classification |
 | `SOLVER_DEBUG_WORKER` | worker.js (worker 0) | Leaf breakdown: precheck/ehp/sp/threshold/mana/hp rejection counts, SP prune count, scored count, leaf timing |
 | `SOLVER_DEBUG_COMBO` | node.js, search.js, worker.js, pure/engine.js | Full row-by-row combo damage computation, sim results, per-cast damage, totals. Re-evaluates global top-1 on main thread with debug logging |

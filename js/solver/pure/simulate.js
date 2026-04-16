@@ -165,7 +165,7 @@ const DEFAULT_HEALTH_CONFIG = Object.freeze({
 
 /**
  * Extract bp_slider_name and state_slider_names from a health_config.
- * DOM-free, used by worker init, search.js debug path, and item_priority.js.
+ * DOM-free, used by worker init, search.js debug path, and priority/helpers.js.
  *
  * @param {Object|null} health_config - From extract_health_config()
  * @returns {{ bp_slider_name: string|null, state_slider_names: Object }}
@@ -183,7 +183,7 @@ function extract_slider_names(health_config) {
  * Compute per-cast recast penalties for a parsed combo sequence.
  * Mutates each row in-place, setting:
  *   - recast_penalties: number[] — per-cast penalty for each cast in the row
- *   - recast_penalty_per_cast: number — average (backward compat for item_priority)
+ *   - recast_penalty_per_cast: number — average (backward compat for priority/sensitivity)
  * DOM-free. Called by search.js (snapshot builder) and combo/simulate.js (page).
  *
  * @param {Object[]} rows - Each row must have:
