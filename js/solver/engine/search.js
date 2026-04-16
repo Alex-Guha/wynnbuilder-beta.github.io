@@ -1519,7 +1519,7 @@ function start_solver_search() {
     ));
 
     // Pre-compute sensitivity-based weights for pruning and priority sorting.
-    const dmg_weights = _build_dmg_weights(snap, locked, pools);
+    const dmg_weights = _compute_sensitivity_weights(snap, locked, pools);
     _solver_state.dmg_weights = dmg_weights;
     _display_priority_weights();
 

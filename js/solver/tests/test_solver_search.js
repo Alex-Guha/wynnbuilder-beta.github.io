@@ -649,12 +649,10 @@ async function runSolverTest(snapName) {
     }
 
     // 7. Sensitivity weights, dominance pruning, priority sorting
-    const dmgWeights = ctx._build_dmg_weights(solverSnap, locked, freePools);
-    if (dmgWeights) {
-        const domStats = ctx._build_dominance_stats(solverSnap, dmgWeights, solverSnap.restrictions);
-        ctx._prune_dominated_items(freePools, domStats);
-        ctx._prioritize_pools(freePools, dmgWeights);
-    }
+    const dmgWeights = ctx._compute_sensitivity_weights(solverSnap, locked, freePools);
+    const domStats = ctx._build_dominance_stats(solverSnap, dmgWeights, solverSnap.restrictions);
+    ctx._prune_dominated_items(freePools, domStats);
+    ctx._prioritize_pools(freePools, dmgWeights);
 
     // Freshness check: locked item stats + compress hash (has free slots).
     const currentLockedStats = extractLockedItemStats(locked);

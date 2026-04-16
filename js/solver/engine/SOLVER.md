@@ -91,14 +91,18 @@ Perturbation is done at the combo_base level (post-atree, post-radiance), which 
 
 For each of the 5 SP types, perturb total_sp[i] by the pool-calibrated SP delta and measure score change. Dampened by `_SP_SENSITIVITY_DAMPEN` (0.4) because SP provisions don't translate 1:1 to actual allocated SP.
 
-### 3d. Augmentation (`_augment_sensitivity_weights`)
+### 3d. Augmentation
 
-- **Constraint bonuses**: for each `≥` restriction on a direct stat with a deficit vs. the baseline, add a bonus proportional to `deficit / threshold × max_weight × _CONSTRAINT_WEIGHT_FRACTION`.
-- **Mana sustainability**: when `combo_time > 0` and mana is tight (estimated deficit > 0), add priority-only bonuses for `mr`, `ms` (if melee), `maxMana`, and int SP sensitivity.
+After raw sensitivities are computed, four focused helpers run in sequence to layer in constraint and mana awareness:
 
-### 3e. Fallback
+- `_apply_direct_constraint_bonuses` — for each `≥` restriction on a direct stat with a deficit vs. the baseline, add a bonus proportional to `deficit / threshold × max_abs × _CONSTRAINT_WEIGHT_FRACTION`.
+- `_apply_indirect_constraint_bonuses` — for indirect stats (`ehp`, `ehpr`, `total_hp`, `hpr`), perturb each contributor stat and each relevant SP index, then boost proportionally.
+- `_apply_mana_sustainability_bonuses` — when `combo_time > 0` and mana is tight, add priority-only bonuses for `mr`, `ms` (if melee), `maxMana`, int SP, and spell-cost reduction (`spRaw`/`spPct`).
+- `_apply_atktier_mana_adjustment` — corrects atkTier's weight for mana cost/benefit via pool-median `ms` when DPS scoring ignores the mana path.
 
-If baseline score is zero for `combo_dps` target (e.g. no combo rows), falls back to `_build_dmg_weights_legacy` — hand-tuned heuristic weights.
+### 3e. Zero-baseline failure
+
+If baseline score is zero for the `combo_dps`/`combo_damage` target (e.g. no combo rows defined, weapon deals zero damage), there is no optimizable signal — multiplicative stats stay at zero under perturbation. `_compute_sensitivity_weights` logs a warning via `console.warn` and throws, aborting the search so the configuration can be corrected.
 
 ---
 
