@@ -109,8 +109,9 @@ For smaller updates that only touch atree, aspects, major IDs, or items:
 
 ```bash
 VER=X.X.X.X
+cd py_script
 
-cd py_script && python atree-generateID.py && cp ../data/temp/atree_constants_min.json ../data/$VER/atree.json && cp ../data/temp/aspects_min.json ../data/$VER/aspects.json && cp ../data/temp/major_ids_min.json ../data/$VER/majid.json && python compress_json.py ../data/baseline/clean.json ../data/$VER/items.json && python compress_json.py ../data/baseline/clean.json ../data/baseline/compressed/compress.json
+python atree-generateID.py && cp ../data/temp/atree_constants_min.json ../data/$VER/atree.json && cp ../data/temp/aspects_min.json ../data/$VER/aspects.json && cp ../data/temp/major_ids_min.json ../data/$VER/majid.json && python compress_json.py ../data/baseline/clean.json ../data/$VER/items.json && python compress_json.py ../data/baseline/clean.json ../data/baseline/compressed/compress.json
 ```
 
 ## Bumping DB version constants
