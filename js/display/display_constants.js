@@ -308,7 +308,7 @@ let posModSuffixes = {
 let build_overall_display_commands = [
     "#defense-stats",
     "!spacer",
-    "mrTotal", "ms", "maxManaTotal",
+    "mr", "ms", "#maxManaTotal",
     "atkTier",
     "ls",
     "poison",
@@ -325,7 +325,7 @@ let build_overall_display_commands = [
 let build_detailed_display_commands = [
     "#defense-stats-detailed",
     "!spacer",
-    "mr", "ms", "maxManaTotal",
+    "mr", "ms", "#maxManaTotal",
     "hprRaw", "hprPct", "healPct",
     "ls",
     "!spacer",
