@@ -9478,14 +9478,16 @@
                 "icon": "node_3"
             },
             "properties": {
-                "range": 7
+                "range": 7,
+                "num_orbs": 3,
+                "atk_rate": 0.5
             },
             "effects": [
                 {
                     "type": "replace_spell",
                     "name": "Lightweaver",
                     "base_spell": 5,
-                    "display": "Orb DPS",
+                    "display": "Total Orb DPS",
                     "parts": [
                         {
                             "name": "Single Orb",
@@ -9498,15 +9500,42 @@
                                 30,
                                 0
                             ]
-                        },
-                        {
-                            "name": "Orb DPS",
-                            "type": "total",
-                            "hits": {
-                                "Single Orb": 1.5
-                            }
                         }
                     ]
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 5,
+                    "target_part": "Per Orb DPS",
+                    "hits": {
+                        "Single Orb": "Lightweaver.atk_rate"
+                    },
+                    "hide": true
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 5,
+                    "target_part": "Walking Per Orb DPS",
+                    "hits": {
+                        "Single Orb": 1
+                    },
+                    "hide": true
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 5,
+                    "target_part": "Total Orb DPS",
+                    "hits": {
+                        "Per Orb DPS": "Lightweaver.num_orbs"
+                    }
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 5,
+                    "target_part": "Maximum Orb DPS",
+                    "hits": {
+                        "Walking Per Orb DPS": "Lightweaver.num_orbs"
+                    }
                 }
             ]
         },
@@ -10029,7 +10058,6 @@
                     "type": "stat_scaling",
                     "slider": true,
                     "slider_name": "Distortion",
-                    "requirement": 25,
                     "output": {
                         "type": "stat",
                         "name": "damMult.Distortion:4.Damage per Tick"
@@ -10042,7 +10070,6 @@
                     "type": "stat_scaling",
                     "slider": true,
                     "slider_name": "Distortion",
-                    "requirement": 40,
                     "output": {
                         "type": "stat",
                         "name": "damMult.Distortion:0.Vacuokinesis"
@@ -10328,17 +10355,10 @@
                 "col": 2,
                 "icon": "node_0"
             },
-            "properties": {},
-            "effects": [
-                {
-                    "type": "add_spell_prop",
-                    "target_part": "Orb DPS",
-                    "base_spell": 5,
-                    "hits": {
-                        "Single Orb": 1
-                    }
-                }
-            ]
+            "properties": {
+                "num_orbs": 2
+            },
+            "effects": []
         },
         {
             "display_name": "Judrajim",
