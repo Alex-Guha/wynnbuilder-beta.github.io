@@ -589,6 +589,8 @@ function _show_solver_stopped_progress(label, elapsed_s) {
     const el_right = document.getElementById('solver-progress-right');
     if (el_left) el_left.textContent = `${label} - Checked: ${_format_compact(_solver_state.checked)} / ${_format_compact(_solver_state.total)}`;
     if (el_right) el_right.textContent = `Time: ${_format_duration(elapsed_s)}`;
+    const el_precheck = document.getElementById('solver-precheck-count');
+    if (el_precheck) el_precheck.textContent = _format_compact(_solver_state.precheck_pass ?? 0);
     const el_feasible = document.getElementById('solver-feasible-count');
     if (el_feasible) el_feasible.textContent = _format_compact(_solver_state.feasible);
     const el_met_req = document.getElementById('solver-met-req-count');
@@ -627,6 +629,7 @@ function _init_solver_progress_toggle() {
 function _update_solver_progress_ui() {
     const el_left = document.getElementById('solver-progress-left');
     const el_right = document.getElementById('solver-progress-right');
+    const el_precheck = document.getElementById('solver-precheck-count');
     const el_feasible = document.getElementById('solver-feasible-count');
     const el_met_req = document.getElementById('solver-met-req-count');
     const el_remaining = document.getElementById('solver-remaining-text');
@@ -639,6 +642,7 @@ function _update_solver_progress_ui() {
 
     if (el_left) el_left.textContent = checked_str;
     if (el_right) el_right.textContent = elapsed_str;
+    if (el_precheck) el_precheck.textContent = _format_compact(_solver_state.precheck_pass ?? 0);
     if (el_feasible) el_feasible.textContent = _format_compact(_solver_state.feasible);
     if (el_met_req) el_met_req.textContent = _format_compact(_solver_state.met_req);
 
@@ -1161,6 +1165,10 @@ function _compute_sp_overflow_warnings() {
     }
 
     const result = calculate_skillpoints(equip_sms, weapon.statMap, sp_overflow_budget);
+    if (!result) {
+        warnings.push('Locked equipment cannot satisfy skill point requirements within the per-attribute cap or SP budget.');
+        return warnings;
+    }
     const assign = result[0];
     for (let i = 0; i < 5; i++) {
         if (assign[i] > SP_PER_ATTR_CAP) {
@@ -1225,10 +1233,14 @@ function _on_all_workers_done(workers_snapshot) {
 
     // Aggregate final stats before stopping (which clears _solver_state.workers)
     _solver_state.checked = 0;
+    _solver_state.precheck_pass = 0;
+    _solver_state.precheck_reject = 0;
     _solver_state.feasible = 0;
     _solver_state.met_req = 0;
     for (const w of workers_snapshot) {
         _solver_state.checked += w.checked;
+        _solver_state.precheck_pass += w.precheck_pass ?? 0;
+        _solver_state.precheck_reject += w.precheck_reject ?? 0;
         _solver_state.feasible += w.feasible;
         _solver_state.met_req += w.met_req;
     }
@@ -1257,7 +1269,16 @@ function _on_all_workers_done(workers_snapshot) {
     } else if (search_completed) {
         const panel = document.getElementById('solver-results-panel');
         if (panel) {
-            if (_solver_state.feasible === 0) {
+            // Diagnostic funnel: checked → precheck_pass → feasible → met_req
+            // - precheck_pass === 0 : all rejected by fast constraint/EHP precheck (restrictions)
+            // - precheck_pass > 0 but feasible === 0 : SP infeasibility is the culprit
+            // - feasible > 0 but met_req === 0 : full threshold / mana / HP rejected
+            const precheck_pass = _solver_state.precheck_pass ?? 0;
+            if (precheck_pass === 0 && _solver_state.checked > 0) {
+                panel.innerHTML = '<div class="text-warning small">'
+                    + 'No builds met the stat-threshold or EHP restrictions (rejected before skillpoint check). '
+                    + 'Try lowering the restriction values.</div>';
+            } else if (_solver_state.feasible === 0) {
                 let html = '<div class="text-warning small">'
                     + 'No builds satisfied the skill point requirements. Try relaxing restrictions or enabling guild tomes.';
                 const sp_warnings = _compute_sp_overflow_warnings();
@@ -1266,9 +1287,13 @@ function _on_all_workers_done(workers_snapshot) {
                 }
                 html += '</div>';
                 panel.innerHTML = html;
+            } else if (_solver_state.met_req === 0) {
+                panel.innerHTML = '<div class="text-warning small">'
+                    + 'No builds met the stat thresholds or mana/HP constraints. '
+                    + 'Try lowering the restriction values.</div>';
             } else {
                 panel.innerHTML = '<div class="text-warning small">'
-                    + 'No builds met the stat thresholds. Try lowering the restriction values.</div>';
+                    + 'No builds matched. Try relaxing restrictions.</div>';
             }
         }
     }
@@ -1317,6 +1342,8 @@ function _run_solver_search_workers(pools, locked, snap) {
         const partition = partition_queue.shift();
         wstate.done = false;
         wstate._cur_checked = 0;
+        wstate._cur_precheck_pass = 0;
+        wstate._cur_precheck_reject = 0;
         wstate._cur_feasible = 0;
         wstate._cur_met_req = 0;
         wstate._cur_top5 = [];
@@ -1335,9 +1362,13 @@ function _run_solver_search_workers(pools, locked, snap) {
         wstate.done = true;
         // Accumulate into cumulative totals
         wstate.checked += msg.checked;
+        wstate.precheck_pass += msg.precheck_pass ?? 0;
+        wstate.precheck_reject += msg.precheck_reject ?? 0;
         wstate.feasible += msg.feasible;
         wstate.met_req += msg.met_req ?? 0;
         wstate._cur_checked = 0;
+        wstate._cur_precheck_pass = 0;
+        wstate._cur_precheck_reject = 0;
         wstate._cur_feasible = 0;
         wstate._cur_met_req = 0;
         wstate._cur_top5 = [];
@@ -1369,8 +1400,10 @@ function _run_solver_search_workers(pools, locked, snap) {
     for (let i = 0; i < actual_workers; i++) {
         const w = new Worker('../js/solver/engine/worker.js?v=5');
         const wstate = {
-            worker: w, done: true, checked: 0, feasible: 0, met_req: 0, top5: [],
-            _cur_checked: 0, _cur_feasible: 0, _cur_met_req: 0, _cur_top5: [],
+            worker: w, done: true, checked: 0, precheck_pass: 0, precheck_reject: 0,
+            feasible: 0, met_req: 0, top5: [],
+            _cur_checked: 0, _cur_precheck_pass: 0, _cur_precheck_reject: 0,
+            _cur_feasible: 0, _cur_met_req: 0, _cur_top5: [],
             _cur_checked_since_top5: 0, _cur_L_progress: [0, 1],
         };
         _solver_state.workers.push(wstate);
@@ -1379,6 +1412,8 @@ function _run_solver_search_workers(pools, locked, snap) {
             const msg = e.data;
             if (msg.type === 'progress') {
                 wstate._cur_checked = msg.checked;
+                wstate._cur_precheck_pass = msg.precheck_pass ?? 0;
+                wstate._cur_precheck_reject = msg.precheck_reject ?? 0;
                 wstate._cur_feasible = msg.feasible;
                 wstate._cur_met_req = msg.met_req ?? 0;
                 if (msg.top5_names) wstate._cur_top5 = msg.top5_names;
@@ -1406,6 +1441,8 @@ function _run_solver_search_workers(pools, locked, snap) {
         });
         wstate.done = false;
         wstate._cur_checked = 0;
+        wstate._cur_precheck_pass = 0;
+        wstate._cur_precheck_reject = 0;
         wstate._cur_feasible = 0;
         wstate._cur_met_req = 0;
         wstate._cur_top5 = [];
@@ -1418,10 +1455,14 @@ function _run_solver_search_workers(pools, locked, snap) {
         if (!_solver_state.running) return;
         // Aggregate stats: cumulative completed + current in-flight partition
         _solver_state.checked = 0;
+        _solver_state.precheck_pass = 0;
+        _solver_state.precheck_reject = 0;
         _solver_state.feasible = 0;
         _solver_state.met_req = 0;
         for (const w of _solver_state.workers) {
             _solver_state.checked += w.checked + (w._cur_checked ?? 0);
+            _solver_state.precheck_pass += (w.precheck_pass ?? 0) + (w._cur_precheck_pass ?? 0);
+            _solver_state.precheck_reject += (w.precheck_reject ?? 0) + (w._cur_precheck_reject ?? 0);
             _solver_state.feasible += w.feasible + (w._cur_feasible ?? 0);
             _solver_state.met_req += w.met_req + (w._cur_met_req ?? 0);
         }

@@ -64,6 +64,8 @@ const _default_sp_caps = new Int32Array([150, 150, 150, 150, 150]);
 const PROGRESS_INTERVAL = 5000;
 const PROGRESS_INTERVAL_LONG = 50000;
 let _checked = 0;
+let _precheck_pass = 0;
+let _precheck_reject = 0;
 let _feasible = 0;
 let _met_req = 0;
 let _top5 = [];
@@ -205,6 +207,18 @@ function _build_sp_constraints() {
 /**
  * Fast constraint precheck against the running statMap.
  * Returns false if any ge-threshold cannot be met (conservative lower bound).
+ *
+ * TODO: Unify user-requirement checking into the precheck.
+ * This precheck operates on raw additive stat sums from running_sm plus
+ * fixed atree/static contributions. For the vast majority of user-requestable
+ * stats this is actually the authoritative value — they are NOT affected by
+ * multipliers, SP bonuses (except EHP/mana-adjacent), powders, or crit
+ * weighting. The main exception is atree scaling (conditional / slider-driven
+ * bonuses), which we could fold into the precheck by precomputing the
+ * post-scaling additive contribution per active atree branch.
+ * If that's done, _check_thresholds below can be reduced to handling only
+ * mana/HP-sim outputs (and scoring targets that genuinely need combo_base).
+ * Deferred — current split is correct but redundant.
  */
 function _fast_constraint_precheck(running_sm) {
     for (let i = 0; i < _constraint_prechecks.length; i++) {
@@ -264,6 +278,16 @@ function _assemble_threshold_stats(combo_base) {
     return _deep_clone_statmap_into(_scratch_thresh, combo_base, _scratch_thresh_nested);
 }
 
+// TODO: Narrow _check_thresholds to mana/HP and scoring-target-only stats.
+// Currently this re-checks every user-configured threshold against the fully
+// assembled combo_base (post SP solve + atree scaling + multipliers). For most
+// stats this is redundant with _fast_constraint_precheck, since user-requestable
+// stats aren't affected by multipliers, SP bonuses (except EHP/mana-adjacent),
+// powders, or crit weighting — only atree scaling differs, which could be
+// folded into the precheck (see the TODO at _fast_constraint_precheck).
+// Once that migration happens, this call should only validate stats that
+// genuinely require the full combo evaluation (mana costs, combo_dps, healing
+// totals, hp_sim outputs), and everything else can be rejected earlier.
 function _check_thresholds(stats, thresholds) {
     return check_thresholds(stats, thresholds, _cfg.spell_base_costs);
 }
@@ -503,6 +527,8 @@ function _run_level_enum() {
                 type: 'progress',
                 worker_id: _cfg.worker_id,
                 checked: _checked,
+                precheck_pass: _precheck_pass,
+                precheck_reject: _precheck_reject,
                 feasible: _feasible,
                 met_req: _met_req,
                 checked_since_top5: _checked - _checked_at_last_top5_change,
@@ -645,14 +671,17 @@ function _run_level_enum() {
         // fixed contributions (atree_raw + static_boosts).
         if (_constraint_prechecks.length > 0 && !_fast_constraint_precheck(running_sm)) {
             _dbg_precheck_reject++;
+            _precheck_reject++;
             _maybe_progress();
             return;
         }
         if (!_fast_ehp_precheck(running_sm)) {
             _dbg_ehp_reject++;
+            _precheck_reject++;
             _maybe_progress();
             return;
         }
+        _precheck_pass++;
 
         // Fill scratch arrays (pointer writes only, no allocation)
         _scratch_equip_8[0] = partial.helmet.statMap;
@@ -1159,6 +1188,8 @@ self.onmessage = function (e) {
         // Run immediately if a partition is requested
         if (msg.partition) {
             _checked = 0;
+            _precheck_pass = 0;
+            _precheck_reject = 0;
             _feasible = 0;
             _met_req = 0;
             _top5 = [];
@@ -1175,6 +1206,8 @@ self.onmessage = function (e) {
                 type: 'done',
                 worker_id: msg.worker_id,
                 checked: _checked,
+                precheck_pass: _precheck_pass,
+                precheck_reject: _precheck_reject,
                 feasible: _feasible,
                 met_req: _met_req,
                 top5: _top5,
@@ -1185,6 +1218,8 @@ self.onmessage = function (e) {
         _cfg.partition = msg.partition;
         _cfg.worker_id = msg.worker_id;
         _checked = 0;
+        _precheck_pass = 0;
+        _precheck_reject = 0;
         _feasible = 0;
         _met_req = 0;
         _top5 = [];
@@ -1203,6 +1238,8 @@ self.onmessage = function (e) {
             type: 'done',
             worker_id: msg.worker_id,
             checked: _checked,
+            precheck_pass: _precheck_pass,
+            precheck_reject: _precheck_reject,
             feasible: _feasible,
             met_req: _met_req,
             top5: _top5,
