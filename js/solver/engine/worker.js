@@ -64,6 +64,8 @@ const _default_sp_caps = new Int32Array([150, 150, 150, 150, 150]);
 const PROGRESS_INTERVAL = 5000;
 const PROGRESS_INTERVAL_LONG = 50000;
 let _checked = 0;
+let _precheck_pass = 0;
+let _precheck_reject = 0;
 let _feasible = 0;
 let _met_req = 0;
 let _top5 = [];
@@ -205,6 +207,18 @@ function _build_sp_constraints() {
 /**
  * Fast constraint precheck against the running statMap.
  * Returns false if any ge-threshold cannot be met (conservative lower bound).
+ *
+ * TODO: Unify user-requirement checking into the precheck.
+ * This precheck operates on raw additive stat sums from running_sm plus
+ * fixed atree/static contributions. For the vast majority of user-requestable
+ * stats this is actually the authoritative value — they are NOT affected by
+ * multipliers, SP bonuses (except EHP/mana-adjacent), powders, or crit
+ * weighting. The main exception is atree scaling (conditional / slider-driven
+ * bonuses), which we could fold into the precheck by precomputing the
+ * post-scaling additive contribution per active atree branch.
+ * If that's done, _check_thresholds below can be reduced to handling only
+ * mana/HP-sim outputs (and scoring targets that genuinely need combo_base).
+ * Deferred — current split is correct but redundant.
  */
 function _fast_constraint_precheck(running_sm) {
     for (let i = 0; i < _constraint_prechecks.length; i++) {
@@ -264,6 +278,16 @@ function _assemble_threshold_stats(combo_base) {
     return _deep_clone_statmap_into(_scratch_thresh, combo_base, _scratch_thresh_nested);
 }
 
+// TODO: Narrow _check_thresholds to mana/HP and scoring-target-only stats.
+// Currently this re-checks every user-configured threshold against the fully
+// assembled combo_base (post SP solve + atree scaling + multipliers). For most
+// stats this is redundant with _fast_constraint_precheck, since user-requestable
+// stats aren't affected by multipliers, SP bonuses (except EHP/mana-adjacent),
+// powders, or crit weighting — only atree scaling differs, which could be
+// folded into the precheck (see the TODO at _fast_constraint_precheck).
+// Once that migration happens, this call should only validate stats that
+// genuinely require the full combo evaluation (mana costs, combo_dps, healing
+// totals, hp_sim outputs), and everything else can be rejected earlier.
 function _check_thresholds(stats, thresholds) {
     return check_thresholds(stats, thresholds, _cfg.spell_base_costs);
 }
@@ -507,6 +531,8 @@ function _run_level_enum() {
                 type: 'progress',
                 worker_id: _cfg.worker_id,
                 checked: _checked,
+                precheck_pass: _precheck_pass,
+                precheck_reject: _precheck_reject,
                 feasible: _feasible,
                 met_req: _met_req,
                 checked_since_top5: _checked - _checked_at_last_top5_change,
@@ -649,14 +675,17 @@ function _run_level_enum() {
         // fixed contributions (atree_raw + static_boosts).
         if (_constraint_prechecks.length > 0 && !_fast_constraint_precheck(running_sm)) {
             _dbg_precheck_reject++;
+            _precheck_reject++;
             _maybe_progress();
             return;
         }
         if (!_fast_ehp_precheck(running_sm)) {
             _dbg_ehp_reject++;
+            _precheck_reject++;
             _maybe_progress();
             return;
         }
+        _precheck_pass++;
 
         // Fill scratch arrays (pointer writes only, no allocation)
         _scratch_equip_8[0] = partial.helmet.statMap;
@@ -771,46 +800,119 @@ function _run_level_enum() {
     // The outer loop iterates L = 0, 1, ..., L_max so combinations are visited in
     // increasing order of sum-of-rank-offsets: best build first, then one step away, etc.
 
-    // Compute the maximum achievable level (sum of pool sizes - 1 per slot)
-    let L_max = 0;
-    const _pool_maxes = [];
-    for (const slot of free_slots) {
-        const p = _get_pool(slot);
-        const pm = p ? p.length - 1 : 0;
-        L_max += pm;
-        _pool_maxes.push(pm);
+    // Effective offset bounds per free slot (respects partition restrictions).
+    // Armor 'slot' partition is already baked into pools[slot] via slicing above;
+    // ring partitions restrict offsets without modifying the shared ring_pool.
+    const _slot_lb = new Array(N_free);
+    const _slot_ub = new Array(N_free);
+    for (let d = 0; d < N_free; d++) {
+        const pool = _get_pool(free_slots[d]);
+        let lb = 0;
+        let ub = pool ? pool.length - 1 : -1;
+        if (d === ring1_depth && partition?.type === 'ring') {
+            lb = Math.max(lb, partition.start);
+            ub = Math.min(ub, partition.end - 1);
+        }
+        if ((d === ring1_depth || d === ring2_depth) && partition?.type === 'ring_single') {
+            lb = Math.max(lb, partition.start);
+            ub = Math.min(ub, partition.end - 1);
+        }
+        _slot_lb[d] = lb;
+        _slot_ub[d] = ub;
     }
 
-    // ── Subtree leaf count table (for SP-prune build tallying) ──────────────
+    // Max achievable level, respecting partition bounds.
+    let L_max = 0;
+    for (let d = 0; d < N_free; d++) {
+        if (_slot_ub[d] > 0) L_max += _slot_ub[d];
+    }
+
+    // ── Subtree leaf count table (for SP-prune + illegal-set-prune tallying) ─
     //
     // _subtree_leaf_count[d][L] = number of leaf builds in the subtree from
-    // depth d..N_free-1 with remaining level budget L.  Ignores ring symmetry
-    // and illegal-set blocking (slight overcount, acceptable for progress).
-    // Used to credit pruned subtrees to _checked so progress is accurate.
+    // depth d..N_free-1 with remaining level budget L.  Respects partition
+    // bounds and ring-pair symmetry (ring2_offset >= ring1_offset).  Used to
+    // credit pruned subtrees to _checked so checked converges to total.
+    //
+    // When both rings are free, the entry at ring2_depth depends on the
+    // offset ring1 was placed at; we rebuild it each time ring1 is placed.
 
-    const _subtree_leaf_count = new Array(N_free);
-    if (N_free > 0) {
-        for (let d = 0; d < N_free; d++) {
-            _subtree_leaf_count[d] = new Float64Array(L_max + 1);
-        }
-        // Last slot: offset is forced to exactly remaining_L
-        const last_pm = _pool_maxes[N_free - 1];
-        for (let L = 0; L <= Math.min(L_max, last_pm); L++) {
-            _subtree_leaf_count[N_free - 1][L] = 1;
-        }
-        // Fill from N_free-2 down to 0 using prefix sums
-        for (let d = N_free - 2; d >= 0; d--) {
-            const pm = _pool_maxes[d];
-            const next = _subtree_leaf_count[d + 1];
-            // prefix[k] = sum of next[0..k-1]
-            const prefix = new Float64Array(L_max + 2);
-            for (let L = 0; L <= L_max; L++) {
-                prefix[L + 1] = prefix[L] + next[L];
+    const both_rings_free = ring1_depth >= 0 && ring2_depth >= 0;
+    const rings_contiguous = both_rings_free && ring2_depth === ring1_depth + 1;
+
+    const _subtree_leaf_count = new Array(N_free + 1);
+    _subtree_leaf_count[N_free] = new Float64Array(L_max + 1);
+    _subtree_leaf_count[N_free][0] = 1;
+
+    // Ring-pair count: number of (a, b) pairs with a+b=L, a in ring1 bounds,
+    // b in ring2 bounds, b >= a (symmetry).  Used when both rings still to place.
+    let _ring_pair_count = null;
+    if (both_rings_free && rings_contiguous) {
+        _ring_pair_count = new Float64Array(L_max + 1);
+        const lb1 = _slot_lb[ring1_depth], ub1 = _slot_ub[ring1_depth];
+        const lb2 = _slot_lb[ring2_depth], ub2 = _slot_ub[ring2_depth];
+        for (let a = lb1; a <= ub1; a++) {
+            const b_lo = Math.max(a, lb2);
+            for (let b = b_lo; b <= ub2; b++) {
+                if (a + b <= L_max) _ring_pair_count[a + b]++;
             }
-            for (let L = 0; L <= L_max; L++) {
-                const lo = Math.max(0, L - pm);
-                _subtree_leaf_count[d][L] = prefix[L + 1] - prefix[lo];
+        }
+    }
+
+    for (let d = N_free - 1; d >= 0; d--) {
+        const arr = new Float64Array(L_max + 1);
+        _subtree_leaf_count[d] = arr;
+
+        if (both_rings_free && rings_contiguous && d === ring2_depth) {
+            // Placeholder — filled by _rebuild_ring2_subtree_leaf_count on ring1 placement.
+            continue;
+        }
+        if (both_rings_free && rings_contiguous && d === ring1_depth) {
+            // Fold the ring-pair count with the tail from d+2 (post-ring2 slots).
+            const tail = _subtree_leaf_count[d + 2];
+            for (let Lp = 0; Lp <= L_max; Lp++) {
+                const c = _ring_pair_count[Lp];
+                if (c === 0) continue;
+                for (let Lt = 0; Lt + Lp <= L_max; Lt++) {
+                    const t = tail[Lt];
+                    if (t !== 0) arr[Lp + Lt] += c * t;
+                }
             }
+            continue;
+        }
+        // Normal slot: offset in [lb, ub] contributes to sum; tail from d+1.
+        const tail = _subtree_leaf_count[d + 1];
+        const lb = _slot_lb[d], ub = _slot_ub[d];
+        if (lb > ub) continue;  // empty slot — no valid placements
+        const prefix = new Float64Array(L_max + 2);
+        for (let L = 0; L <= L_max; L++) prefix[L + 1] = prefix[L] + tail[L];
+        for (let L = 0; L <= L_max; L++) {
+            const lo = Math.max(0, L - ub);
+            const hi_incl = L - lb;
+            if (hi_incl < lo) continue;
+            const hi = Math.min(L_max, hi_incl);
+            arr[L] = prefix[hi + 1] - prefix[lo];
+        }
+    }
+
+    // Rebuild _subtree_leaf_count[ring2_depth] for the given ring1 placement.
+    // Only meaningful when both rings free and contiguous.
+    function _rebuild_ring2_subtree_leaf_count(ring1_offset) {
+        if (!(both_rings_free && rings_contiguous)) return;
+        const arr = _subtree_leaf_count[ring2_depth];
+        arr.fill(0);
+        const lb2 = Math.max(_slot_lb[ring2_depth], ring1_offset);
+        const ub2 = _slot_ub[ring2_depth];
+        if (lb2 > ub2) return;
+        const tail = _subtree_leaf_count[ring2_depth + 1];
+        const prefix = new Float64Array(L_max + 2);
+        for (let L = 0; L <= L_max; L++) prefix[L + 1] = prefix[L] + tail[L];
+        for (let L = 0; L <= L_max; L++) {
+            const lo = Math.max(0, L - ub2);
+            const hi_incl = L - lb2;
+            if (hi_incl < lo) continue;
+            const hi = Math.min(L_max, hi_incl);
+            arr[L] = prefix[hi + 1] - prefix[lo];
         }
     }
 
@@ -1044,6 +1146,11 @@ function _run_level_enum() {
                     _sp_unplace_free_item(item.statMap, slot_idx);
                     _unplace_item(item.statMap);
                     if (is) tracker.remove(is, iname);
+                } else {
+                    // Illegal-set blocked — the single leaf for this tuple is still
+                    // counted toward total, so credit it to _checked.
+                    _checked++;
+                    _maybe_progress();
                 }
             }
             partial[slot] = locked[slot] ?? none_items_wrapped[_cfg.none_idx_map[slot]];
@@ -1057,14 +1164,30 @@ function _run_level_enum() {
             const item = pool[offset];
             const is = item._illegalSet;
             const iname = item._illegalSetName;
-            if (tracker.blocks(is, iname)) continue;
+            if (tracker.blocks(is, iname)) {
+                // Illegal-set blocked — credit the subtree leaves that would
+                // have been enumerated below this placement so _checked tracks
+                // the same tuple space as total.
+                // When the blocked slot is ring1, the tail count depends on
+                // ring1's offset; use this offset for the symmetry bound.
+                if (is_ring1 && both_rings_free && rings_contiguous) {
+                    _rebuild_ring2_subtree_leaf_count(offset);
+                }
+                const skipped = _subtree_leaf_count[slot_idx + 1][remaining_L - offset];
+                _checked += skipped;
+                _maybe_progress();
+                continue;
+            }
             if (is) tracker.add(is, iname);
 
             partial[slot] = item;
             _place_item(item.statMap);
             _sp_place_free_item(item.statMap, slot_idx);
 
-            if (is_ring1) _ring1_placed_offset = offset;
+            if (is_ring1) {
+                _ring1_placed_offset = offset;
+                _rebuild_ring2_subtree_leaf_count(offset);
+            }
 
             if (_sp_mid_tree_feasible(slot_idx + 1)) {
                 enumerate(slot_idx + 1, remaining_L - offset);
@@ -1164,6 +1287,8 @@ self.onmessage = function (e) {
         // Run immediately if a partition is requested
         if (msg.partition) {
             _checked = 0;
+            _precheck_pass = 0;
+            _precheck_reject = 0;
             _feasible = 0;
             _met_req = 0;
             _top5 = [];
@@ -1180,6 +1305,8 @@ self.onmessage = function (e) {
                 type: 'done',
                 worker_id: msg.worker_id,
                 checked: _checked,
+                precheck_pass: _precheck_pass,
+                precheck_reject: _precheck_reject,
                 feasible: _feasible,
                 met_req: _met_req,
                 top5: _top5,
@@ -1190,6 +1317,8 @@ self.onmessage = function (e) {
         _cfg.partition = msg.partition;
         _cfg.worker_id = msg.worker_id;
         _checked = 0;
+        _precheck_pass = 0;
+        _precheck_reject = 0;
         _feasible = 0;
         _met_req = 0;
         _top5 = [];
@@ -1208,6 +1337,8 @@ self.onmessage = function (e) {
             type: 'done',
             worker_id: msg.worker_id,
             checked: _checked,
+            precheck_pass: _precheck_pass,
+            precheck_reject: _precheck_reject,
             feasible: _feasible,
             met_req: _met_req,
             top5: _top5,
