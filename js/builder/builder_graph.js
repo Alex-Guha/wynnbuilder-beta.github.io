@@ -446,7 +446,7 @@ const radiance_node = new (class extends ComputeNode {
     constructor() { super('builder-radiance-node'); }
     compute_func(input_map) {
         const [statmap] = input_map.values();
-        return compute_radiance(statmap);
+        return compute_radiance(statmap, player_build?.total_item_skillpoints);
     }
 })();
 

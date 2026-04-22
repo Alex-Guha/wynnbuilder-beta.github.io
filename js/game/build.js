@@ -49,6 +49,7 @@ class Build {
             this.total_skillpoints = [0, 0, 0, 0, 0];
             this.assigned_skillpoints = 0;
             this.activeSetCounts = new Map();
+            this.total_item_skillpoints = [0, 0, 0, 0, 0];
         } else {
             // How many skillpoints the player had to assign (5 numbers)
             this.base_skillpoints = result[0];
@@ -57,6 +58,8 @@ class Build {
             // How many skillpoints assigned (1 number, sum of base_skillpoints)
             this.assigned_skillpoints = result[2];
             this.activeSetCounts = result[3];
+            // SP granted by items + set bonuses (used by Radiance to scale item SP)
+            this.total_item_skillpoints = result[4];
         }
 
         this.initBuildStats();
