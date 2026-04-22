@@ -20,8 +20,10 @@
  * @param {Map|null} scratch_set_counts - reusable Map for set counting (optional)
  * @param {Object|null} scratch_sp - reusable arrays to eliminate per-call allocations (optional).
  *                                   Caller must .slice() return arrays before caching.
- * @returns {Array|null} [best_skillpoints, final_skillpoints, best_total, set_counts],
+ * @returns {Array|null} [best_skillpoints, final_skillpoints, best_total, set_counts, total_item_skillpoints],
  *                       or null if sp_budget is exceeded or any single attr > SP_PER_ATTR_CAP.
+ *                       total_item_skillpoints is the per-attr sum of SP granted by items + set
+ *                       bonuses (used by Radiance to scale item-granted SP).
  */
 function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_set_counts = null, scratch_sp = null) {
     let no_bonus_items;
@@ -36,6 +38,7 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
     let running_bonus;
     let best_assign;
     let save_stack;
+    let total_item_skillpoints;
 
     if (scratch_sp) {
         no_bonus_items = scratch_sp.no_bonus;
@@ -52,10 +55,12 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
         running_bonus = scratch_sp.running_bonus;
         best_assign = scratch_sp.best_assign;
         save_stack = scratch_sp.save_stack;
+        total_item_skillpoints = scratch_sp.total_item_skp;
         for (let i = 0; i < 5; i++) {
             assign[i] = 0;
             free_bonus[i] = 0;
             max_passive_req[i] = 0;
+            total_item_skillpoints[i] = 0;
         }
     } else {
         no_bonus_items = [weapon];
@@ -69,6 +74,7 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
         running_bonus = [0, 0, 0, 0, 0];
         best_assign = [0, 0, 0, 0, 0];
         save_stack = new Array(45);
+        total_item_skillpoints = [0, 0, 0, 0, 0];
     }
 
     // ── Phase 1: Classify items ─────────────────────────────────────────────
@@ -87,6 +93,8 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
         const is_crafted = item.get('crafted');
         const req = item.get('reqs');
         const skp = item.get('skillpoints');
+
+        for (let i = 0; i < 5; i++) total_item_skillpoints[i] += skp[i];
 
         // Track set membership (non-crafted only)
         if (!is_crafted) {
@@ -141,12 +149,16 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
     for (let i = 0; i < 5; i++) {
         if (wep_req[i] > max_passive_req[i]) max_passive_req[i] = wep_req[i];
     }
+    const wep_skp = weapon.get('skillpoints');
+    for (let i = 0; i < 5; i++) total_item_skillpoints[i] += wep_skp[i];
 
     // Set bonuses: treated as free (always available)
     for (const [set_name, count] of set_counts) {
         const bonus = sets.get(set_name).bonuses[count - 1];
         for (const i in skp_order) {
-            free_bonus[i] += (bonus[skp_order[i]] || 0);
+            const delta = (bonus[skp_order[i]] || 0);
+            free_bonus[i] += delta;
+            total_item_skillpoints[i] += delta;
         }
     }
 
@@ -181,7 +193,7 @@ function calculate_skillpoints(equipment, weapon, sp_budget = Infinity, scratch_
             for (let i = 0; i < 5; i++) final_skillpoints[i] += skp[i];
         }
 
-        return [assign, final_skillpoints, total_assigned, set_counts];
+        return [assign, final_skillpoints, total_assigned, set_counts, total_item_skillpoints];
     }
 
     // ── Phase 3: Precompute post_floor + backtracking search ──────────────

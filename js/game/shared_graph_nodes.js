@@ -319,7 +319,7 @@ function compute_boosts() {
  * Apply Radiance (+20%) and/or Divine Honor (+5%) scaling to a StatMap.
  * Returns the input unchanged when neither is active; otherwise returns a new Map.
  */
-function compute_radiance(statmap) {
+function compute_radiance(statmap, total_item_skillpoints = null) {
     if (!statmap) return new Map();
 
     let boost = 1;
@@ -332,6 +332,16 @@ function compute_radiance(statmap) {
 
     const ret = new Map(statmap);
     _apply_radiance_scale_inplace(ret, boost);
+
+    // Radiance also scales SP granted by items (and set bonuses). Only applied
+    // when the caller provides the item-SP breakdown (builder; solver currently does not).
+    if (total_item_skillpoints) {
+        skp_order.forEach((skp, i) => {
+            if ((total_item_skillpoints[i] || 0) > 0) {
+                ret.set(skp, Math.floor((ret.get(skp) || 0) + total_item_skillpoints[i] * (boost - 1)));
+            }
+        });
+    }
     return ret;
 }
 

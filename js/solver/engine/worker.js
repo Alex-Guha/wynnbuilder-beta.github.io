@@ -117,6 +117,7 @@ const _scratch_sp = {
     ord_skp:         new Array(9),
     no_bonus:        [],  // sized at init (max 9: weapon + up to 8 crafted items)
     _no_bonus_len:   0,
+    total_item_skp:  [0, 0, 0, 0, 0],
 };
 
 /**
