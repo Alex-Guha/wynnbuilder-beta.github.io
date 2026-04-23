@@ -12,7 +12,7 @@
 
 // Log damage weights, constraint weights, priority scores, and pool ordering
 // for each slot (top 20 items with scores).  [priority/priority.js]
-const SOLVER_DEBUG_PRIORITY = false;
+const SOLVER_DEBUG_PRIORITY = true;
 
 // Log dominance pruning: before/after pool sizes per slot, which items were
 // pruned, which item dominated them, and the stats that caused it.
@@ -30,7 +30,7 @@ const SOLVER_DEBUG_WORKER = false;
 // Log sensitivity weight computation: baseline stats, per-stat sensitivities
 // sorted by magnitude, SP sensitivities, constraint/mana bonuses, and
 // dominance classification.  [priority/sensitivity.js, priority/dominance.js]
-const SOLVER_DEBUG_SENSITIVITY = false;
+const SOLVER_DEBUG_SENSITIVITY = true;
 
 // ── Combo damage (main thread + Web Worker) ─────────────────────────────────
 

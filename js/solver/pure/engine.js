@@ -47,11 +47,11 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
 
     if (debug) {
         const _ds = (sm) => {
-            const keys = ['hp','hpBonus','str','dex','int','def','agi',
-                'sdPct','sdRaw','mdPct','mdRaw','damPct','damRaw',
-                'rSdPct','rSdRaw','rMdPct','rMdRaw','rDamPct','rDamRaw',
-                'mr','ms','maxMana','critDamPct','atkSpd','atkTier',
-                'spPct1','spPct2','spPct3','spPct4','spRaw1','spRaw2','spRaw3','spRaw4'];
+            const keys = ['hp', 'hpBonus', 'str', 'dex', 'int', 'def', 'agi',
+                'sdPct', 'sdRaw', 'mdPct', 'mdRaw', 'damPct', 'damRaw',
+                'rSdPct', 'rSdRaw', 'rMdPct', 'rMdRaw', 'rDamPct', 'rDamRaw',
+                'mr', 'ms', 'maxMana', 'critDamPct', 'atkSpd', 'atkTier',
+                'spPct1', 'spPct2', 'spPct3', 'spPct4', 'spRaw1', 'spRaw2', 'spRaw3', 'spRaw4'];
             const o = {};
             for (const k of keys) { const v = sm.get(k); if (v != null && v !== 0) o[k] = v; }
             const dm = sm.get('damMult');
@@ -62,7 +62,7 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
         };
         const _ws = (sm) => {
             const o = {};
-            for (const e of ['n','e','t','w','f','a']) {
+            for (const e of ['n', 'e', 't', 'w', 'f', 'a']) {
                 const v = sm.get(e + 'Dam_');
                 if (v) o[e + 'Dam_'] = v;
             }
@@ -140,17 +140,17 @@ function compute_combo_damage_totals(base_stats, weapon_sm, parsed_rows, crit_ch
         const row_healing = heal_per_cast * eff_qty;
 
         if (debug) {
-            const _bt = boost_tokens?.map(t => `${t.name}=${t.value}${t.is_pct?'%':''}`) ?? [];
-            const _po = prop_overrides.size ? Object.fromEntries([...prop_overrides].map(([k,v]) => [k, `replace=${v.replace} add=${v.add}`])) : null;
+            const _bt = boost_tokens?.map(t => `${t.name}=${t.value}${t.is_pct ? '%' : ''}`) ?? [];
+            const _po = prop_overrides.size ? Object.fromEntries([...prop_overrides].map(([k, v]) => [k, `replace=${v.replace} add=${v.add}`])) : null;
             // Log key boosted stat deltas vs base
             const _deltas = {};
-            for (const k of ['sdPct','sdRaw','mdPct','mdRaw','damPct','damRaw','critDamPct',
-                             'rSdPct','rSdRaw','rMdPct','rMdRaw','rDamPct','rDamRaw']) {
+            for (const k of ['sdPct', 'sdRaw', 'mdPct', 'mdRaw', 'damPct', 'damRaw', 'critDamPct',
+                'rSdPct', 'rSdRaw', 'rMdPct', 'rMdRaw', 'rDamPct', 'rDamRaw']) {
                 const sv = stats.get(k) ?? 0, bv = base_stats.get(k) ?? 0;
                 if (sv !== bv) _deltas[k] = `${bv}→${sv}`;
             }
             const sdm = stats.get('damMult'), bdm = base_stats.get('damMult');
-            if (sdm) for (const [k,v] of sdm) {
+            if (sdm) for (const [k, v] of sdm) {
                 const bv = bdm?.get(k) ?? 0;
                 if (v !== bv) _deltas['damMult.' + k] = `${bv}→${v}`;
             }
@@ -328,7 +328,7 @@ function _unroll_loops_pure(rows, loop_iteration_counts) {
 function eval_combo_damage_with_bp(combo_base, weapon_sm, parsed_combo, bp_config, opts) {
     const { hp_casting, health_config, boost_registry, atree_merged } = bp_config;
     const { detailed = false, scratch_row = null, debug = false, debug_label = '',
-            cached_hp_sim = null } = opts || {};
+        cached_hp_sim = null } = opts || {};
 
     const crit = skillPointsToPercentage(combo_base.get('dex') || 0);
 
@@ -375,8 +375,10 @@ function eval_combo_damage_with_bp(combo_base, weapon_sm, parsed_combo, bp_confi
         boost_registry, atree_merged,
         { detailed, scratch_row, debug, debug_label });
 
-    return { total_damage: result.total_damage, total_healing: result.total_healing,
-             per_row: result.per_row, hp_sim };
+    return {
+        total_damage: result.total_damage, total_healing: result.total_healing,
+        per_row: result.per_row, hp_sim
+    };
 }
 
 /**
@@ -387,8 +389,8 @@ function eval_combo_damage_with_bp(combo_base, weapon_sm, parsed_combo, bp_confi
  *   { pre_scale, pre_scale_nested, combo_base, combo_base_nested, atree }
  */
 function assemble_combo_stats(build_sm, total_sp, weapon_sm, atree_raw, radiance_boost,
-                               atree_merged, button_states, slider_states, static_boosts,
-                               scratch) {
+    atree_merged, button_states, slider_states, static_boosts,
+    scratch) {
     let pre_scale;
     if (scratch?.pre_scale) {
         _deep_clone_statmap_into(scratch.pre_scale, build_sm, scratch.pre_scale_nested);
@@ -522,6 +524,7 @@ function eval_indirect_stat(stats, stat) {
     if (stat === 'total_hp') return getDefenseStats(stats)[0];
     if (stat === 'hpr') return getDefenseStats(stats)[2];
     if (stat === 'ehpr') return getDefenseStats(stats)[3][0];
+    // TODO 'finalSpellCost1', 'finalSpellCost2', 'finalSpellCost3', 'finalSpellCost4',
     return stats.get(stat) ?? 0;
 }
 

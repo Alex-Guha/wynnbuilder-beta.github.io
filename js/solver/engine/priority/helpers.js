@@ -11,6 +11,10 @@
 
 // Scaling fractions for constraint/mana bonuses relative to max sensitivity weight.
 const _CONSTRAINT_WEIGHT_FRACTION = 1.0;
+// Floor on the `scale` factor in direct-constraint bonuses so that a satisfied
+// constraint still exerts a small push in the relieving direction — otherwise
+// nothing protects the slack from being eroded by items that hurt the stat.
+const _CONSTRAINT_SATISFIED_FLOOR = 0.1;
 const _MANA_WEIGHT_FRACTION = 3;
 const _MANA_RATIO_EXPONENT = 0.5;
 
@@ -33,11 +37,12 @@ const _INDIRECT_CONSTRAINT_STATS = INDIRECT_CONSTRAINT_STATS;
 
 // Mapping from indirect constraint stats to the direct item stats that contribute to them.
 const _INDIRECT_CONTRIBUTORS = {
-    ehp: ['hpBonus'],
-    ehp_no_agi: ['hpBonus'],
-    total_hp: ['hpBonus'],
+    ehp: ['hpBonus', 'hp'],
+    ehp_no_agi: ['hpBonus', 'hp'],
+    total_hp: ['hpBonus', 'hp'],
     hpr: ['hprRaw', 'hprPct'],
-    ehpr: ['hpBonus', 'hprRaw', 'hprPct'],
+    ehpr: ['hpBonus', 'hprRaw', 'hprPct', 'hp'],
+    // TODO 'finalSpellCost1', 'finalSpellCost2', 'finalSpellCost3', 'finalSpellCost4',
 };
 
 // Dampening for indirect constraint sensitivity — indirect stats are noisier
@@ -92,7 +97,7 @@ const _PERTURBABLE_STATS = [
     // Attack
     'atkTier',
     // Defense
-    'hpBonus', 'eDef', 'tDef', 'wDef', 'fDef', 'aDef', 'hprRaw', 'hprPct',
+    'hpBonus', 'hp', 'eDef', 'tDef', 'wDef', 'fDef', 'aDef', 'hprRaw', 'hprPct',
     // Mana
     'mr', 'ms', 'maxMana',
     // Spell costs
@@ -117,7 +122,7 @@ const _DEFAULT_DELTAS = {
     eMdRaw: 100, tMdRaw: 100, wMdRaw: 100, fMdRaw: 100, aMdRaw: 100,
     rSdPct: 15, rSdRaw: 80, rMdPct: 15, rMdRaw: 80,
     rDamPct: 15, rDamRaw: 80,
-    hpBonus: 1000, hprRaw: 50, hprPct: 20,
+    hpBonus: 500, hp: 1000, hprRaw: 50, hprPct: 20,
     eDef: 50, tDef: 50, wDef: 50, fDef: 50, aDef: 50,
     mr: 15, ms: 10, maxMana: 5,
     spPct1: 20, spPct2: 20, spPct3: 20, spPct4: 20,

@@ -95,15 +95,14 @@ function _apply_sp_feasibility_bonus(weights, sp_sensitivities, snap, locked, po
         }
     }
 
-    // Subtract locked items' + weapon's SP provisions (offset requirement burden)
+    // Subtract locked items' SP provisions (offset requirement burden)
     const locked_prov = [0, 0, 0, 0, 0];
     for (const item of Object.values(locked)) {
         if (!item || item.statMap.has('NONE')) continue;
+        // TODO Verify skp doesn't include set and crafted items
         const skp = item.statMap.get('skillpoints');
         if (skp) for (let i = 0; i < 5; i++) locked_prov[i] += Math.max(0, skp[i]);
     }
-    const w_skp = snap.weapon_sm.get('skillpoints');
-    if (w_skp) for (let i = 0; i < 5; i++) locked_prov[i] += Math.max(0, w_skp[i]);
 
     const net_demand = [0, 0, 0, 0, 0];
     let demand_sum = 0;
@@ -154,37 +153,48 @@ function _compute_max_abs_impact(weights, deltas) {
     let max_abs = 1.0;
     for (const [stat, w] of weights) {
         const d = deltas.get(stat) ?? _DEFAULT_DELTAS[stat] ?? 1;
-        const impact = Math.abs(w) * d;
+        const impact = Math.abs(w) * Math.abs(d);
         if (impact > max_abs) max_abs = impact;
     }
     return max_abs;
 }
 
 /**
- * Direct threshold constraints (ge ops on direct stats): boost weight for
- * stats whose baseline value falls short of the restriction threshold.
+ * Direct threshold constraints (ge/le ops on direct stats): push weight in the
+ * direction that relieves the constraint, scaled by how much the baseline
+ * violates it.  `ge` adds positive weight (higher is better); `le` subtracts
+ * (lower is better), consistent with dominance placing the stat in `lower`.
+ *
+ * Equation (per restriction):
+ *   shortfall_units = shortfall_raw / stat_delta          // how many of an avg item we would need to meet the constraint
+ *   per_item_units  = shortfall_units / max(1, slots-1)   // spread burden across items
+ *      TODO some slot types provide more of some stats...a problem for later
+ *   scale           = max(_CONSTRAINT_SATISFIED_FLOOR, per_item_units)
+ *   bonus_mag       = _CONSTRAINT_WEIGHT_FRACTION * scale * max_abs / stat_delta
+ *   weight         += sign(op) * bonus_mag
+ *
+ * `max_abs` keeps magnitude calibrated against score-based weights; the
+ * trailing `/ stat_delta` converts impact to a per-unit weight.
  */
 function _apply_direct_constraint_bonuses(result, restrictions) {
-    const { weights, combo_base, deltas, max_abs } = result;
+    const { weights, combo_base, deltas, max_abs, slots_available } = result;
 
     for (const { stat, op, value } of (restrictions.stat_thresholds ?? [])) {
-        if (op !== 'ge' || _INDIRECT_CONSTRAINT_STATS.has(stat)) continue;
-        const current = combo_base.get(stat) ?? 0;
-        const deficit = value - current;
-        if (deficit <= 0) continue;
+        if (_INDIRECT_CONSTRAINT_STATS.has(stat)) continue;
+        if (op !== 'ge' && op !== 'le') continue;
 
-        // max_abs is impact-based (per-item), so divide by stat_delta
-        // to get a per-unit bonus.  This naturally normalizes across
-        // stats with different magnitudes (atkTier ~1 vs damPct ~20).
+        const current = combo_base.get(stat) ?? 0;
+        const shortfall_raw = op === 'ge' ? (value - current) : (current - value);
+
         const stat_delta = deltas.get(stat) || _DEFAULT_DELTAS[stat] || 1;
-        // When threshold is positive, scale by deficit/threshold (fractional shortfall).
-        // When threshold <= 0 (e.g. mainAttackRange >= 0 with negative current),
-        // use deficit/stat_delta instead (how many typical items of deficit).
-        const scale = value > 0 ? (deficit / value) : (deficit / stat_delta);
-        const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * scale / stat_delta;
-        weights.set(stat, (weights.get(stat) ?? 0) + bonus);
+        const shortfall_units = shortfall_raw / stat_delta;
+        const per_item_units = shortfall_units / Math.max(1, slots_available - 1);
+        const scale = Math.max(_CONSTRAINT_SATISFIED_FLOOR, per_item_units);
+        const bonus_mag = _CONSTRAINT_WEIGHT_FRACTION * scale * max_abs / stat_delta;
+        const signed_bonus = op === 'ge' ? bonus_mag : -bonus_mag;
+        weights.set(stat, (weights.get(stat) ?? 0) + signed_bonus);
         if (SOLVER_DEBUG_SENSITIVITY) {
-            console.log(`[solver][sensitivity] constraint bonus: ${stat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, delta: ${stat_delta})`);
+            console.log(`[solver][sensitivity] constraint bonus (${op}): ${stat} (${(weights.get(stat) - signed_bonus).toFixed(2)}) += ${signed_bonus.toFixed(2)} (shortfall_raw: ${shortfall_raw.toFixed(0)}, per_item_units: ${per_item_units.toFixed(3)}, slots_available: ${slots_available}, stat_delta: ${stat_delta})`);
         }
     }
 }
@@ -482,7 +492,7 @@ function _log_sensitivity_summary(t0, target, combo_base, baseline_score, total_
     const sorted = [...weights.entries()]
         .filter(([k]) => typeof k === 'string')
         .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
-    console.log('stat sensitivities (sorted by |magnitude|):');
+    console.log('stat weights (sorted by |magnitude|):');
     for (const [stat, sens] of sorted) {
         console.log(`  ${stat}: ${sens.toFixed(4)} (delta: ${deltas.get(stat)})`);
     }
@@ -515,6 +525,8 @@ function _compute_sensitivity_weights(snap, locked, pools) {
     const { total_sp, assigned_sp } = _greedy_sp_alloc_main(build_sm, snap, locked);
     const combo_base = _assemble_baseline_combo(build_sm, total_sp, snap);
     const baseline_score = _sensitivity_eval_score(combo_base, snap);
+
+    // delta = median(pool)
     const { deltas, sp_deltas } = _compute_pool_deltas(pools);
 
     if (baseline_score === 0 && (target === 'combo_dps' || target === 'combo_damage')) {
@@ -523,17 +535,28 @@ function _compute_sensitivity_weights(snap, locked, pools) {
     }
 
     const weights = new Map();
+
+    // stat weight = (score(stat + delta) - score(stat)) / delta
     _perturb_stat_sensitivities(weights, combo_base, deltas, baseline_score, snap);
 
+    // sp weight = (score(sp + delta) - score(sp)) / delta * _SP_SENSITIVITY_DAMPEN
     const sp_sensitivities = _perturb_sp_sensitivities(build_sm, total_sp, sp_deltas, baseline_score, snap);
     weights._sp_sensitivities = sp_sensitivities;
 
+    // demand = req - provided
+    // budget = assignable sp (generally 200) (+4 if tome)
+    // sp weight += (max ∀stats (weight * delta)) * (min(((total demand - budget) / budget), 3)) * ((demand) / (total demand)) * _SP_FEASIBILITY_SCALE / delta
     _apply_sp_feasibility_bonus(weights, sp_sensitivities, snap, locked, pools, deltas, sp_deltas);
 
     const result = {
         weights, baseline_score, combo_base,
         deltas, sp_deltas, total_sp, build_sm,
         max_abs: _compute_max_abs_impact(weights, deltas),
+        // pools.ring represents up to 2 free slots (ring1 and/or ring2); every
+        // other pool key is exactly one free slot.
+        slots_available: Object.keys(pools).reduce((n, slot) => n + (slot === 'ring'
+            ? (locked.ring1 ? 0 : 1) + (locked.ring2 ? 0 : 1)
+            : 1), 0),
     };
 
     _apply_direct_constraint_bonuses(result, snap.restrictions);
