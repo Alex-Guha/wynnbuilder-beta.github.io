@@ -47,7 +47,27 @@ function _build_dominance_stats(snap, dmg_weights, restrictions) {
         else if (w * d < -threshold) lower.add(stat);
     }
 
-    // ge/le restrictions on direct stats
+    // Asymmetric pos/neg bonus channels.  Scored as min(0,v)*w (neg) and
+    // max(0,v)*w (pos):
+    //   _neg_bonuses[stat] > 0 → penalizes v<0 → less-negative is better → higher
+    //   _pos_bonuses[stat] < 0 → penalizes v>0 → lower
+    if (dmg_weights._neg_bonuses) {
+        for (const [stat, w] of dmg_weights._neg_bonuses) {
+            if (w > 0) higher.add(stat);
+            else if (w < 0) lower.add(stat);
+        }
+    }
+    if (dmg_weights._pos_bonuses) {
+        for (const [stat, w] of dmg_weights._pos_bonuses) {
+            if (w < 0) lower.add(stat);
+            else if (w > 0) higher.add(stat);
+        }
+    }
+
+    // ge/le restrictions on direct stats.
+    // Redundant once pos/neg channels fire for every ge/le restriction — kept
+    // as a safety net in case a restriction targets a stat that never makes it
+    // into the asymmetric channels.
     for (const { stat, op } of (restrictions.stat_thresholds ?? [])) {
         if (_INDIRECT_CONSTRAINT_STATS.has(stat)) continue;
         if (op === 'ge') higher.add(stat);

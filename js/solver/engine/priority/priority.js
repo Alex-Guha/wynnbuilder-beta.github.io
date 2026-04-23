@@ -37,6 +37,19 @@ function _score_item_priority(item_sm, dmg_weights) {
             }
         }
     }
+    // Asymmetric constraint bonuses.
+    if (dmg_weights._pos_bonuses) {
+        for (const [stat, w] of dmg_weights._pos_bonuses) {
+            const v = _item_stat_val(item_sm, stat);
+            if (v > 0) score += v * w;
+        }
+    }
+    if (dmg_weights._neg_bonuses) {
+        for (const [stat, w] of dmg_weights._neg_bonuses) {
+            const v = _item_stat_val(item_sm, stat);
+            if (v < 0) score += v * w;
+        }
+    }
     return score;
 }
 
@@ -59,6 +72,12 @@ function _prioritize_pools(pools, dmg_weights) {
         // Sort by absolute value descending for readability
         const sorted = Object.entries(effective).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
         console.log('[solver] effective priority weights:', Object.fromEntries(sorted));
+        if (dmg_weights._pos_bonuses?.size) {
+            console.log('[solver] pos-only bonuses:', Object.fromEntries(dmg_weights._pos_bonuses));
+        }
+        if (dmg_weights._neg_bonuses?.size) {
+            console.log('[solver] neg-only bonuses:', Object.fromEntries(dmg_weights._neg_bonuses));
+        }
         if (dmg_weights._sp_sensitivities) {
             console.log('[solver] SP sensitivities:', dmg_weights._sp_sensitivities.map((s, i) =>
                 `${skp_order[i]}: ${s.toFixed(4)}`));

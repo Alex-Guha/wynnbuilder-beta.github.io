@@ -165,13 +165,20 @@ function _compute_max_abs_impact(weights, deltas) {
  * violates it.  `ge` adds positive weight (higher is better); `le` subtracts
  * (lower is better), consistent with dominance placing the stat in `lower`.
  *
- * Equation (per restriction):
+ * Active equation (per restriction):
  *   shortfall_units = shortfall_raw / stat_delta          // how many of an avg item we would need to meet the constraint
  *   per_item_units  = shortfall_units / max(1, slots-1)   // spread burden across items
  *      TODO some slot types provide more of some stats...a problem for later
  *   scale           = max(_CONSTRAINT_SATISFIED_FLOOR, per_item_units)
  *   bonus_mag       = _CONSTRAINT_WEIGHT_FRACTION * scale * max_abs / stat_delta
  *   weight         += sign(op) * bonus_mag
+ *
+ * Asymmetric pos/neg channels (scored via max(0,v)*w and min(0,v)*w):
+ *   ge: _neg_bonuses[stat] += |bonus|   → penalizes items with v<0  (min(0,v)*|w| < 0)
+ *   le: _pos_bonuses[stat] -= |bonus|   → penalizes items with v>0  (max(0,v)*-|w| < 0)
+ * Active constraints push the unified weight AND the asymmetric channel.
+ * Satisfied constraints push only the asymmetric channel at the floor — so
+ * slack-eroders are penalized without giving slack-providers a free boost.
  *
  * `max_abs` keeps magnitude calibrated against score-based weights; the
  * trailing `/ stat_delta` converts impact to a per-unit weight.
@@ -189,12 +196,23 @@ function _apply_direct_constraint_bonuses(result, restrictions) {
         const stat_delta = deltas.get(stat) || _DEFAULT_DELTAS[stat] || 1;
         const shortfall_units = shortfall_raw / stat_delta;
         const per_item_units = shortfall_units / Math.max(1, slots_available - 1);
-        const scale = Math.max(_CONSTRAINT_SATISFIED_FLOOR, per_item_units);
+
+        const active = shortfall_raw > 0;
+        const scale = active ? per_item_units : _CONSTRAINT_SATISFIED_FLOOR;
         const bonus_mag = _CONSTRAINT_WEIGHT_FRACTION * scale * max_abs / stat_delta;
-        const signed_bonus = op === 'ge' ? bonus_mag : -bonus_mag;
-        weights.set(stat, (weights.get(stat) ?? 0) + signed_bonus);
+
+        if (active) {
+            const signed_bonus = op === 'ge' ? bonus_mag : -bonus_mag;
+            weights.set(stat, (weights.get(stat) ?? 0) + signed_bonus);
+        }
+        if (op === 'ge') {
+            weights._neg_bonuses.set(stat, (weights._neg_bonuses.get(stat) ?? 0) + bonus_mag);
+        } else {
+            weights._pos_bonuses.set(stat, (weights._pos_bonuses.get(stat) ?? 0) - bonus_mag);
+        }
+
         if (SOLVER_DEBUG_SENSITIVITY) {
-            console.log(`[solver][sensitivity] constraint bonus (${op}): ${stat} (${(weights.get(stat) - signed_bonus).toFixed(2)}) += ${signed_bonus.toFixed(2)} (shortfall_raw: ${shortfall_raw.toFixed(0)}, per_item_units: ${per_item_units.toFixed(3)}, slots_available: ${slots_available}, stat_delta: ${stat_delta})`);
+            console.log(`[solver][sensitivity] constraint bonus (${op}, ${active ? 'active' : 'satisfied'}): ${stat} bonus_mag=${bonus_mag.toFixed(2)} (shortfall_raw: ${shortfall_raw.toFixed(0)}, per_item_units: ${per_item_units.toFixed(3)}, slots_available: ${slots_available}, stat_delta: ${stat_delta})`);
         }
     }
 }
@@ -232,6 +250,10 @@ function _apply_indirect_constraint_bonuses(result, snap, restrictions) {
             const scale = value > 0 ? (deficit / value) : (deficit / stat_delta);
             const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * scale / stat_delta * _INDIRECT_SENS_SCALE * indirect_sens;
             weights.set(cstat, (weights.get(cstat) ?? 0) + bonus);
+            // Parent constraint is `ge` (gated above); contributor positively
+            // affects the indirect stat — so items with v<0 of the contributor
+            // make the deficit worse.  Penalize via _neg_bonuses.
+            weights._neg_bonuses.set(cstat, (weights._neg_bonuses.get(cstat) ?? 0) + bonus);
             if (SOLVER_DEBUG_SENSITIVITY) {
                 console.log(`[solver][sensitivity] indirect constraint bonus (${stat}): ${cstat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sens: ${indirect_sens.toFixed(4)}, delta: ${stat_delta})`);
             }
@@ -499,6 +521,19 @@ function _log_sensitivity_summary(t0, target, combo_base, baseline_score, total_
     console.log('SP sensitivities:', sp_sensitivities.map((s, i) =>
         `${skp_order[i]}: ${s.toFixed(4)} (delta: ${sp_deltas[i]})`));
 
+    if (weights._pos_bonuses?.size) {
+        const entries = [...weights._pos_bonuses.entries()]
+            .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+        console.log('pos-only bonuses (applied to max(0, v)):');
+        for (const [stat, w] of entries) console.log(`  ${stat}: ${w.toFixed(4)}`);
+    }
+    if (weights._neg_bonuses?.size) {
+        const entries = [...weights._neg_bonuses.entries()]
+            .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+        console.log('neg-only bonuses (applied to min(0, v)):');
+        for (const [stat, w] of entries) console.log(`  ${stat}: ${w.toFixed(4)}`);
+    }
+
     console.groupEnd();
 }
 
@@ -535,6 +570,11 @@ function _compute_sensitivity_weights(snap, locked, pools) {
     }
 
     const weights = new Map();
+    // Asymmetric scoring channels.  Scored as max(0, v) * w (_pos_bonuses) and
+    // min(0, v) * w (_neg_bonuses) — so a positive _neg_bonuses entry penalizes
+    // items with v<0, and a negative _pos_bonuses entry penalizes items with v>0.
+    weights._pos_bonuses = new Map();
+    weights._neg_bonuses = new Map();
 
     // stat weight = (score(stat + delta) - score(stat)) / delta
     _perturb_stat_sensitivities(weights, combo_base, deltas, baseline_score, snap);
