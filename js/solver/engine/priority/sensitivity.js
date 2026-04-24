@@ -246,12 +246,28 @@ function _apply_direct_constraint_bonuses(result, restrictions) {
 
 /**
  * Indirect constraints (ehp, ehpr, total_hp, hpr): stats computed from the
- * full build via getDefenseStats().  We can't read them from the statMap, so
- * perturb each contributing direct stat (and relevant SP index) and measure
+ * full build via getDefenseStats().  Can't be read from the statMap, so we
+ * perturb contributing direct stats (and relevant SP indices) and measure
  * the indirect stat's response.
+ *
+ * Joint per-item measurement: an average item carries multiple contributors
+ * at once (hp + hpBonus + hprPct + def/agi SP), and the indirect formula is
+ * non-linear.  So we perturb ALL contributors together to get
+ * `agg_indirect_delta` — the indirect-stat change per average item — and use
+ * that as the denominator for "items needed":
+ *
+ *   shortfall_units = deficit / agg_indirect_delta
+ *   per_item_units  = shortfall_units / max(1, slots_available - 1)
+ *
+ * Each contributor's per-unit weight is then its individual sensitivity's
+ * share of the joint closure: (indirect_sens[cstat] / agg_indirect_delta).
+ *
+ * Only runs on active `ge` deficits — no satisfied-floor branch.  Mirrors
+ * into `_neg_bonuses` so items with v<0 contributors get penalized
+ * (contributor is positive-by-construction for ge-indirect).
  */
 function _apply_indirect_constraint_bonuses(result, snap, restrictions) {
-    const { weights, combo_base, deltas, sp_deltas, total_sp, build_sm, max_abs } = result;
+    const { weights, combo_base, deltas, sp_deltas, total_sp, build_sm, max_abs, slots_available } = result;
 
     for (const { stat, op, value } of (restrictions.stat_thresholds ?? [])) {
         if (!_INDIRECT_CONSTRAINT_STATS.has(stat)) continue;
@@ -263,34 +279,79 @@ function _apply_indirect_constraint_bonuses(result, snap, restrictions) {
         if (deficit <= 0) continue;  // already met by baseline
 
         const contributors = _INDIRECT_CONTRIBUTORS[stat];
+        const sp_indices = _INDIRECT_SP_CONTRIBUTORS[stat];
+        const sp_available = sp_indices && sp_deltas && total_sp && build_sm;
+
+        // ── Aggregate per-item perturbation ─────────────────────────────
+        // Perturb every contributor (stat + SP) by its delta simultaneously.
+        // When SP applies, rebuild with trial_sp first (returns a fresh Map),
+        // then stack the stat deltas onto that rebuilt combo — otherwise the
+        // rebuild would discard our direct-stat perturbations.
+        let agg_combo;
+        let saved_contribs = null;
+        if (sp_available) {
+            const trial_sp = [...total_sp];
+            for (const si of sp_indices) trial_sp[si] += sp_deltas[si] || 10;
+            agg_combo = _assemble_baseline_combo(build_sm, trial_sp, snap);
+            for (const cstat of contributors) {
+                const d = deltas.get(cstat) || _DEFAULT_DELTAS[cstat] || 1;
+                agg_combo.set(cstat, (agg_combo.get(cstat) ?? 0) + d);
+            }
+        } else {
+            saved_contribs = new Map();
+            for (const cstat of contributors) {
+                const d = deltas.get(cstat) || _DEFAULT_DELTAS[cstat] || 1;
+                saved_contribs.set(cstat, combo_base.get(cstat) ?? 0);
+                combo_base.set(cstat, saved_contribs.get(cstat) + d);
+            }
+            agg_combo = combo_base;
+        }
+        const agg_perturbed_val = _eval_indirect_stat(agg_combo, stat);
+        if (saved_contribs) {
+            for (const [cstat, old] of saved_contribs) combo_base.set(cstat, old);
+        }
+
+        const agg_indirect_delta = agg_perturbed_val - baseline_val;
+        if (agg_indirect_delta <= 0) {
+            if (SOLVER_DEBUG_SENSITIVITY) {
+                console.log(`[solver][sensitivity] indirect (${stat}): skipped — agg_indirect_delta=${agg_indirect_delta.toFixed(4)} (non-linear cancellation)`);
+            }
+            continue;
+        }
+
+        const shortfall_units = deficit / agg_indirect_delta;
+        const per_item_units = shortfall_units / Math.max(1, slots_available - 1);
+
+        if (SOLVER_DEBUG_SENSITIVITY) {
+            console.log(`[solver][sensitivity] indirect (${stat}): deficit=${deficit.toFixed(0)}, agg_indirect_delta=${agg_indirect_delta.toFixed(2)}, shortfall_units=${shortfall_units.toFixed(3)}, per_item_units=${per_item_units.toFixed(3)}, slots_available=${slots_available}, contributors=[${contributors.join(',')}${sp_available ? ',SP:' + sp_indices.map(i => skp_order[i]).join(',') : ''}]`);
+        }
+
+        // ── Per-contributor per-unit weight ─────────────────────────────
         for (const cstat of contributors) {
-            const delta = deltas.get(cstat) || _DEFAULT_DELTAS[cstat] || 1;
+            const stat_delta = deltas.get(cstat) || _DEFAULT_DELTAS[cstat] || 1;
             const old = combo_base.get(cstat) ?? 0;
-            combo_base.set(cstat, old + delta);
+            combo_base.set(cstat, old + stat_delta);
             const perturbed_val = _eval_indirect_stat(combo_base, stat);
             combo_base.set(cstat, old);  // restore
 
-            const indirect_sens = (perturbed_val - baseline_val) / delta;
+            const indirect_sens = (perturbed_val - baseline_val) / stat_delta;
             if (indirect_sens <= 0) continue;
 
-            const stat_delta = deltas.get(cstat) || _DEFAULT_DELTAS[cstat] || 1;
-            const scale = value > 0 ? (deficit / value) : (deficit / stat_delta);
-            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * scale / stat_delta * _INDIRECT_SENS_SCALE * indirect_sens;
+            const share = indirect_sens / agg_indirect_delta;
+            const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * per_item_units
+                * _INDIRECT_SENS_SCALE * share;
             weights.set(cstat, (weights.get(cstat) ?? 0) + bonus);
             // Parent constraint is `ge` (gated above); contributor positively
             // affects the indirect stat — so items with v<0 of the contributor
             // make the deficit worse.  Penalize via _neg_bonuses.
             weights._neg_bonuses.set(cstat, (weights._neg_bonuses.get(cstat) ?? 0) + bonus);
             if (SOLVER_DEBUG_SENSITIVITY) {
-                console.log(`[solver][sensitivity] indirect constraint bonus (${stat}): ${cstat} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sens: ${indirect_sens.toFixed(4)}, delta: ${stat_delta})`);
+                console.log(`[solver][sensitivity] indirect constraint bonus (${stat}): ${cstat} += ${bonus.toFixed(2)} (sens: ${indirect_sens.toFixed(4)}, share: ${share.toFixed(4)}, delta: ${stat_delta})`);
             }
         }
 
         // ── SP provision sensitivity for def/agi → EHP/EHPR ─────────────
-        // Items providing def/agi SP improve EHP via skillPointsToPercentage,
-        // but the direct-stat perturbation above doesn't capture this.
-        const sp_indices = _INDIRECT_SP_CONTRIBUTORS[stat];
-        if (sp_indices && sp_deltas && total_sp && build_sm) {
+        if (sp_available) {
             for (const si of sp_indices) {
                 const sp_delta = sp_deltas[si] || 10;
                 const trial_sp = [...total_sp];
@@ -301,13 +362,12 @@ function _apply_indirect_constraint_bonuses(result, snap, restrictions) {
                 const sp_sens = (perturbed_val - baseline_val) / sp_delta;
                 if (sp_sens <= 0) continue;
 
-                const eff_sp_delta = sp_deltas[si] || 10;
-                const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * (deficit / value)
-                    * _INDIRECT_SENS_SCALE * sp_sens * _SP_SENSITIVITY_DAMPEN
-                    / eff_sp_delta;
+                const share = sp_sens / agg_indirect_delta;
+                const bonus = max_abs * _CONSTRAINT_WEIGHT_FRACTION * per_item_units
+                    * _INDIRECT_SENS_SCALE * share * _SP_SENSITIVITY_DAMPEN;
                 weights._sp_sensitivities[si] += bonus;
                 if (SOLVER_DEBUG_SENSITIVITY) {
-                    console.log(`[solver][sensitivity] indirect SP constraint bonus (${stat}): ${skp_order[si]} += ${bonus.toFixed(2)} (deficit: ${deficit.toFixed(0)} / threshold: ${value}, sp_sens: ${sp_sens.toFixed(4)})`);
+                    console.log(`[solver][sensitivity] indirect SP constraint bonus (${stat}): ${skp_order[si]} += ${bonus.toFixed(2)} (sp_sens: ${sp_sens.toFixed(4)}, share: ${share.toFixed(4)})`);
                 }
             }
         }
