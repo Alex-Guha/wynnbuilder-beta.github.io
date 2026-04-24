@@ -110,6 +110,12 @@ const _PERTURBABLE_STATS = [
     'gXp', 'gSpd', 'mainAttackRange',
 ];
 
+// Stats whose perturbation is sampled in both +delta and -delta directions,
+// with sensitivities stored in _pos_bonuses / _neg_bonuses instead of the
+// unified weight map.  Seeded with atkTier (ms-mana response is asymmetric
+// and atkTier is clamped to [0,6] via baseDamageMultiplier indexing).
+const _SPLIT_STATS = new Set(['atkTier']);
+
 // Default delta values when fewer than 3 items in pools have a stat.
 const _DEFAULT_DELTAS = {
     sdPct: 25, sdRaw: 150, mdPct: 25, mdRaw: 150,

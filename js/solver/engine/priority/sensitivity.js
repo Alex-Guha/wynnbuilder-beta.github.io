@@ -33,13 +33,23 @@ function _perturb_stat_sensitivities(weights, combo_base, deltas, baseline_score
         if (!delta || delta === 0) continue;
 
         const old = combo_base.get(stat) ?? 0;
-        combo_base.set(stat, old + delta);
-        const perturbed_score = _sensitivity_eval_score(combo_base, snap);
-        combo_base.set(stat, old); // restore
 
-        const sensitivity = (perturbed_score - baseline_score) / delta;
-        if (sensitivity !== 0) {
-            weights.set(stat, sensitivity);
+        combo_base.set(stat, old + delta);
+        const score_up = _sensitivity_eval_score(combo_base, snap);
+        const s_up = (score_up - baseline_score) / delta;
+
+        if (_SPLIT_STATS.has(stat)) {
+            // Split: also measure the -delta direction.  A boundary-clamped
+            // direction (e.g. atkTier at tier 0) reports zero and is skipped.
+            combo_base.set(stat, old - delta);
+            const score_down = _sensitivity_eval_score(combo_base, snap);
+            combo_base.set(stat, old); // restore
+            const s_down = (score_down - baseline_score) / (-delta);
+            if (s_up !== 0) weights._pos_bonuses.set(stat, s_up);
+            if (s_down !== 0) weights._neg_bonuses.set(stat, s_down);
+        } else {
+            combo_base.set(stat, old); // restore
+            if (s_up !== 0) weights.set(stat, s_up);
         }
     }
 }
@@ -151,11 +161,16 @@ function _apply_sp_feasibility_bonus(weights, sp_sensitivities, snap, locked, po
  */
 function _compute_max_abs_impact(weights, deltas) {
     let max_abs = 1.0;
-    for (const [stat, w] of weights) {
+    const consider = (stat, w) => {
         const d = deltas.get(stat) ?? _DEFAULT_DELTAS[stat] ?? 1;
         const impact = Math.abs(w) * Math.abs(d);
         if (impact > max_abs) max_abs = impact;
-    }
+    };
+    for (const [stat, w] of weights) consider(stat, w);
+    // Split-stat sensitivities live in the asymmetric channels — include them
+    // so max_abs reflects their magnitude for downstream calibration.
+    if (weights._pos_bonuses) for (const [s, w] of weights._pos_bonuses) consider(s, w);
+    if (weights._neg_bonuses) for (const [s, w] of weights._neg_bonuses) consider(s, w);
     return max_abs;
 }
 
@@ -200,15 +215,27 @@ function _apply_direct_constraint_bonuses(result, restrictions) {
         const active = shortfall_raw > 0;
         const scale = active ? per_item_units : _CONSTRAINT_SATISFIED_FLOOR;
         const bonus_mag = _CONSTRAINT_WEIGHT_FRACTION * scale * max_abs / stat_delta;
+        const split = _SPLIT_STATS.has(stat);
 
         if (active) {
+            // For split stats, route to the pos channel (so items with v>0
+            // get the active reward/penalty) instead of unified — otherwise
+            // the scoring main loop would apply the weight symmetrically.
             const signed_bonus = op === 'ge' ? bonus_mag : -bonus_mag;
-            weights.set(stat, (weights.get(stat) ?? 0) + signed_bonus);
+            if (split) {
+                weights._pos_bonuses.set(stat, (weights._pos_bonuses.get(stat) ?? 0) + signed_bonus);
+            } else {
+                weights.set(stat, (weights.get(stat) ?? 0) + signed_bonus);
+            }
         }
         if (op === 'ge') {
             weights._neg_bonuses.set(stat, (weights._neg_bonuses.get(stat) ?? 0) + bonus_mag);
         } else {
             weights._pos_bonuses.set(stat, (weights._pos_bonuses.get(stat) ?? 0) - bonus_mag);
+            // For split + le: also reward items with v<0 via neg channel.
+            if (split) {
+                weights._neg_bonuses.set(stat, (weights._neg_bonuses.get(stat) ?? 0) - bonus_mag);
+            }
         }
 
         if (SOLVER_DEBUG_SENSITIVITY) {
@@ -438,11 +465,13 @@ function _apply_atktier_mana_adjustment(result, snap, restrictions, pools) {
     const cur_atkTier = combo_base.get('atkTier') ?? 0;
 
     const adj_base = Math.max(0, Math.min(6, baseAtkSpd + cur_atkTier));
-    const adj_pert = Math.max(0, Math.min(6, baseAtkSpd + cur_atkTier + atkTier_delta));
-    if (adj_base === adj_pert) return;
+    const adj_pert_up = Math.max(0, Math.min(6, baseAtkSpd + cur_atkTier + atkTier_delta));
+    const adj_pert_down = Math.max(0, Math.min(6, baseAtkSpd + cur_atkTier - atkTier_delta));
+    const do_up = adj_pert_up !== adj_base;
+    const do_down = adj_pert_down !== adj_base;
+    if (!do_up && !do_down) return;
 
     const ms_per_hit_base = corrected_ms / 3 / baseDamageMultiplier[adj_base];
-    const ms_per_hit_pert = corrected_ms / 3 / baseDamageMultiplier[adj_pert];
 
     let total_melee_hits = 0;
     for (const { sim_qty, spell, mana_excl } of (snap.parsed_combo ?? [])) {
@@ -450,11 +479,6 @@ function _apply_atktier_mana_adjustment(result, snap, restrictions, pools) {
         if (spell.scaling === 'melee') total_melee_hits += Math.round(sim_qty);
     }
     if (total_melee_hits <= 0) return;
-
-    // Mana change per atkTier_delta: negative when corrected_ms > 0
-    // (higher tier → larger divisor → less steal per hit)
-    const ms_mana_delta = (ms_per_hit_pert - ms_per_hit_base) * total_melee_hits;
-    const ms_mana_per_unit = ms_mana_delta / atkTier_delta;
 
     // Compute mana tightness at corrected ms (may differ from baseline)
     combo_base.set('ms', corrected_ms);
@@ -476,20 +500,48 @@ function _apply_atktier_mana_adjustment(result, snap, restrictions, pools) {
     const delta_mr = deltas.get('mr') ?? _DEFAULT_DELTAS.mr ?? 1;
     const mr_weight = mana_bonus_adj / delta_mr;
 
-    const atkTier_mana_w = ms_mana_per_unit / mana_per_mr * mr_weight;
+    // Per-unit weight for a +signed_delta atkTier movement reaching adj_pert.
+    const compute_w = (adj_pert, signed_delta) => {
+        const ms_per_hit_pert = corrected_ms / 3 / baseDamageMultiplier[adj_pert];
+        const ms_mana_delta = (ms_per_hit_pert - ms_per_hit_base) * total_melee_hits;
+        const ms_mana_per_unit = ms_mana_delta / signed_delta;
+        return ms_mana_per_unit / mana_per_mr * mr_weight;
+    };
 
-    const old_w = weights.get('atkTier') ?? 0;
-    weights.set('atkTier', old_w + atkTier_mana_w);
+    const split = _SPLIT_STATS.has('atkTier');
+    let w_up = 0, w_down = 0, old_pos = 0, old_neg = 0, old_uni = 0;
+    if (split) {
+        old_pos = weights._pos_bonuses.get('atkTier') ?? 0;
+        old_neg = weights._neg_bonuses.get('atkTier') ?? 0;
+        if (do_up) {
+            w_up = compute_w(adj_pert_up, atkTier_delta);
+            weights._pos_bonuses.set('atkTier', old_pos + w_up);
+        }
+        if (do_down) {
+            // signed_delta is -atkTier_delta: measures per-unit upward
+            // movement from the down-perturbed position.
+            w_down = compute_w(adj_pert_down, -atkTier_delta);
+            weights._neg_bonuses.set('atkTier', old_neg + w_down);
+        }
+    } else {
+        old_uni = weights.get('atkTier') ?? 0;
+        if (do_up) {
+            w_up = compute_w(adj_pert_up, atkTier_delta);
+            weights.set('atkTier', old_uni + w_up);
+        }
+    }
 
     if (SOLVER_DEBUG_SENSITIVITY) {
-        console.log(`[solver][sensitivity] atkTier mana adj:` +
-            ` baseline_ms=${baseline_ms}, corrected_ms=${corrected_ms}` +
-            ` | ms_mana_delta=${ms_mana_delta.toFixed(2)} (per ${atkTier_delta} atkTier)` +
-            ` | mana_ratio=${ratio.toFixed(3)}, mana_bonus=${mana_bonus_adj.toFixed(2)}` +
-            ` | atkTier_mana_w=${atkTier_mana_w.toFixed(2)}` +
-            ` | atkTier: ${old_w.toFixed(2)} → ${(old_w + atkTier_mana_w).toFixed(2)}`
-            + (ms_correction === 0 && pool_ms_total !== 0
-                ? ' (ms correction suppressed by restriction)' : ''));
+        const parts = [`baseline_ms=${baseline_ms}, corrected_ms=${corrected_ms}`,
+            `mana_ratio=${ratio.toFixed(3)}, mana_bonus=${mana_bonus_adj.toFixed(2)}`];
+        if (split) {
+            if (do_up) parts.push(`pos: ${old_pos.toFixed(2)} → ${(old_pos + w_up).toFixed(2)} (w_up=${w_up.toFixed(2)})`);
+            if (do_down) parts.push(`neg: ${old_neg.toFixed(2)} → ${(old_neg + w_down).toFixed(2)} (w_down=${w_down.toFixed(2)})`);
+        } else {
+            parts.push(`atkTier: ${old_uni.toFixed(2)} → ${(old_uni + w_up).toFixed(2)}`);
+        }
+        if (ms_correction === 0 && pool_ms_total !== 0) parts.push('(ms correction suppressed by restriction)');
+        console.log(`[solver][sensitivity] atkTier mana adj: ${parts.join(' | ')}`);
     }
 }
 

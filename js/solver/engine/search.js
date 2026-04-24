@@ -868,6 +868,20 @@ function _display_priority_weights() {
         const delta = deltas ? (deltas.get(stat) ?? 1) : 1;
         display.set(stat, w * delta);
     }
+    // Split stats (e.g. atkTier) store their full sensitivity in the pos/neg
+    // channels — show as two separate rows.  Non-split stats use the channels
+    // only as supplementary constraint penalties that stack on top of the
+    // unified weight, so they aren't surfaced here to avoid double-counting.
+    const _add_channel = (map, suffix) => {
+        if (!map) return;
+        for (const [stat, w] of map) {
+            if (!_SPLIT_STATS.has(stat)) continue;
+            const delta = deltas ? (deltas.get(stat) ?? 1) : 1;
+            display.set(stat + suffix, w * delta);
+        }
+    };
+    _add_channel(weights._pos_bonuses, '⁺'); // superscript +
+    _add_channel(weights._neg_bonuses, '⁻'); // superscript -
 
     // Top N stats by |impact|
     const entries = [...display.entries()];
@@ -875,7 +889,14 @@ function _display_priority_weights() {
     const topN = entries.slice(0, _ADV_TOP_N);
 
     const stat_rows = topN.map(([stat, w]) => {
-        const label = _STAT_LABEL_MAP.get(stat) ?? stat;
+        // Strip ⁺/⁻ channel suffix for label lookup, then re-append.
+        let suffix = '';
+        let base = stat;
+        if (stat.endsWith('⁺') || stat.endsWith('⁻')) {
+            suffix = stat.slice(-1);
+            base = stat.slice(0, -1);
+        }
+        const label = (_STAT_LABEL_MAP.get(base) ?? base) + suffix;
         return `<div class="adv-weight-row"><span class="adv-weight-label">${label}</span>`
             + `<span class="adv-weight-val">${Math.round(w)}</span></div>`;
     }).join('');
