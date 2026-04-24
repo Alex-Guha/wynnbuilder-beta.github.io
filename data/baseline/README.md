@@ -93,7 +93,7 @@ python3 compress_json.py ../data/baseline/clean.json         ../data/$VER/items.
 python3 compress_json.py ../data/baseline/clean.json         ../data/baseline/compressed/compress.json
 python3 compress_json.py ../data/baseline/ingreds_clean.json ../data/$VER/ingreds.json
 python3 compress_json.py ../data/baseline/tomes.json         ../data/$VER/tomes.json
-python3 compress_json.py ../data/baseline/recipes.json       ../data/$VER/recipes.json
+python3 compress_json.py ../data/baseline/recipes_clean.json       ../data/$VER/recipes.json
 cp ../data/baseline/dps_data.json ../data/$VER/dps_data.json
 
 # 9. Generate encoding constants (preview first, then write)
