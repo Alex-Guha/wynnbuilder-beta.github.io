@@ -85,6 +85,12 @@ function displaySolverSummary(parent_id, stats) {
     const int_mana = Math.floor(skillPointsToPercentage(stats.get('int') ?? 0) * 100);
     parent.append(row('Total Mana:', 100 + maxMana + int_mana, 'wDam'));
 
+    const atkTier = stats.get('atkTier') ?? 0;
+    if (atkTier) {
+        const sign = atkTier > 0 ? '+' : '';
+        parent.append(row('Attack Speed Bonus:', sign + atkTier + ' tier'));
+    }
+
     const ls = stats.get('ls') ?? 0;
     if (ls) {
         parent.append(row('Life Steal:', ls + '/3s', 'Health'));

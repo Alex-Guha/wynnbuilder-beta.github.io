@@ -28,27 +28,47 @@
  * _PERTURBABLE_STATS and write the resulting sensitivity into `weights`.
  */
 function _perturb_stat_sensitivities(weights, combo_base, deltas, baseline_score, snap) {
+    // For split stats, when the baseline + ±delta both clamp to the same
+    // effective value (e.g. atkTier: weapon_atkSpd + baseline clamped at 0 or
+    // 6, where ±1 re-clamps to the same tier), the score is identical to
+    // baseline and we'd report zero sensitivity — even though an item with a
+    // larger perturbation would escape the clamp.  Retry with multiples of
+    // delta until the score actually moves, or we've exhausted the range.
+    const _MAX_ESCAPE_MULT = 6;  // atkTier range is [0,6]; 6x covers any tier
+    const _perturb_one_direction = (stat, old, signed_delta) => {
+        let eff_delta = signed_delta;
+        combo_base.set(stat, old + eff_delta);
+        let score = _sensitivity_eval_score(combo_base, snap);
+        for (let k = 2; score === baseline_score && k <= _MAX_ESCAPE_MULT; k++) {
+            eff_delta = k * signed_delta;
+            combo_base.set(stat, old + eff_delta);
+            score = _sensitivity_eval_score(combo_base, snap);
+        }
+        return { score, eff_delta };
+    };
+
     for (const stat of _PERTURBABLE_STATS) {
         const delta = deltas.get(stat);
         if (!delta || delta === 0) continue;
 
         const old = combo_base.get(stat) ?? 0;
 
-        combo_base.set(stat, old + delta);
-        const score_up = _sensitivity_eval_score(combo_base, snap);
-        const s_up = (score_up - baseline_score) / delta;
-
         if (_SPLIT_STATS.has(stat)) {
-            // Split: also measure the -delta direction.  A boundary-clamped
-            // direction (e.g. atkTier at tier 0) reports zero and is skipped.
-            combo_base.set(stat, old - delta);
-            const score_down = _sensitivity_eval_score(combo_base, snap);
+            // Split: measure both +delta and -delta directions, with
+            // clamp-escape on each side.  A genuinely non-responsive direction
+            // (e.g. atkTier already at max tier upward) still reports zero.
+            const up = _perturb_one_direction(stat, old, delta);
+            const down = _perturb_one_direction(stat, old, -delta);
             combo_base.set(stat, old); // restore
-            const s_down = (score_down - baseline_score) / (-delta);
+            const s_up = (up.score - baseline_score) / up.eff_delta;
+            const s_down = (down.score - baseline_score) / down.eff_delta;
             if (s_up !== 0) weights._pos_bonuses.set(stat, s_up);
             if (s_down !== 0) weights._neg_bonuses.set(stat, s_down);
         } else {
+            combo_base.set(stat, old + delta);
+            const score_up = _sensitivity_eval_score(combo_base, snap);
             combo_base.set(stat, old); // restore
+            const s_up = (score_up - baseline_score) / delta;
             if (s_up !== 0) weights.set(stat, s_up);
         }
     }
@@ -525,11 +545,26 @@ function _apply_atktier_mana_adjustment(result, snap, restrictions, pools) {
     const cur_atkTier = combo_base.get('atkTier') ?? 0;
 
     const adj_base = Math.max(0, Math.min(6, baseAtkSpd + cur_atkTier));
-    const adj_pert_up = Math.max(0, Math.min(6, baseAtkSpd + cur_atkTier + atkTier_delta));
-    const adj_pert_down = Math.max(0, Math.min(6, baseAtkSpd + cur_atkTier - atkTier_delta));
-    const do_up = adj_pert_up !== adj_base;
-    const do_down = adj_pert_down !== adj_base;
+    // Clamp-escape: step outward by multiples of delta until the effective
+    // tier actually moves.  If we reach k=6 without escaping (e.g. baseline
+    // already at max/min tier in that direction), do_* stays false.
+    const _ESC_MAX = 6;
+    const _find_escape = (sign) => {
+        for (let k = 1; k <= _ESC_MAX; k++) {
+            const adj = Math.max(0, Math.min(6, baseAtkSpd + cur_atkTier + sign * k * atkTier_delta));
+            if (adj !== adj_base) return { adj, eff_delta: sign * k * atkTier_delta };
+        }
+        return null;
+    };
+    const up_esc = _find_escape(+1);
+    const down_esc = _find_escape(-1);
+    const do_up = up_esc !== null;
+    const do_down = down_esc !== null;
     if (!do_up && !do_down) return;
+    const adj_pert_up = up_esc?.adj;
+    const adj_pert_down = down_esc?.adj;
+    const eff_delta_up = up_esc?.eff_delta;
+    const eff_delta_down = down_esc?.eff_delta;
 
     const ms_per_hit_base = corrected_ms / 3 / baseDamageMultiplier[adj_base];
 
@@ -574,19 +609,19 @@ function _apply_atktier_mana_adjustment(result, snap, restrictions, pools) {
         old_pos = weights._pos_bonuses.get('atkTier') ?? 0;
         old_neg = weights._neg_bonuses.get('atkTier') ?? 0;
         if (do_up) {
-            w_up = compute_w(adj_pert_up, atkTier_delta);
+            w_up = compute_w(adj_pert_up, eff_delta_up);
             weights._pos_bonuses.set('atkTier', old_pos + w_up);
         }
         if (do_down) {
-            // signed_delta is -atkTier_delta: measures per-unit upward
+            // eff_delta_down is negative: measures per-unit upward
             // movement from the down-perturbed position.
-            w_down = compute_w(adj_pert_down, -atkTier_delta);
+            w_down = compute_w(adj_pert_down, eff_delta_down);
             weights._neg_bonuses.set('atkTier', old_neg + w_down);
         }
     } else {
         old_uni = weights.get('atkTier') ?? 0;
         if (do_up) {
-            w_up = compute_w(adj_pert_up, atkTier_delta);
+            w_up = compute_w(adj_pert_up, eff_delta_up);
             weights.set('atkTier', old_uni + w_up);
         }
     }
