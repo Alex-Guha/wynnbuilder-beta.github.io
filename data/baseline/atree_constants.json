@@ -6322,7 +6322,7 @@
                     "type": "add_spell_prop",
                     "base_spell": 3,
                     "target_part": "Uppercut",
-                    "cost": 10,
+                    "cost": 5,
                     "multipliers": [
                         100,
                         0,
@@ -16838,7 +16838,11 @@
                 "col": 4,
                 "icon": "node_3"
             },
-            "properties": {},
+            "properties": {
+                "lunatic_chant_strength": 15,
+                "fanatic_chant_resistance": 45,
+                "heretic_chant_speed": 60
+            },
             "effects": [
                 {
                     "type": "raw_stat",
@@ -16847,7 +16851,7 @@
                         {
                             "type": "stat",
                             "name": "damMult.Potion",
-                            "value": 15
+                            "value": "Uproot.lunatic_chant_strength"
                         }
                     ]
                 },
@@ -16858,7 +16862,7 @@
                         {
                             "type": "stat",
                             "name": "defMult.Chant",
-                            "value": 45
+                            "value": "Uproot.fanatic_chant_resistance"
                         }
                     ]
                 },
@@ -16869,7 +16873,7 @@
                         {
                             "type": "stat",
                             "name": "spd",
-                            "value": 60
+                            "value": "Uproot.heretic_chant_speed"
                         }
                     ]
                 }
@@ -17023,6 +17027,7 @@
             "desc": "Increase the power of all Chants. </br> Lunatic: +15% Damage Bonus to Allies Fanatic: +20% Resistance Bonus to Allies Heretic: +60% Walk Speed to Allies",
             "archetype": "Ritualist",
             "archetype_req": 10,
+            "base_abil": "Uproot",
             "parents": [
                 "Depersonalization",
                 "Invigorating Wave"
@@ -17037,42 +17042,12 @@
                 "col": 4,
                 "icon": "node_2"
             },
-            "properties": {},
-            "effects": [
-                {
-                    "type": "raw_stat",
-                    "toggle": "Chant of the Lunatic",
-                    "bonuses": [
-                        {
-                            "type": "stat",
-                            "name": "damMult.Potion",
-                            "value": 15
-                        }
-                    ]
-                },
-                {
-                    "type": "raw_stat",
-                    "toggle": "Chant of the Fanatic",
-                    "bonuses": [
-                        {
-                            "type": "stat",
-                            "name": "defMult.Chant",
-                            "value": 20
-                        }
-                    ]
-                },
-                {
-                    "type": "raw_stat",
-                    "toggle": "Chant of the Heretic",
-                    "bonuses": [
-                        {
-                            "type": "stat",
-                            "name": "spd",
-                            "value": 60
-                        }
-                    ]
-                }
-            ]
+            "properties": {
+                "lunatic_chant_strength": 15,
+                "fanatic_chant_resistance": 20,
+                "heretic_chant_speed": 60
+            },
+            "effects": []
         },
         {
             "display_name": "Deeper Wounds",

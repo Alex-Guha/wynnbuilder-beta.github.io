@@ -1529,6 +1529,14 @@ function start_solver_search() {
         if (err_el) err_el.textContent = 'Set a weapon before solving.';
         return;
     }
+
+    // Block solving when the ability tree has a hard validation error — the
+    // search pipeline (atree_merge → spell_collector → boost_registry) returns
+    // null in that state and would otherwise throw a raw JS error mid-search.
+    if (atree_validate?.value?.[0]) {
+        if (err_el) err_el.textContent = 'Ability tree is in an invalid state. Fix the errors highlighted in the ATree panel before solving.';
+        return;
+    }
     const _combo_required = snap.scoring_target === 'combo_dps'
         || snap.scoring_target === 'combo_damage'
         || snap.scoring_target === 'total_healing';
