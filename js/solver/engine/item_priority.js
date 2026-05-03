@@ -47,6 +47,7 @@ const _INDIRECT_CONTRIBUTORS = {
     total_hp: ['hpBonus'],
     hpr: ['hprRaw', 'hprPct'],
     ehpr: ['hpBonus', 'hprRaw', 'hprPct'],
+    total_mana: ['maxMana'],
 };
 
 // Dampening for indirect constraint sensitivity — indirect stats are noisier
@@ -59,6 +60,7 @@ const _INDIRECT_SP_CONTRIBUTORS = {
     ehp: [3, 4],       // def%, agi%
     ehp_no_agi: [3],   // def% only (agi excluded by definition)
     ehpr: [3, 4],      // def%, agi%
+    total_mana: [2],   // int → mana via skillPointsToPercentage
     // total_hp, hpr: not affected by SP
 };
 

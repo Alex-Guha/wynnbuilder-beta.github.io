@@ -148,9 +148,27 @@ async function init() {
 }
 
 window.onerror = function(message, source, lineno, colno, error) {
-    document.getElementById('err-box').textContent = message;
-    document.getElementById('stack-box').textContent = error.stack;
+    const friendly = _atree_friendly_error_msg();
+    document.getElementById('err-box').textContent = friendly ?? message;
+    document.getElementById('stack-box').textContent = friendly ? '' : (error?.stack ?? '');
 };
+
+/**
+ * If the ability tree currently has a hard validation error, the build/spell
+ * pipeline will produce null values that downstream nodes can't handle —
+ * resulting in raw JS exceptions surfacing in the error box. Detect that case
+ * and return a friendly message instead of leaking the JS error.
+ */
+function _atree_friendly_error_msg() {
+    try {
+        if (typeof atree_validate === 'undefined' || !atree_validate?.value) return null;
+        const [hard_error] = atree_validate.value;
+        if (!hard_error) return null;
+        return 'Ability tree is in an invalid state. Fix the errors highlighted in the ATree panel and try again.';
+    } catch (_) {
+        return null;
+    }
+}
 
 (async function() {
     await init();

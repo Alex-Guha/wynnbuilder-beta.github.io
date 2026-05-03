@@ -92,6 +92,7 @@ cp ../data/temp/major_ids_min.json       ../data/$VER/majid.json
 python3 compress_json.py ../data/baseline/clean.json         ../data/$VER/items.json
 python3 compress_json.py ../data/baseline/clean.json         ../data/baseline/compressed/compress.json
 python3 compress_json.py ../data/baseline/ingreds_clean.json ../data/$VER/ingreds.json
+python3 compress_json.py ../data/baseline/ingreds_clean.json         ../data/baseline/compressed/ingreds_compress.json
 python3 compress_json.py ../data/baseline/tomes.json         ../data/$VER/tomes.json
 python3 compress_json.py ../data/baseline/recipes_clean.json       ../data/$VER/recipes.json
 cp ../data/baseline/dps_data.json ../data/$VER/dps_data.json

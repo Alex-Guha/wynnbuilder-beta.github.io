@@ -216,6 +216,10 @@ function check_thresholds(stats, thresholds, spell_base_costs) {
             const base_cost = spell_base_costs?.[spell_num];
             if (base_cost == null) continue;
             v = getSpellCost(stats, { cost: base_cost, base_spell: spell_num });
+        } else if (stat === 'total_mana') {
+            const mm = stats.get('maxMana') ?? 0;
+            const int_mana = Math.floor(skillPointsToPercentage(stats.get('int') ?? 0) * 100);
+            v = 100 + mm + int_mana;
         } else {
             v = stats.get(stat) ?? 0;
         }
@@ -504,6 +508,7 @@ function eval_score_dispatch(scoring_target, combo_base, eval_damage_fn, eval_he
 const INDIRECT_CONSTRAINT_STATS = new Set([
     'ehp', 'ehp_no_agi', 'total_hp', 'ehpr', 'hpr',
     'finalSpellCost1', 'finalSpellCost2', 'finalSpellCost3', 'finalSpellCost4',
+    'total_mana',
 ]);
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
@@ -518,6 +523,11 @@ function eval_indirect_stat(stats, stat) {
     if (stat === 'total_hp') return getDefenseStats(stats)[0];
     if (stat === 'hpr') return getDefenseStats(stats)[2];
     if (stat === 'ehpr') return getDefenseStats(stats)[3][0];
+    if (stat === 'total_mana') {
+        const mm = stats.get('maxMana') ?? 0;
+        const int_mana = Math.floor(skillPointsToPercentage(stats.get('int') ?? 0) * 100);
+        return 100 + mm + int_mana;
+    }
     return stats.get(stat) ?? 0;
 }
 

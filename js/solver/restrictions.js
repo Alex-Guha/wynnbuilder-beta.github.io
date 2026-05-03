@@ -500,6 +500,7 @@ function _flash_row_limit_warning(container, type) {
 const _STAT_NATURAL_MIN = {
     finalSpellCost1: 1, finalSpellCost2: 1, finalSpellCost3: 1, finalSpellCost4: 1,
     total_hp: 5,
+    total_mana: 100,
 };
 
 function _validate_restriction_contradictions() {
