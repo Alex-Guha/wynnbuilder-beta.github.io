@@ -175,11 +175,12 @@ function buildTestSnapshot(decoded, snap, spellMap, atreeMerged, rawStats) {
     // so static_boosts is empty.
     const staticBoosts = new Map();
 
-    // ── 5. Augmented spell map with powder specials (mirrors search.js:111-118)
+    // ── 5. Augmented spell map with powder specials (mirrors search.js)
     const augSpellMap = new Map(spellMap);
-    for (const ps_idx of [0, 1, 3]) {
-        const tier = ctx.get_element_powder_tier(weaponPowders, ps_idx);
-        if (tier > 0) augSpellMap.set(-1000 - ps_idx, ctx.make_powder_special_spell(ps_idx, tier));
+    const weaponSpecial = ctx.get_powder_special(weaponPowders);
+    if (weaponSpecial && [0, 1, 3].includes(weaponSpecial.ps_idx)) {
+        augSpellMap.set(-1000 - weaponSpecial.ps_idx,
+            ctx.make_powder_special_spell(weaponSpecial.ps_idx, weaponSpecial.tier));
     }
     ctx.apply_deferred_powder_special_effects(augSpellMap, spellMap);
 

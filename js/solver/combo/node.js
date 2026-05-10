@@ -90,14 +90,17 @@ class SolverComboTotalNode extends ComputeNode {
 
         const weapon = build.weapon.statMap;
 
-        // Augment spell map with damaging powder specials (Quake, Chain Lightning, Courage)
-        // based on the weapon's element powder counts.
+        // Augment spell map with the (single) damaging powder special activated by
+        // the weapon's powders, if any.  A weapon activates at most one special
+        // (first T4+ same-element pair wins).  Only Quake (0), Chain Lightning (1),
+        // and Courage (3) have a damaging Damage entry; Curse / Wind Prison are
+        // damage-boost-only and don't enter the spell map.
         const weapon_powders = weapon.get('powders') ?? [];
         const aug_spell_map = new Map(spell_map);
-        for (const ps_idx of [0, 1, 3]) {  // Quake(earth), Chain Lightning(thunder), Courage(fire)
-            const tier = get_element_powder_tier(weapon_powders, ps_idx);
-            if (tier === 0) continue;
-            aug_spell_map.set(-1000 - ps_idx, make_powder_special_spell(ps_idx, tier));
+        const weapon_special = get_powder_special(weapon_powders);
+        if (weapon_special && [0, 1, 3].includes(weapon_special.ps_idx)) {
+            aug_spell_map.set(-1000 - weapon_special.ps_idx,
+                make_powder_special_spell(weapon_special.ps_idx, weapon_special.tier));
         }
         apply_deferred_powder_special_effects(aug_spell_map, spell_map);
         this._spell_map_cache = aug_spell_map;

@@ -82,28 +82,34 @@ function renderSpellPopupHTML(full, crit_chance, spell_cost) {
 // ── Powder special helpers ────────────────────────────────────────────────────
 
 /**
- * Returns the powder special power index (1-7) for a given element on a set of powders,
- * or 0 if the element doesn't have a powder special active.
- * Powder specials require two T4+ powders of the same element.  The power index is
- * derived from the individual tier indices of the first two qualifying powders:
- *   power_index = (tier1_idx + tier2_idx - 6) + 1   (1-based, where tier_idx is 0-based 0..6)
- * element_idx: 0=earth, 1=thunder, 2=water, 3=fire, 4=air  (same as powderSpecialStats order).
+ * Determine which (single) powder special is activated on one item — applies to
+ * both weapons and armor pieces (in-game rule is identical for both).
+ *
+ * Rule: scan powders in application order; the first powder that is T4+ AND has a
+ * later T4+ partner of the same element wins.  That pair determines both the element
+ * (i.e. which special) and the tier.  Any other powders on the item are irrelevant
+ * to the special — only the activating pair matters, regardless of how many other
+ * same-element or different-element powders exist.
+ *
+ * Returns { ps_idx, tier } where ps_idx is 0..4 (matching powderSpecialStats order:
+ * 0=earth/Rage|Quake, 1=thunder/Kill Streak|Chain Lightning, 2=water/Concentration|Curse,
+ * 3=fire/Endurance|Courage, 4=air/Dodge|Wind Prison).  tier is 1-based — caller does
+ * `tier - 1` to index into the effect arrays.  Returns null if no special is active.
  */
-function get_element_powder_tier(powders, element_idx) {
-    let first_tier_idx = -1;
-    for (const pid of powders) {
-        if (((pid / POWDER_TIERS) | 0) !== element_idx) continue;
-        const tier_idx = pid % POWDER_TIERS;  // 0-based: 0=T1 .. 6=T7
-        if (tier_idx <= 2) continue;           // must be T4+ (tier_idx >= 3)
-        if (first_tier_idx < 0) {
-            first_tier_idx = tier_idx;
-        } else {
-            // power_index is 0-based for array indexing in make_powder_special_spell;
-            // return 1-based so caller does tier-1 to index into Damage[].
-            return (first_tier_idx + tier_idx - 6) + 1;
+function get_powder_special(powders) {
+    for (let i = 0; i < powders.length; i++) {
+        const tier_i = powders[i] % POWDER_TIERS;
+        if (tier_i <= 2) continue;
+        const elem_i = (powders[i] / POWDER_TIERS) | 0;
+        for (let j = i + 1; j < powders.length; j++) {
+            const tier_j = powders[j] % POWDER_TIERS;
+            if (tier_j <= 2) continue;
+            const elem_j = (powders[j] / POWDER_TIERS) | 0;
+            if (elem_j !== elem_i) continue;
+            return { ps_idx: elem_i, tier: tier_i + tier_j - 5 };
         }
     }
-    return 0;
+    return null;
 }
 
 /**
@@ -117,13 +123,21 @@ function make_powder_special_spell(ps_idx, tier) {
     const damage_pct = ps.weaponSpecialEffects.get('Damage')[tier - 1];
     const conversions = [0, 0, 0, 0, 0, 0];
     conversions[element_num] = damage_pct;
+    // Mirror builder displayPowderSpecials: a special's own Damage Boost must not
+    // apply to its own damage hit (only Courage has both, but ignoring is harmless
+    // for Quake / Chain Lightning since they have no Damage Boost).
     return {
         name: ps.weaponSpecialName,
         base_spell: 0,
         cost: undefined,   // powder specials don't have a regular mana cost
         scaling: 'melee',     // use_spell_damage = false (matches display.js call)
         use_atkspd: false,       // ignore_speed = true
-        parts: [{ name: 'Powder Special', display: true, multipliers: conversions }],
+        parts: [{
+            name: 'Powder Special',
+            display: true,
+            multipliers: conversions,
+            ignored_mults: [ps.weaponSpecialName],
+        }],
         _is_powder_special: true,
     };
 }
@@ -283,58 +297,50 @@ function build_combo_boost_registry(atree_merged, build = null) {
 
     // ── Powder buff entries (weapon + armor specials) ─────────────────────────
     if (build) {
+        // Weapon special: at most ONE special activates per weapon (the first T4+
+        // same-element pair wins — see get_powder_special).  Curse/Courage/Wind Prison
+        // additionally contribute a Damage Boost multiplier toggle to the registry;
+        // Quake / Chain Lightning are damaging-only and don't appear here.
         const weapon_powders = build.weapon.statMap.get('powders') ?? [];
-
-        // Weapon specials that add a damage multiplier (Curse=water, Courage=fire, Wind Prison=air).
-        // ps_idx 2=Curse, 3=Courage, 4=Wind Prison; their element_idx matches ps_idx.
-        const weapon_buff_ps = [
-            { ps_idx: 2, elem: 2 },   // Curse (water)
-            { ps_idx: 3, elem: 3 },   // Courage (fire) — damage-boost part
-            { ps_idx: 4, elem: 4 },   // Wind Prison (air)
-        ];
-        for (const { ps_idx, elem } of weapon_buff_ps) {
-            const tier = get_element_powder_tier(weapon_powders, elem);
-            if (tier === 0) continue;
-            const ps = powderSpecialStats[ps_idx];
-            const boost = ps.weaponSpecialEffects.get('Damage Boost')[tier - 1];
-            registry.push({
-                name: ps.weaponSpecialName,
-                aliases: [],
-                type: 'toggle',
-                stat_bonuses: [{ key: 'damMult.' + ps.weaponSpecialName, value: boost, mode: 'add' }],
-                prop_bonuses: [],
-            });
-        }
-
-        // Armor specials: collect element powder counts across all armor pieces (helm, chest, legs, boots).
-        // ps_idx: 0=Rage(earth), 1=Kill Streak(thunder), 2=Concentration(water), 3=Endurance(fire), 4=Dodge(air)
-        const armor_elem_counts = new Array(5).fill(0);
-        for (let i = 0; i < 4; i++) {
-            const armor_powders = build.equipment[i]?.statMap?.get('powders') ?? [];
-            for (const pid of armor_powders) {
-                const elem = (pid / POWDER_TIERS) | 0;
-                if (elem < 5) armor_elem_counts[elem]++;
+        const weapon_special = get_powder_special(weapon_powders);
+        if (weapon_special) {
+            const ps = powderSpecialStats[weapon_special.ps_idx];
+            if (ps.weaponSpecialEffects.has('Damage Boost')) {
+                const boost = ps.weaponSpecialEffects.get('Damage Boost')[weapon_special.tier - 1];
+                registry.push({
+                    name: ps.weaponSpecialName,
+                    aliases: [],
+                    type: 'toggle',
+                    stat_bonuses: [{ key: 'damMult.' + ps.weaponSpecialName, value: boost, mode: 'add' }],
+                    prop_bonuses: [],
+                });
             }
         }
-        const armor_ps_defs = [
-            { elem: 0, max: 75, step: 1, label: 'Rage (%HP missing)' },   // Rage
-            { elem: 1, max: 15, step: 1, label: 'Kill Streak (mobs killed)' },   // Kill Streak
-            { elem: 2, max: 100, step: 1, label: 'Concentration (mana spent)' },   // Concentration
-            { elem: 3, max: 30, step: 1, label: 'Endurance (hits taken)' },   // Endurance
-            { elem: 4, max: 10, step: 1, label: 'Dodge (near mobs)' },   // Dodge
-        ];
-        for (const { elem, max, step, label } of armor_ps_defs) {
-            const count = armor_elem_counts[elem];
-            if (count === 0) continue;
-            const tier = Math.min(count, 5);
-            const ps = powderSpecialStats[elem];
-            const per_unit = ps.armorSpecialEffects.get('Damage')[tier - 1];
+
+        // Armor specials: mirror builder's per-element "% {Earth/Thunder/…} Dmg Boost"
+        // sliders (see builder.js init: gen_slider_labeled with max=ps.cap, fed into
+        // armor_powder_node which writes {x}DamPct).  Each piece independently
+        // activates at most one special via its first T4+ same-element pair, so we
+        // only register a slider for specials that at least one piece activates —
+        // showing all 5 in the solver registry would clutter the boost dropdown
+        // with options the build can never produce in-game.
+        // ps_idx → element: 0=e, 1=t, 2=w, 3=f, 4=a.
+        const armor_active = new Array(5).fill(false);
+        for (let i = 0; i < 4; i++) {
+            const armor_powders = build.equipment[i]?.statMap?.get('powders') ?? [];
+            const activated = get_powder_special(armor_powders);
+            if (activated) armor_active[activated.ps_idx] = true;
+        }
+        for (let ps_idx = 0; ps_idx < 5; ps_idx++) {
+            if (!armor_active[ps_idx]) continue;
+            const ps = powderSpecialStats[ps_idx];
             registry.push({
-                name: label,
+                name: '% ' + damageClasses[ps_idx + 1] + ' Dmg Boost',
                 aliases: [ps.armorSpecialName],
                 type: 'slider',
-                max, step,
-                stat_bonuses: [{ key: 'damMult.' + ps.armorSpecialName, value: per_unit, mode: 'add' }],
+                max: ps.cap,
+                step: 1,
+                stat_bonuses: [{ key: skp_elements[ps_idx] + 'DamPct', value: 1, mode: 'add' }],
                 prop_bonuses: [],
             });
         }
