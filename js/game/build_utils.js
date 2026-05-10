@@ -413,6 +413,7 @@ function finalizeStatmap(sm, weapon_sm, all_equip_sms, scratch) {
 /**
  * stupid stupid multiplicative stats
  */
+const nonstacking_stats = ['Potion', 'Vulnerability', 'Mask']
 function merge_stat(stats, name, value) {
     const [start, end] = name.split('.', 2);
     if (start === 'damMult' || start === 'defMult' || start === 'healMult') {
@@ -426,7 +427,7 @@ function merge_stat(stats, name, value) {
             }
             return;
         }
-        if (end == 'Potion' || end == 'Vulnerability') {
+        if (nonstacking_stats.includes(end)) {
             let highest = stats.get(start).get(end);
             if (highest !== undefined) {
                 if (value > highest) {
@@ -466,4 +467,15 @@ function type_to_skill(t) {
         default:
             return null
     }
+}
+
+/** 
+ * Why do ingredients store non-present rolls as null but items store it as 0?
+ * Returns .get(key) of a map, but if the value is undefined it returns 0 instead.
+ */
+function getOrNullToZero(map, key) {
+    const val = map.get(key);
+    if (val)
+        return val;
+    return 0;
 }
