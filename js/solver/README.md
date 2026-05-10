@@ -12,6 +12,7 @@ The solver lives at `/solver/index.html` and is a fully client-side static page 
 - Puppet Explosion is fixed cap rn
 	- Generally review bb030ff01eeec20577aa55b47c1147c986824603
 - Totem is considered a DPS spell, but the qty input is counting as multiple spell casts.
+- Potentially premature rounding in the mana calc. Generally review that part.
 
 ### Necessary Improvements
 - Ghostly Trigger (non-possession) changes atkTier to sfast for the 3 twain's arcs

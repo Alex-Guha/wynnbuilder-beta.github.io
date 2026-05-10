@@ -113,9 +113,12 @@ function _build_item_pools(restrictions, illegal_at_2 = new Set(), blacklist = n
 function _parse_combo_for_search(spell_map, weapon) {
     const weapon_powders = weapon?.statMap?.get('powders') ?? [];
     const aug = new Map(spell_map);
-    for (const ps_idx of [0, 1, 3]) {
-        const tier = get_element_powder_tier(weapon_powders, ps_idx);
-        if (tier > 0) aug.set(-1000 - ps_idx, make_powder_special_spell(ps_idx, tier));
+    // A weapon activates at most one powder special (first T4+ same-element pair).
+    // Only Quake (0), Chain Lightning (1), Courage (3) contribute a damaging spell.
+    const weapon_special = get_powder_special(weapon_powders);
+    if (weapon_special && [0, 1, 3].includes(weapon_special.ps_idx)) {
+        aug.set(-1000 - weapon_special.ps_idx,
+            make_powder_special_spell(weapon_special.ps_idx, weapon_special.tier));
     }
     apply_deferred_powder_special_effects(aug, spell_map);
     const rows = solver_combo_total_node._read_combo_rows(aug);
