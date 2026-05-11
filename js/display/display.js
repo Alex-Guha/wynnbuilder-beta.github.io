@@ -1694,13 +1694,25 @@ function initItemHoverPopups(eq_keys) {
     // Auto-dismiss if media changes (e.g. DevTools device toolbar toggled)
     mql.addEventListener('change', () => { if (!mql.matches) dismiss(); });
 
-    /** Clone tooltip children into popup (preserving their inline styles as-is). */
+    /**
+     * Clone tooltip children into popup. The builder calls collapse_element after rendering,
+     * which toggles every child's display:none state — so on builder the first child (linked
+     * title row) ends up hidden while the previously-hidden nolink title becomes visible.
+     * If we detect that collapsed state, invert each child's display so the popup shows the
+     * fully-expanded item. On solver the tooltip is never collapsed (only the container is
+     * hidden) so children are cloned as-is.
+     */
     function populatePopup(eq) {
         const tooltip = document.getElementById(eq + '-tooltip');
         if (!tooltip || !tooltip.innerHTML.trim()) return false;
+        const collapsed = tooltip.firstElementChild && tooltip.firstElementChild.style.display === 'none';
         popup.innerHTML = '';
         for (const child of tooltip.children) {
-            popup.appendChild(child.cloneNode(true));
+            const clone = child.cloneNode(true);
+            if (collapsed && clone.style) {
+                clone.style.display = (clone.style.display === 'none') ? '' : 'none';
+            }
+            popup.appendChild(clone);
         }
         return popup.children.length > 0;
     }
