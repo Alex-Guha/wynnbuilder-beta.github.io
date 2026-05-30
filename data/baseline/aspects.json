@@ -300,12 +300,13 @@
           "description": "Grape Bomb gains +25% neutral damage.",
           "abilities": [
             {
-              "base_abil": "Grape Bomb",
+              "base_abil": "Arrow Bomb",
               "properties": {},
               "effects": [
                 {
                   "type": "add_spell_prop",
                   "base_spell": 3,
+                  "behavior": "modify",
                   "target_part": "Grape Bomb",
                   "multipliers": [
                     25,
@@ -325,7 +326,7 @@
           "description": "Grape Bomb gains +25% neutral damage. </br> Grape Bomb gains +1 grape.",
           "abilities": [
             {
-              "base_abil": "Grape Bomb",
+              "base_abil": "Arrow Bomb",
               "properties": {
                 "grapes": 1
               },
@@ -333,6 +334,7 @@
                 {
                   "type": "add_spell_prop",
                   "base_spell": 3,
+                  "behavior": "modify",
                   "target_part": "Grape Bomb",
                   "multipliers": [
                     25,
@@ -352,7 +354,7 @@
           "description": "Grape Bomb gains +45% neutral damage. </br> Grape Bomb gains +1 grape.",
           "abilities": [
             {
-              "base_abil": "Grape Bomb",
+              "base_abil": "Arrow Bomb",
               "properties": {
                 "grapes": 1
               },
@@ -360,6 +362,7 @@
                 {
                   "type": "add_spell_prop",
                   "base_spell": 3,
+                  "behavior": "modify",
                   "target_part": "Grape Bomb",
                   "multipliers": [
                     45,
@@ -1987,7 +1990,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 0.65
+                "range": 0.65
               },
               "effects": []
             }
@@ -2000,7 +2003,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 1.15
+                "range": 1.15
               },
               "effects": []
             }
@@ -2013,7 +2016,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 1.65
+                "range": 1.65
               },
               "effects": []
             }
@@ -2026,7 +2029,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 2
+                "range": 2
               },
               "effects": []
             }
@@ -2634,7 +2637,8 @@
             {
               "base_abil": "Luster Purge",
               "properties": {
-                "meleeBonus": 4
+                "meleeBonus": 4,
+                "rangeBonus": 4
               },
               "effects": []
             }
@@ -2647,7 +2651,8 @@
             {
               "base_abil": "Luster Purge",
               "properties": {
-                "meleeBonus": 6
+                "meleeBonus": 6,
+                "rangeBonus": 6
               },
               "effects": []
             }
@@ -2660,7 +2665,8 @@
             {
               "base_abil": "Luster Purge",
               "properties": {
-                "meleeBonus": 8
+                "meleeBonus": 8,
+                "rangeBonus": 8
               },
               "effects": []
             }
@@ -2673,7 +2679,8 @@
             {
               "base_abil": "Luster Purge",
               "properties": {
-                "meleeBonus": 10
+                "meleeBonus": 10,
+                "rangeBonus": 10
               },
               "effects": []
             }
@@ -3446,7 +3453,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 1.5
+                "range": 1.5
               },
               "effects": []
             }
@@ -3459,7 +3466,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 2.75
+                "range": 2.75
               },
               "effects": []
             }
@@ -3472,7 +3479,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 4.0
+                "range": 4.0
               },
               "effects": []
             }
@@ -3485,7 +3492,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 5.0
+                "range": 5.0
               },
               "effects": []
             }
@@ -4500,7 +4507,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 0.65
+                "range": 0.65
               },
               "effects": []
             }
@@ -4513,7 +4520,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 1.15
+                "range": 1.15
               },
               "effects": []
             }
@@ -4526,7 +4533,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 1.65
+                "range": 1.65
               },
               "effects": []
             }
@@ -4539,7 +4546,7 @@
             {
               "base_abil": 999,
               "properties": {
-                "melee_range": 2
+                "range": 2
               },
               "effects": []
             }
@@ -6128,161 +6135,33 @@
       ]
     },
     {
-      "displayName": "Aspect of Lashing Fire",
+      "displayName": "Aspect of Gushing Blood",
       "id": 10,
       "tier": "Legendary",
       "tiers": [
         {
           "threshold": 1,
-          "description": "Flaming Tongue gains +1 hit, and doubles in speed. Flaming Tongue inflicts -0.25s of Bleeding. </br><span class='mc-white'>Total Damage</span>: -14% (of your DPS, for Uproot, per hit)   </br>&emsp;(<span class='nDam'>Damage</span>: -11%)   </br>&emsp;(<span class='tDam'>Thunder</span>: -1%)   </br>&emsp;(<span class='fDam'>Fire</span>: -2%)",
-          "abilities": [
-            {
-              "base_abil": "Uproot",
-              "dependencies": [
-                "Flaming Tongue"
-              ],
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "behavior": "modify",
-                  "base_spell": 4,
-                  "target_part": "Single Hit",
-                  "multipliers": [
-                    -11,
-                    0,
-                    -1,
-                    0,
-                    -2,
-                    0
-                  ]
-                },
-                {
-                  "type": "add_spell_prop",
-                  "behavior": "modify",
-                  "base_spell": 4,
-                  "target_part": "Total Damage",
-                  "hits": {
-                    "Single Hit": 1
-                  }
-                }
-              ]
-            }
-          ]
+          "description": "Lashing Lance inflicts +0.15s of Bleeding per hit.",
+          "abilities": []
         },
         {
           "threshold": 5,
-          "description": "Flaming Tongue gains +2 hits, and doubles in speed. Flaming Tongue inflicts -0.45s of Bleeding. </br><span class='mc-white'>Total Damage</span>: -23% (of your DPS, for Uproot, per hit)   </br>&emsp;(<span class='nDam'>Damage</span>: -17%)   </br>&emsp;(<span class='tDam'>Thunder</span>: -2%)   </br>&emsp;(<span class='fDam'>Fire</span>: -4%)",
-          "abilities": [
-            {
-              "base_abil": "Uproot",
-              "dependencies": [
-                "Flaming Tongue"
-              ],
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "behavior": "modify",
-                  "base_spell": 4,
-                  "target_part": "Single Hit",
-                  "multipliers": [
-                    -17,
-                    0,
-                    -2,
-                    0,
-                    -4,
-                    0
-                  ]
-                },
-                {
-                  "type": "add_spell_prop",
-                  "behavior": "modify",
-                  "base_spell": 4,
-                  "target_part": "Total Damage",
-                  "hits": {
-                    "Single Hit": 2
-                  }
-                }
-              ]
-            }
-          ]
+          "description": "Lashing Lance inflicts +0.2s of Bleeding per hit.",
+          "abilities": []
         },
         {
           "threshold": 30,
-          "description": "Flaming Tongue gains +3 hits, and doubles in speed. Flaming Tongue inflicts -0.55s of Bleeding. </br><span class='mc-white'>Total Damage</span>: -29% (of your DPS, for Uproot, per hit)   </br>&emsp;(<span class='nDam'>Damage</span>: -20%)   </br>&emsp;(<span class='tDam'>Thunder</span>: -3%)   </br>&emsp;(<span class='fDam'>Fire</span>: -6%)",
-          "abilities": [
-            {
-              "base_abil": "Uproot",
-              "dependencies": [
-                "Flaming Tongue"
-              ],
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "behavior": "modify",
-                  "base_spell": 4,
-                  "target_part": "Single Hit",
-                  "multipliers": [
-                    -20,
-                    0,
-                    -3,
-                    0,
-                    -6,
-                    0
-                  ]
-                },
-                {
-                  "type": "add_spell_prop",
-                  "behavior": "modify",
-                  "base_spell": 4,
-                  "target_part": "Total Damage",
-                  "hits": {
-                    "Single Hit": 3
-                  }
-                }
-              ]
-            }
-          ]
+          "description": "Lashing Lance inflicts +0.25s of Bleeding per hit.",
+          "abilities": []
         },
         {
           "threshold": 150,
-          "description": "Flaming Tongue gains +4 hits, and doubles in speed. Flaming Tongue inflicts -0.65s of Bleeding. </br><span class='mc-white'>Total Damage</span>: -34% (of your DPS, for Uproot, per hit)   </br>&emsp;(<span class='nDam'>Damage</span>: -22%)   </br>&emsp;(<span class='tDam'>Thunder</span>: -4%)   </br>&emsp;(<span class='fDam'>Fire</span>: -8%)",
-          "abilities": [
-            {
-              "base_abil": "Uproot",
-              "dependencies": [
-                "Flaming Tongue"
-              ],
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "behavior": "modify",
-                  "base_spell": 4,
-                  "target_part": "Single Hit",
-                  "multipliers": [
-                    -22,
-                    0,
-                    -4,
-                    0,
-                    -8,
-                    0
-                  ]
-                },
-                {
-                  "type": "add_spell_prop",
-                  "behavior": "modify",
-                  "base_spell": 4,
-                  "target_part": "Total Damage",
-                  "hits": {
-                    "Single Hit": 4
-                  }
-                }
-              ]
-            }
-          ]
+          "description": "Lashing Lance inflicts +0.3s of Bleeding per hit.",
+          "abilities": []
         }
       ],
       "aliases": [
-        "flamingTongueCount"
+        "flamingLashingBleed"
       ]
     },
     {

@@ -293,13 +293,15 @@ function compute_boosts() {
     let str_boost = 0;
     let vuln_boost = 0;
     let def_boost = 0;
+    let weaken_boost = 0;
     for (const [key, value] of damageMultipliers) {
         const elem = document.getElementById(key + '-boost');
         if (elem && elem.classList.contains('toggleOn')) {
             if (value > damage_boost) { damage_boost = value; }
             if (key === 'warscream') { def_boost += 0.20; }
             else if (key === 'emboldeningcry') { def_boost += 0.05; str_boost += 0.08; }
-            else if (key === 'eldritchcall') { vuln_boost += 0.15; }
+            else if (key === 'hauntingfanatic') { vuln_boost += 0.15; }
+            else if (key === 'hauntinglunatic') { weaken_boost += 0.15; }
         }
     }
     const res = new Map();
@@ -307,6 +309,7 @@ function compute_boosts() {
     res.set('damMult.Strength', 100 * str_boost);
     res.set('damMult.Vulnerability', 100 * vuln_boost);
     res.set('defMult.Potion', 100 * def_boost);
+    res.set('defMult.AbilityWeaken', 100 * weaken_boost);
 
     if (document.getElementById('judgement-boost')?.classList.contains('toggleOn')) {
         res.set('damMult.Judgement', 20);

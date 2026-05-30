@@ -162,7 +162,24 @@
     "MADNESS": {
         "displayName": "Madness",
         "description": "Casts a random spell of your class every 3 seconds.",
-        "abilities": []
+        "abilities": [
+            {
+                "class": "Mage",
+                "base_abil": "Arcane Transfer",
+                "dependencies": [
+                    "Arcane Transfer"
+                ],
+                "effects": [
+                    {
+                        "type": "add_spell_prop",
+                        "base_spell": 1,
+                        "target_part": "Madness Heal",
+                        "display": "Madness Heal",
+                        "max_hp_heal_pct": 0.15
+                    }
+                ]
+            }
+        ]
     },
     "LIGHTWEIGHT": {
         "displayName": "Lightweight",
@@ -538,13 +555,12 @@
     },
     "GENTLE_GLOW": {
         "displayName": "Gentle Glow",
-        "description": "Orphion's Pulse restores up to 25% more max health to allies, but heals at a slower rate. Fluid Healing's effectiveness is increased by 150%.",
+        "description": "Orphion's Pulse restores 5% more max health per pulse, but heals at a slower rate.",
         "abilities": [
             {
                 "class": "Mage",
                 "base_abil": "Heal",
                 "dependencies": [
-                    "Fluid Healing",
                     "Orphion's Pulse"
                 ],
                 "properties": {
@@ -552,21 +568,10 @@
                 },
                 "effects": [
                     {
-                        "type": "stat_scaling",
-                        "slider": false,
-                        "inputs": [
-                            {
-                                "type": "stat",
-                                "name": "wDamPct"
-                            }
-                        ],
-                        "output": {
-                            "type": "stat",
-                            "name": "healMult.FluidHealing"
-                        },
-                        "scaling": [
-                            0.45
-                        ]
+                        "type": "add_spell_prop",
+                        "base_spell": 1,
+                        "target_part": "Heal",
+                        "max_hp_heal_pct": 0.05
                     }
                 ]
             }
@@ -729,6 +734,9 @@
             {
                 "class": "Warrior",
                 "base_abil": "Bash",
+                "properties": {
+                    "hellfire_bashes": 1
+                },
                 "effects": [
                     {
                         "type": "add_spell_prop",
@@ -750,7 +758,7 @@
                         "target_part": "Total Damage",
                         "behavior": "overwrite",
                         "hits": {
-                            "Bash Hit": 1,
+                            "Bash Hit": "Bash.hellfire_bashes",
                             "Boiling Blood Tick": 5
                         }
                     }
@@ -779,6 +787,27 @@
                             0,
                             50,
                             0
+                        ]
+                    }
+                ]
+            },
+            {
+                "class": "Warrior",
+                "base_abil": "War Scream",
+                "dependencies": [
+                    "Pressure"
+                ],
+                "effects": [
+                    {
+                        "type": "raw_stat",
+                        "toggle": "Activate Pressure",
+                        "bonuses": [
+                            {
+                                "type": "prop",
+                                "abil": "Bash",
+                                "name": "hellfire_bashes",
+                                "value": 2
+                            }
                         ]
                     }
                 ]
@@ -846,7 +875,7 @@
     },
     "TWISTING_THREADS": {
         "displayName": "Twisting Threads",
-        "description": "Tangled Traps ropes gain +1 range, can overlap up to 3 times, and deal [neutral]50%. Gain +12 traps with 66% duration that cannot be triggered by enemies.",
+        "description": "Tangled Traps ropes gain +1 range, can overlap up to 3 times, and deal [neutral]65%. Gain +12 traps with 66% duration that cannot be triggered by enemies.",
         "abilities": [
             {
                 "class": "Archer",
@@ -1279,7 +1308,7 @@
                     {
                         "type": "add_spell_prop",
                         "base_spell": 5,
-                        "target_part": "Explosion Heal",
+                        "target_part": "Heal per Shatter",
                         "max_hp_heal_pct": 0.05
                     }
                 ]
@@ -1905,7 +1934,7 @@
                             0,
                             0,
                             400,
-                            0,
+                            -50,
                             0,
                             0
                         ]
@@ -2316,7 +2345,7 @@
     },
     "ORBITAL_CHAIN": {
         "displayName": "Orbital Chain",
-        "description": "Chain Lightning hits slower, rebounds, adds 6 chains, and pulls mobs closer for a [neutral]1500% explosion spell.",
+        "description": "Chain Lightning hits slower, rebounds, adds 6 chains, and pulls mobs closer for a [neutral]8000% explosion spell.",
         "abilities": [
             {
                 "class": "Any",
@@ -2332,7 +2361,7 @@
                                 "name": "Explosion Damage",
                                 "type": "damage",
                                 "multipliers": [
-                                    1500,
+                                    8000,
                                     0,
                                     0,
                                     0,
@@ -2854,24 +2883,13 @@
                 ],
                 "effects": [
                     {
-                        "type": "replace_spell",
-                        "name": "Battlefield Brilliance",
-                        "base_spell": 22,
-                        "scaling": "melee",
-                        "use_atkspd": false,
-                        "display": "Total Damage",
-                        "parts": [
+                        "type": "raw_stat",
+                        "toggle": "Battlefield Brilliance",
+                        "bonuses": [
                             {
-                                "name": "Total Damage",
-                                "type": "damage",
-                                "multipliers": [
-                                    400,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0
-                                ]
+                                "type": "stat",
+                                "name": "damMult.BattlefieldBrilliance:0.Melee",
+                                "value": 300
                             }
                         ]
                     }
@@ -3060,6 +3078,8 @@
                         "type": "add_spell_prop",
                         "base_spell": 1,
                         "target_part": "Lit Fuse",
+                        "scaling": "melee",
+                        "use_atkspd": false,
                         "multipliers": [
                             500,
                             0,
@@ -3380,7 +3400,7 @@
     },
     "MANIC_EDGE": {
         "displayName": "Manic Edge",
-        "description": "While vanished, lose 5% of your max mana per second. Increase Surprise Strike's damage bonus by 5% per mana lost from this effect, up to 130%.",
+        "description": "While vanished, lose 5% of your max mana per second. Surprise Strike further increases your damage by 5% per mana lost from this effect, up to 130%.",
         "abilities": [
             {
                 "class": "Assassin",
@@ -3396,7 +3416,7 @@
                         "slider_max": 26,
                         "output": {
                             "type": "stat",
-                            "name": "damMult.SurpriseStrike"
+                            "name": "damMult.ManicEdge"
                         },
                         "scaling": [
                             5
@@ -3417,13 +3437,13 @@
         ]
     },
     "PSYCHIC_OBSESSION": {
-        "displayName": "+Psychic Obsession",
+        "displayName": "Psychic Obsession",
         "description": "Your Totems will now all move towards you at an increased rate, if you are using Mask of the Heretic.",
         "abilities": []
     },
     "BURNT_SHADOWS": {
         "displayName": "Burnt Shadows",
-        "description": "Buried Light burns faster and is controlled by the direction you face. Enemies in the light instead take [fire]80% and recieve 10% more damage.",
+        "description": "Buried Light burns faster and is controlled by the direction you face. Enemies in the light instead take [fire]120%.",
         "abilities": [
             {
                 "class": "Warrior",
@@ -3442,19 +3462,8 @@
                             0,
                             0,
                             0,
-                            80,
+                            120,
                             0
-                        ]
-                    },
-                    {
-                        "type": "raw_stat",
-                        "toggle": "Activate Burnt Shadows",
-                        "bonuses": [
-                            {
-                                "type": "stat",
-                                "name": "damMult.Vulnerability",
-                                "value": 10
-                            }
                         ]
                     }
                 ]
@@ -3605,7 +3614,7 @@
     },
     "BLINDING_LIGHTS": {
         "displayName": "Blinding Lights",
-        "description": "All Ophanim orbs deal 250% increased damage, gain +5 Crystallize per hit, and instead orbit around you. Using Main Attack causes all orbs to travel faster.",
+        "description": "All Ophanim orbs deal 250% damage, gain +5 Crystallize per hit, and instead orbit around you. Using Main Attack causes all orbs to travel faster.",
         "abilities": [
             {
                 "class": "Mage",
@@ -3620,15 +3629,15 @@
                             {
                                 "type": "stat",
                                 "name": "damMult.BlindingLights:3.Per Orb",
-                                "value": 250
+                                "value": 150
                             }
                         ]
                     },
                     {
                         "type": "add_spell_prop",
                         "base_spell": 3,
-                        "display": "Total Orb DPS",
-                        "target_part": "Total Orb DPS",
+                        "target_part": "Total Orbit DPS",
+                        "display": "Total Orbit DPS",
                         "hits": {
                             "Per Orb DPS": "Ophanim.num_orbs"
                         }
@@ -3660,6 +3669,15 @@
                         "hide": true
                     },
                     {
+                        "type": "add_spell_prop",
+                        "base_spell": 3,
+                        "target_part": "Total Orb DPS",
+                        "hits": {
+                            "Per Orb": 0
+                        },
+                        "hide": true
+                    },
+                    {
                         "type": "raw_stat",
                         "toggle": "Activate Blinding Lights",
                         "bonuses": [
@@ -3674,6 +3692,36 @@
                                 "abil": "Ophanim",
                                 "name": "blinding_lights_atkrate",
                                 "value": 0.3
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "class": "Mage",
+                "base_abil": "Crystallize",
+                "dependencies": [
+                    "Diffraction"
+                ],
+                "effects": [
+                    {
+                        "type": "raw_stat",
+                        "toggle": "Activate Effective Crystallize",
+                        "bonuses": [
+                            {
+                                "type": "stat",
+                                "name": "nConvBase:3.Per Orb",
+                                "value": 12
+                            },
+                            {
+                                "type": "stat",
+                                "name": "wConvBase:3.Per Orb",
+                                "value": 2
+                            },
+                            {
+                                "type": "stat",
+                                "name": "aConvBase:3.Per Orb",
+                                "value": 2
                             }
                         ]
                     }
@@ -3748,7 +3796,7 @@
     },
     "LIVING_MUSEUM": {
         "displayName": "Living Museum",
-        "description": "Players within 10 blocks of Mirage, Shadow, or Another Self clones will get 20% resistance, and be healed 10%, 20%, or 50% max health when the respective clone is destroyed.",
+        "description": "Players within 10 blocks of Mirage, Shadow, or Another Self clones will get 20% resistance, and be healed 8%, 15%, or 50% max health when the respective clone is destroyed.",
         "abilities": [
             {
                 "class": "Assassin",
@@ -3773,15 +3821,15 @@
                         "parts": [
                             {
                                 "name": "Mirage Clone Heal",
-                                "power": 0.1
+                                "max_hp_heal_pct": 0.08
                             },
                             {
                                 "name": "Shadow Clone Heal",
-                                "power": 0.2
+                                "max_hp_heal_pct": 0.15
                             },
                             {
                                 "name": "Another Self Clone Heal",
-                                "power": 0.5
+                                "max_hp_heal_pct": 0.5
                             }
                         ]
                     }
@@ -3791,7 +3839,7 @@
     },
     "STARCROSSED": {
         "displayName": "Starcrossed",
-        "description": "Hitting an enemy with Haunting Memory makes it Linked. You can have up to two targets Linked at once. When one Linked enemy takes damage, the other Linked enemy takes that damage as well.",
+        "description": "Hitting an enemy with Haunting Memory makes it Linked. You can have up to two targets Linked at once. When one Linked enemy takes damage, the other Linked enemy takes that damage as well. Haunted Memory's duration is increased by 5 seconds and its range is increased by 10 blocks.",
         "abilities": []
     },
     "OUTBREAK": {
@@ -3843,6 +3891,11 @@
     "BACKSTEP": {
         "displayName": "Backstep",
         "description": "Charge and Teleport will travel backwards.",
+        "abilities": []
+    },
+    "AUBRIS_TEARS": {
+        "displayName": "Aubri's Tears",
+        "description": "Pool of Rejuvenation's range and duration are doubled, but Frog Dance deals no damage.",
         "abilities": []
     }
 }

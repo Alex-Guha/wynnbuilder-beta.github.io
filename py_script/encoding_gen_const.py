@@ -194,7 +194,7 @@ def gen_aspects():
 
 
 def get_data_versions():
-    data_names = [d for d in os.listdir("../data") if d != "baseline"]
+    data_names = [d for d in os.listdir("../data") if d not in ("baseline", "temp")]
     data_names.sort(reverse=True, key=Version)
     return data_names
 

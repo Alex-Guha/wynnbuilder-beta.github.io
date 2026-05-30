@@ -263,7 +263,9 @@
                 "col": 6,
                 "icon": "node_1"
             },
-            "properties": {},
+            "properties": {
+                "range": 5
+            },
             "effects": []
         },
         {
@@ -1502,7 +1504,6 @@
         {
             "display_name": "Arsenal Synergy",
             "desc": "For every 16 arrows shot by Arrow Storm recently, your Main Attacks will additionally fire a flint arrow that damages enemies. (Max 5 flints per main attack) </br> </br><span class='mc-white'>Total Damage</span>: 25% (Main Attack Damage, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: 25%) </br>Duration: 6s",
-            "base_abil": 999,
             "parents": [
                 "Windstorm",
                 "Cheaper Arrow Storm I"
@@ -2171,7 +2172,9 @@
                 "col": 5,
                 "icon": "node_4"
             },
-            "properties": {},
+            "properties": {
+                "range": 55
+            },
             "effects": []
         },
         {
@@ -4005,7 +4008,7 @@
                 "icon": "node_0"
             },
             "properties": {
-                "melee_range": 1
+                "range": 1
             },
             "effects": [
                 {
@@ -5055,7 +5058,7 @@
                 "icon": "node_0"
             },
             "properties": {
-                "melee_range": 1
+                "range": 1
             },
             "effects": [
                 {
@@ -6062,7 +6065,8 @@
                 "icon": "node_2"
             },
             "properties": {
-                "meleeBonus": 40
+                "meleeBonus": 40,
+                "rangeBonus": 25
             },
             "effects": [
                 {
@@ -6073,6 +6077,11 @@
                             "type": "stat",
                             "name": "damMult.Luster Purge;m",
                             "value": "Luster Purge.meleeBonus"
+                        },
+                        {
+                            "type": "stat",
+                            "name": "mainAttackRange",
+                            "value": "Luster Purge.rangeBonus"
                         }
                     ]
                 }
@@ -6152,7 +6161,7 @@
         },
         {
             "display_name": "Tempest",
-            "desc": "War Scream will ripple the ground and deal damage to enemies 3 times over a large area every 0.6s. </br> </br><span class='mc-white'>Total Damage</span>: 50% (of your DPS, per ripple)   </br>&emsp;(<span class='nDam'>Damage</span>: 30%)   </br>&emsp;(<span class='eDam'>Earth</span>: 10%)   </br>&emsp;(<span class='aDam'>Air</span>: 10%) </br>Area of Effect: 12 Blocks (Circle-Shaped)",
+            "desc": "War Scream will ripple the ground and deal damage to enemies 3 times over a large area every 0.6s. </br> </br><span class='mc-white'>Total Damage</span>: 75% (of your DPS, per ripple)   </br>&emsp;(<span class='nDam'>Damage</span>: 45%)   </br>&emsp;(<span class='eDam'>Earth</span>: 15%)   </br>&emsp;(<span class='aDam'>Air</span>: 15%) </br>Area of Effect: 12 Blocks (Circle-Shaped)",
             "archetype": "Battle Monk",
             "archetype_req": 0,
             "base_abil": "War Scream",
@@ -6177,12 +6186,12 @@
                     "base_spell": 4,
                     "target_part": "Tempest",
                     "multipliers": [
-                        30,
-                        10,
+                        45,
+                        15,
                         0,
                         0,
                         0,
-                        10
+                        15
                     ]
                 },
                 {
@@ -6606,25 +6615,29 @@
             },
             "effects": [
                 {
-                    "type": "add_spell_prop",
-                    "base_spell": 4,
-                    "target_part": "Cyclone",
-                    "multipliers": [
-                        40,
-                        0,
-                        0,
-                        0,
-                        10,
-                        20
+                    "type": "replace_spell",
+                    "name": "Cyclone",
+                    "base_spell": 14,
+                    "display": "Cyclone DPS",
+                    "parts": [
+                        {
+                            "name": "Damage per Tick",
+                            "multipliers": [
+                                40,
+                                0,
+                                0,
+                                0,
+                                10,
+                                20
+                            ]
+                        },
+                        {
+                            "name": "Cyclone DPS",
+                            "hits": {
+                                "Damage per Tick": 2.85714285714
+                            }
+                        }
                     ]
-                },
-                {
-                    "type": "add_spell_prop",
-                    "base_spell": 4,
-                    "target_part": "Cyclone DPS",
-                    "hits": {
-                        "Cyclone": 2.85714285714
-                    }
                 }
             ]
         },
@@ -6722,7 +6735,7 @@
         },
         {
             "display_name": "Bloodlust",
-            "desc": "After leaving Corrupted, annihilate all enemies around you. For every 1% Corrupted you had, damage increases by 5%. </br> </br><span class='mc-white'>Total Damage</span>: 400% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 300%)   </br>&emsp;(<span class='fDam'>Fire</span>: 100%) </br>Area of Effect: 12 Blocks (Circle-Shaped)",
+            "desc": "After leaving Corrupted, annihilate all enemies around you. For every 1% Corrupted you had, damage increases by 5%. </br> </br><span class='mc-white'>Total Damage</span>: 800% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 600%)   </br>&emsp;(<span class='fDam'>Fire</span>: 200%) </br>Area of Effect: 12 Blocks (Circle-Shaped)",
             "archetype": "Fallen",
             "archetype_req": 10,
             "parents": [
@@ -6754,11 +6767,11 @@
                         {
                             "name": "Annihilation",
                             "multipliers": [
-                                300,
+                                600,
                                 0,
                                 0,
                                 0,
-                                100,
+                                200,
                                 0
                             ],
                             "ignored_mults": [
@@ -7125,18 +7138,44 @@
                 "col": 1,
                 "icon": "node_4"
             },
-            "properties": {},
+            "properties": {
+                "swipe_count": 0
+            },
             "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "target_part": "Blood Swipe",
+                    "base_spell": 0,
+                    "multipliers": [
+                        65,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 0,
+                    "target_part": "Total Damage",
+                    "display": "Total Damage",
+                    "hits": {
+                        "Melee": 1,
+                        "Blood Swipe": "Bloodied Armory.swipe_count"
+                    }
+                },
                 {
                     "type": "stat_scaling",
                     "slider": true,
-                    "slider_name": "Blood Pact Procs",
+                    "slider_name": "Blood Swipe Count",
                     "output": {
-                        "type": "stat",
-                        "name": "nConvBase:0.Melee"
+                        "type": "prop",
+                        "abil": "Bloodied Armory",
+                        "name": "swipe_count"
                     },
                     "scaling": [
-                        65
+                        1
                     ],
                     "slider_max": 5
                 }
@@ -7248,7 +7287,7 @@
         },
         {
             "display_name": "Tempestuous Winds",
-            "desc": "Cyclone will deal damage 0.15s faster.",
+            "desc": "Cyclone will deal damage 0.15s faster. </br> Increase Tempest's damage. </br> </br><span class='mc-white'>Total Damage</span>: +25% (of your DPS, to Tempest)   </br>&emsp;(<span class='nDam'>Damage</span>: +15%)   </br>&emsp;(<span class='aDam'>Air</span>: +10%)",
             "base_abil": "War Scream",
             "archetype": "Battle Monk",
             "parents": [
@@ -7269,11 +7308,25 @@
             "effects": [
                 {
                     "type": "add_spell_prop",
-                    "base_spell": 4,
+                    "base_spell": 14,
                     "target_part": "Cyclone DPS",
                     "hits": {
-                        "Cyclone": 2.14285714286
+                        "Damage per Tick": 2.14285714286
                     }
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 4,
+                    "target_part": "Tempest",
+                    "behavior": "modify",
+                    "multipliers": [
+                        15,
+                        0,
+                        0,
+                        0,
+                        0,
+                        10
+                    ]
                 }
             ]
         },
@@ -7489,7 +7542,9 @@
             "parents": [
                 "Buried Light"
             ],
-            "dependencies": [],
+            "dependencies": [
+                "Shield Strike"
+            ],
             "blockers": [],
             "cost": 2,
             "display": {
@@ -7734,7 +7789,9 @@
                 "col": 4,
                 "icon": "node_0"
             },
-            "properties": {},
+            "properties": {
+                "range": 2
+            },
             "effects": [
                 {
                     "type": "add_spell_prop",
@@ -7812,7 +7869,9 @@
                 "col": 2,
                 "icon": "node_1"
             },
-            "properties": {},
+            "properties": {
+                "range": 2
+            },
             "effects": [
                 {
                     "type": "add_spell_prop",
@@ -8461,8 +8520,8 @@
                     "target_part": "Meteor Damage",
                     "behavior": "modify",
                     "multipliers": [
-                        90,
-                        30,
+                        70,
+                        20,
                         0,
                         0,
                         0,
@@ -8557,7 +8616,7 @@
                     "type": "replace_spell",
                     "name": "Ophanim",
                     "base_spell": 3,
-                    "display": "Per Melee (max)",
+                    "display": "Total Orb DPS",
                     "parts": [
                         {
                             "name": "Per Orb",
@@ -8574,6 +8633,12 @@
                             "name": "Per Melee (max)",
                             "hits": {
                                 "Per Orb": "Ophanim.num_orbs"
+                            }
+                        },
+                        {
+                            "name": "Total Orb DPS",
+                            "hits": {
+                                "Per Melee (max)": 1.25
                             }
                         }
                     ]
@@ -8651,6 +8716,7 @@
             "display_name": "Purification",
             "desc": "Heal and Arcane Transfer will purify allies of all negative effects and fire. </br> </br>Cooldown: 3s",
             "base_abil": "Heal",
+            "archetype": "Light Bender",
             "parents": [
                 "Ophanim",
                 "Cheaper Heal"
@@ -9067,8 +9133,7 @@
             "base_abil": "Ophanim",
             "parents": [
                 "Orphion's Pulse",
-                "Fluid Healing",
-                "Incandescence"
+                "Meteor Shower"
             ],
             "dependencies": [
                 "Ophanim"
@@ -9179,7 +9244,7 @@
             "archetype": "Riftwalker",
             "parents": [
                 "Vacuokinesis",
-                "Fluid Healing",
+                "Orphion's Pulse",
                 "Snake Nest",
                 "Arcane Restoration",
                 "Cheaper Ice Snake"
@@ -9240,47 +9305,6 @@
             ]
         },
         {
-            "display_name": "Fluid Healing",
-            "desc": "For every 1% </br>Water Damage Bonus you have from items, buff Heal's healing power by +0.3%. (Max +75%)",
-            "archetype": "Light Bender",
-            "archetype_req": 0,
-            "base_abil": "Heal",
-            "parents": [
-                "Meteor Shower",
-                "Orphion's Pulse"
-            ],
-            "dependencies": [],
-            "blockers": [],
-            "cost": 2,
-            "display": {
-                "row": 23,
-                "col": 2,
-                "icon": "node_2"
-            },
-            "properties": {},
-            "effects": [
-                {
-                    "type": "stat_scaling",
-                    "slider": false,
-                    "round": false,
-                    "inputs": [
-                        {
-                            "type": "stat",
-                            "name": "wDamPct"
-                        }
-                    ],
-                    "output": {
-                        "type": "stat",
-                        "name": "healMult.FluidHealing"
-                    },
-                    "scaling": [
-                        0.3
-                    ],
-                    "max": 75
-                }
-            ]
-        },
-        {
             "display_name": "Orphion's Pulse",
             "desc": "Heal becomes slower and stronger, pulsing 2 more times for greater healing. </br> </br>Pulse Self Heal: 20% (of your max health) </br>Duration: 1.2s </br>Delay: 1.5s (per pulse)",
             "archetype": "Light Bender",
@@ -9288,7 +9312,7 @@
             "base_abil": "Heal",
             "parents": [
                 "Cheaper Teleport II",
-                "Fluid Healing"
+                "Meteor Shower"
             ],
             "dependencies": [
                 "Heal"
@@ -9310,12 +9334,6 @@
                 {
                     "type": "add_spell_prop",
                     "base_spell": 1,
-                    "target_part": "Second and Third Pulses",
-                    "max_hp_heal_pct": 0.2
-                },
-                {
-                    "type": "add_spell_prop",
-                    "base_spell": 1,
                     "target_part": "Heal",
                     "max_hp_heal_pct": 0.05
                 },
@@ -9325,8 +9343,7 @@
                     "display": "Total Heal",
                     "target_part": "Total Heal",
                     "hits": {
-                        "Heal": 1,
-                        "Second and Third Pulses": 2
+                        "Heal": 3
                     }
                 }
             ]
@@ -9362,9 +9379,8 @@
             "desc": "Increase the damage of Ophanim. </br> </br><span class='mc-white'>Total Damage</span>: +30% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +20%)   </br>&emsp;(<span class='aDam'>Air</span>: +10%)",
             "base_abil": "Ophanim",
             "parents": [
-                "Fluid Healing",
-                "Meteor Shower",
-                "Resilient Light"
+                "Orphion's Pulse",
+                "Meteor Shower"
             ],
             "dependencies": [
                 "Ophanim"
@@ -10223,9 +10239,7 @@
             "dependencies": [
                 "Meteor"
             ],
-            "blockers": [
-                "Ophanim"
-            ],
+            "blockers": [],
             "cost": 1,
             "display": {
                 "row": 32,
@@ -10661,6 +10675,27 @@
                             ]
                         }
                     ]
+                },
+                {
+                    "type": "raw_stat",
+                    "toggle": "Activate Effective Crystallize",
+                    "bonuses": [
+                        {
+                            "type": "stat",
+                            "name": "nConvBase:5.Single Orb",
+                            "value": 105
+                        },
+                        {
+                            "type": "stat",
+                            "name": "wConvBase:5.Single Orb",
+                            "value": 17.5
+                        },
+                        {
+                            "type": "stat",
+                            "name": "aConvBase:5.Single Orb",
+                            "value": 17.5
+                        }
+                    ]
                 }
             ]
         },
@@ -10668,6 +10703,7 @@
             "display_name": "Diffraction",
             "desc": "When an enemy dies, leftover Crystallized is transferred to other nearby enemies. </br> Ophanim also applies +2 Crystallized. </br> </br>Range: 8 Blocks",
             "archetype": "Light Bender",
+            "base_abil": "Crystallize",
             "parents": [
                 "Crystallize"
             ],
@@ -10682,7 +10718,29 @@
                 "icon": "node_1"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "raw_stat",
+                    "toggle": "Activate Effective Crystallize",
+                    "bonuses": [
+                        {
+                            "type": "stat",
+                            "name": "nConvBase:3.Per Orb",
+                            "value": 30
+                        },
+                        {
+                            "type": "stat",
+                            "name": "wConvBase:3.Per Orb",
+                            "value": 5
+                        },
+                        {
+                            "type": "stat",
+                            "name": "aConvBase:3.Per Orb",
+                            "value": 5
+                        }
+                    ]
+                }
+            ]
         },
         {
             "display_name": "Gleam",
@@ -10721,7 +10779,7 @@
         {
             "display_name": "Dawn",
             "archetype": "Light Bender",
-            "archetype_req": 18,
+            "archetype_req": 17,
             "desc": "Click Combo: F </br> Channel the power of Orphion and summon the sun itself above you. </br> The Sun will summon solar wisps that move outwards, damaging all enemies and healing all allies in their path. </br> </br><span class='mc-white'>Total Damage</span>: 300% (of your DPS, per Wisp)   </br>&emsp;(<span class='nDam'>Damage</span>: 200%)   </br>&emsp;(<span class='fDam'>Fire</span>: 100%) </br>Total Heal: 10% (of max health) </br>Area of Effect: 2.5 Blocks (Circle-Shaped) </br>Range: 24 Blocks </br>Duration: 10s </br> Activate abilities or heal to charge your Ultimate Meter to 100%",
             "parents": [
                 "Gleam"
@@ -10917,7 +10975,7 @@
         },
         {
             "display_name": "Paradox",
-            "desc": "You send 25% of the damage you take to the future, dealing it over 10s and borrow mana from the past, refunding 25% of your spent mana over 10s. </br> For every +1 Distortion, the mana is refunded -0.02s faster.",
+            "desc": "You send 20% of the damage you take to the future, dealing it over 8s and borrow mana from the past, refunding 25% of your spent mana over 10s. </br> For every +1 Distortion, the mana is refunded -0.02s faster.",
             "archetype": "Riftwalker",
             "parents": [
                 "Portal to the Beyond",
@@ -11021,8 +11079,7 @@
         },
         {
             "display_name": "Induced Instability",
-            "desc": "Judrajim applies Unstable to enemies. </br> Meteor and Pyrokinesis consume Unstable to deal +100% damage.",
-            "archetype": "Arcanist",
+            "desc": "Judrajim applies Unstable to enemies. </br> Meteor, Pyrokinesis and Powder Specials consume Unstable to deal +100% damage.",
             "parents": [
                 "Arcane Overflow"
             ],
@@ -11047,7 +11104,7 @@
                         },
                         {
                             "type": "stat",
-                            "name": "damMult.Unstable:0.Melee",
+                            "name": "damMult.Unstable;m",
                             "value": 100
                         },
                         {
@@ -11109,7 +11166,7 @@
         },
         {
             "display_name": "Tangled Origin",
-            "desc": "Click Combo: F </br> Summons a Thunder Serpent and a Fire Serpent, which will attack nearby enemies. </br> The Thunder Serpent strikes up to 4 enemies with arcing lightning every 1s, making them Unstable. </br> The Fire Serpent detonates Unstable targets every 3s, consuming the effect. </br> </br>Vision: 15 Blocks </br>Duration: 20s </br> </br><span class='mc-white'>Total Damage</span>: 900% (of your DPS, Thunder)   </br>&emsp;(<span class='nDam'>Damage</span>: 600%)   </br>&emsp;(<span class='tDam'>Thunder</span>: 300%) </br> </br><span class='mc-white'>Total Damage</span>: 2000% (of your DPS, Fire)   </br>&emsp;(<span class='nDam'>Damage</span>: 1300%)   </br>&emsp;(<span class='fDam'>Fire</span>: 700%) </br>Area of Effect: 3 Blocks (Circle-Shaped) </br> Activate abilities to charge your Ultimate Meter to 100%",
+            "desc": "Click Combo: F </br> Summons a Thunder Serpent and a Fire Serpent, which will attack nearby enemies. </br> The Thunder Serpent strikes up to 4 enemies with arcing lightning every 1s, making them Unstable. </br> The Fire Serpent detonates Unstable targets every 3s, consuming the effect. </br> </br>Vision: 15 Blocks </br>Duration: 30s </br> </br><span class='mc-white'>Total Damage</span>: 900% (of your DPS, Thunder)   </br>&emsp;(<span class='nDam'>Damage</span>: 600%)   </br>&emsp;(<span class='tDam'>Thunder</span>: 300%) </br> </br><span class='mc-white'>Total Damage</span>: 2000% (of your DPS, Fire)   </br>&emsp;(<span class='nDam'>Damage</span>: 1300%)   </br>&emsp;(<span class='fDam'>Fire</span>: 700%) </br>Area of Effect: 3 Blocks (Circle-Shaped) </br> Activate abilities to charge your Ultimate Meter to 100%",
             "archetype": "Arcanist",
             "archetype_req": 18,
             "parents": [
@@ -11328,6 +11385,7 @@
             "desc": "For every 2% or 2 Raw Main Attack Damage you have from items, gain +5/3s Poison Damage. (Max 50/3s) </br> Your Main Attack gains additional range. </br> </br>Range: +1 Block",
             "archetype": "Shadestepper",
             "archetype_req": 0,
+            "base_abil": 999,
             "parents": [
                 "Dash"
             ],
@@ -11341,7 +11399,9 @@
                 "col": 2,
                 "icon": "node_1"
             },
-            "properties": {},
+            "properties": {
+                "range": 1
+            },
             "effects": [
                 {
                     "type": "stat_scaling",
@@ -13360,6 +13420,7 @@
                     "type": "add_spell_prop",
                     "base_spell": 3,
                     "target_part": "Per Hit",
+                    "behavior": "modify",
                     "multipliers": [
                         0,
                         0,
@@ -14263,7 +14324,7 @@
         },
         {
             "display_name": "Shadow Dance",
-            "desc": "Your second hit after casting Vanish will deal +50% damage. </br> </br>Cooldown: 3s",
+            "desc": "Your second hit after casting Vanish will deal +50% damage. </br> </br>Duration: 2s </br>Cooldown: 3s",
             "archetype": "Shadestepper",
             "base_abil": "Dash",
             "parents": [
@@ -14761,7 +14822,9 @@
                 "col": 4,
                 "icon": "node_0"
             },
-            "properties": {},
+            "properties": {
+                "range": 32.25
+            },
             "effects": [
                 {
                     "type": "replace_spell",
@@ -14903,7 +14966,7 @@
         },
         {
             "display_name": "Hand of the Shaman",
-            "desc": "Your Main Attack will emit +2 extra beams. (Increases your overall damage by +65%)",
+            "desc": "Your Main Attack will emit +2 extra beams. (Increases your overall damage by +70%)",
             "base_abil": 999,
             "archetype": "Acolyte",
             "parents": [
@@ -15476,7 +15539,7 @@
         },
         {
             "display_name": "Flaming Tongue",
-            "desc": "Uproot becomes lashing flames, which hit 3 times but will not explode or knockback enemies. </br> Haunting Memory will no longer attach Masks to enemies. </br> </br><span class='mc-white'>Total Damage</span>: -50% (of your DPS, for Uproot, per hit)   </br>&emsp;(<span class='nDam'>Damage</span>: -15%)   </br>&emsp;(<span class='eDam'>Earth</span>: -30%)   </br>&emsp;(<span class='tDam'>Thunder</span>: -15%)   </br>&emsp;(<span class='fDam'>Fire</span>: +10%)",
+            "desc": "Uproot becomes lashing flames, which hit 3 times at 3 hits per second, but it will not explode or knockback enemies. </br> Haunting Memory will no longer attach Masks to enemies. </br> </br><span class='mc-white'>Total Damage</span>: -35% (of your DPS, for Uproot, per hit)   </br>&emsp;(<span class='nDam'>Damage</span>: -5%)   </br>&emsp;(<span class='eDam'>Earth</span>: -30%)   </br>&emsp;(<span class='tDam'>Thunder</span>: -10%)   </br>&emsp;(<span class='fDam'>Fire</span>: +10%)",
             "base_abil": "Uproot",
             "archetype": "Acolyte",
             "parents": [
@@ -15500,9 +15563,9 @@
                     "base_spell": 4,
                     "target_part": "Single Hit",
                     "multipliers": [
-                        -15,
+                        -5,
                         -30,
-                        -15,
+                        -10,
                         0,
                         10,
                         0
@@ -16232,7 +16295,7 @@
         },
         {
             "display_name": "Lashing Lance",
-            "desc": "Flaming Tongue gains +1 hit, and now inflicts enemies with Bleeding for +1.5s per hit. (Max 6s) </br> Haunting Memory will instead inflict +6s of Bleeding. </br> Bleeding enemies take damage every 0.5s. Bleeding damage dealt within Totem's range also adds +0.8 points to your Blood Pool. </br> </br><span class='mc-white'>Total Damage</span>: +0% (of your DPS, for Uproot, per hit)   </br>&emsp;(<span class='nDam'>Damage</span>: -5%)   </br>&emsp;(<span class='tDam'>Thunder</span>: +5%) </br> </br><span class='mc-white'>Total Damage</span>: 60% (of your DPS, from Bleeding)   </br>&emsp;(<span class='nDam'>Damage</span>: 60%)",
+            "desc": "Flaming Tongue gains +2 hits, deals more damage, and now inflicts enemies with Bleeding for +1s per hit. (Max 6s) </br> Haunting Memory will instead inflict +6s of Bleeding. </br> Bleeding enemies take damage every 0.5s. Bleeding damage dealt within Totem's range also adds +0.8 points to your Blood Pool. </br> </br><span class='mc-white'>Total Damage</span>: +15% (of your DPS, for Uproot, per hit)   </br>&emsp;(<span class='nDam'>Damage</span>: +10%)   </br>&emsp;(<span class='tDam'>Thunder</span>: +5%) </br> </br><span class='mc-white'>Total Damage</span>: 60% (of your DPS, from Bleeding)   </br>&emsp;(<span class='nDam'>Damage</span>: 60%)",
             "base_abil": "Uproot",
             "archetype": "Acolyte",
             "archetype_req": 4,
@@ -16283,7 +16346,7 @@
                     "base_spell": 4,
                     "target_part": "Single Hit",
                     "multipliers": [
-                        -5,
+                        10,
                         0,
                         5,
                         0,
@@ -16296,7 +16359,7 @@
                     "base_spell": 4,
                     "target_part": "Total Damage",
                     "hits": {
-                        "Single Hit": 1
+                        "Single Hit": 2
                     }
                 }
             ]
@@ -16503,8 +16566,18 @@
                 {
                     "type": "add_spell_prop",
                     "base_spell": 5,
-                    "target_part": "Explosion Heal",
+                    "target_part": "Heal per Shatter",
+                    "display": "Heal per Shatter",
                     "max_hp_heal_pct": 0.1
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 5,
+                    "target_part": "Shatter Healing per Second",
+                    "display": "Shatter Healing per Second",
+                    "hits": {
+                        "Heal per Shatter": "Totem.num_totems"
+                    }
                 }
             ]
         },
@@ -16568,7 +16641,7 @@
             "base_abil": "Totem",
             "parents": [
                 "Tribal Chants",
-                "Fluid Healing",
+                "Rupture",
                 "Cheaper Aura II"
             ],
             "dependencies": [
@@ -16640,7 +16713,6 @@
                     "parts": [
                         {
                             "name": "Tether Tick",
-                            "use_str": false,
                             "multipliers": [
                                 45,
                                 0,
@@ -16648,11 +16720,6 @@
                                 0,
                                 0,
                                 20
-                            ],
-                            "ignored_mults": [
-                                "Mask",
-                                "Potion",
-                                "Vulnerability"
                             ]
                         },
                         {
@@ -16666,6 +16733,13 @@
                             "name": "Tether DPS",
                             "hits": {
                                 "Tether Drain Threshold": "Totem.totem_mul"
+                            },
+                            "display": false
+                        },
+                        {
+                            "name": "Shatter Tether per Totem",
+                            "hits": {
+                                "Tether Drain Threshold": 20
                             },
                             "display": false
                         },
@@ -16702,7 +16776,7 @@
                     "type": "replace_spell",
                     "name": "Totemic Shatter",
                     "base_spell": 5,
-                    "display": "Explosion Damage",
+                    "display": "Shatter DPS",
                     "parts": [
                         {
                             "name": "Explosion Damage",
@@ -16714,6 +16788,12 @@
                                 0,
                                 6
                             ]
+                        },
+                        {
+                            "name": "Shatter DPS",
+                            "hits": {
+                                "Explosion Damage": "Totem.num_totems"
+                            }
                         }
                     ]
                 },
@@ -16726,6 +16806,15 @@
                             "value": 1900
                         }
                     ]
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 8,
+                    "target_part": "Shatter Tether DPS",
+                    "display": "Shatter Tether DPS",
+                    "hits": {
+                        "Shatter Tether per Totem": "Totem.num_totems"
+                    }
                 }
             ]
         },
@@ -16736,7 +16825,7 @@
             "archetype_req": 7,
             "base_abil": "Uproot",
             "parents": [
-                "Fluid Healing",
+                "Rupture",
                 "Imbued Totem"
             ],
             "dependencies": [
@@ -16890,7 +16979,7 @@
         },
         {
             "display_name": "Eldritch Call",
-            "desc": "Casting Totem while holding shift will spend 30 points of Blood Pool (per Totem) to call upon 4 nightmarish tentacles. </br> Tentacles debuff bleeding enemies in range and each deal damage to one enemy every 2s. </br> Blood Connection turns into a teleport while Eldritch Call is active. </br> </br><span class='mc-white'>Total Damage</span>: 700% (of your DPS, per strike)   </br>&emsp;(<span class='nDam'>Damage</span>: 540%)   </br>&emsp;(<span class='tDam'>Thunder</span>: 80%)   </br>&emsp;(<span class='fDam'>Fire</span>: 80%) </br>Area of Effect: 18 Blocks (Circle-Shaped) </br>Effects: +40% Slowness to Enemies   -15% Resistance Bonus to Enemies </br>Duration: 10s",
+            "desc": "Casting Totem while holding shift will spend 35 points of Blood Pool (per Totem) to call upon 4 nightmarish tentacles that attack nearby enemies. </br> Tentacles will attack Bleeding enemies from an additional +6 blocks away. </br> Blood Connection turns into a teleport while Eldritch Call is active. </br> </br><span class='mc-white'>Total Damage</span>: 700% (of your DPS, per strike)   </br>&emsp;(<span class='nDam'>Damage</span>: 540%)   </br>&emsp;(<span class='tDam'>Thunder</span>: 80%)   </br>&emsp;(<span class='fDam'>Fire</span>: 80%) </br>Area of Effect: 12 Blocks (Circle-Shaped) </br>Duration: 10s",
             "archetype": "Acolyte",
             "archetype_req": 7,
             "parents": [
@@ -16944,53 +17033,13 @@
             ]
         },
         {
-            "display_name": "Fluid Healing",
-            "desc": "Increases Aura's healing by +0.3% for every 1% </br>Water Damage Bonus you have from items. (Max +75%)",
-            "parents": [
-                "Eldritch Call",
-                "Bloodier I",
-                "Imbued Totem"
-            ],
-            "dependencies": [
-                "Sacrificial Shrine"
-            ],
-            "blockers": [],
-            "cost": 2,
-            "display": {
-                "row": 28,
-                "col": 6,
-                "icon": "node_2"
-            },
-            "properties": {},
-            "effects": [
-                {
-                    "type": "stat_scaling",
-                    "slider": false,
-                    "inputs": [
-                        {
-                            "type": "stat",
-                            "name": "wDamPct"
-                        }
-                    ],
-                    "output": {
-                        "type": "stat",
-                        "name": "healMult.FluidHealing:3.Heal Amount"
-                    },
-                    "scaling": [
-                        0.3
-                    ],
-                    "max": 75
-                }
-            ]
-        },
-        {
-            "display_name": "Bloodier I",
+            "display_name": "Bloody",
             "desc": "Increase your maximum Blood Pool by +30 points. Increase your maximum Bleeding duration by +1.5s.",
             "archetype": "Acolyte",
             "base_abil": "Sacrificial Shrine",
             "parents": [
                 "Eldritch Call",
-                "Fluid Healing"
+                "Rupture"
             ],
             "dependencies": [
                 "Sacrificial Shrine"
@@ -17058,12 +17107,13 @@
             "effects": []
         },
         {
-            "display_name": "Deeper Wounds",
-            "desc": "Increase Bleeding damage. </br> </br><span class='mc-white'>Total Damage</span>: +20% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +20%)",
+            "display_name": "Scourge",
+            "desc": "Flaming Tongue gains +1 hit and attacks +40% faster.",
             "archetype": "Acolyte",
+            "base_abil": "Uproot",
             "parents": [
-                "Fluid Healing",
-                "Bloodier I"
+                "Rupture",
+                "Bloody"
             ],
             "dependencies": [
                 "Lashing Lance"
@@ -17073,32 +17123,27 @@
             "display": {
                 "row": 29,
                 "col": 7,
-                "icon": "node_0"
+                "icon": "node_1"
             },
             "properties": {},
             "effects": [
                 {
                     "type": "add_spell_prop",
-                    "base_spell": 9,
-                    "target_part": "Bleeding Tick",
-                    "multipliers": [
-                        20,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                    ]
+                    "base_spell": 4,
+                    "target_part": "Total Damage",
+                    "hits": {
+                        "Single Hit": 1
+                    }
                 }
             ]
         },
         {
             "display_name": "Blood Rite",
-            "desc": "When any player takes damage within your Totem's range, 35% of the damage taken proportional to your maximum health is added to your Blood Pool. (Max 10 points per hit)",
+            "desc": "When any player takes damage within your Totem's range, 35% of the damage taken proportional to your maximum health is added to your Blood Pool. (Max 15 Blood Pool per second)",
             "archetype": "Acolyte",
             "archetype_req": 9,
             "parents": [
-                "Deeper Wounds"
+                "Scourge"
             ],
             "dependencies": [
                 "Sacrificial Shrine"
@@ -17115,7 +17160,7 @@
         },
         {
             "display_name": "Sanguine Strike",
-            "desc": "Greatly reduce Main Attack spread. </br> Your Main Attack will now inflict enemies with Bleeding for +0.25s per beam. </br> Bleeding enemies take damage every 0.5s. Bleeding damage dealt within Totem's range also adds +0.8 points to your Blood Pool. </br> </br><span class='mc-white'>Total Damage</span>: 60% (of your DPS, from Bleeding)   </br>&emsp;(<span class='nDam'>Damage</span>: 60%)",
+            "desc": "Greatly reduce Main Attack spread. </br> Your Main Attack will now inflict enemies with Bleeding for +2s. </br> Bleeding enemies take damage every 0.5s. Bleeding damage dealt within Totem's range also adds +0.8 points to your Blood Pool. </br> </br><span class='mc-white'>Total Damage</span>: 60% (of your DPS, from Bleeding)   </br>&emsp;(<span class='nDam'>Damage</span>: 60%) </br>Cooldown: 2s (per enemy)",
             "parents": [
                 "Blood Rite",
                 "Chorus of the Ancients"
@@ -17223,9 +17268,8 @@
         {
             "display_name": "Bloodletting",
             "desc": "Increase Twisted Tether's damage. </br> </br><span class='mc-white'>Total Damage</span>: +25% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +25%)",
-            "archetype": "Acolyte",
             "parents": [
-                "Deeper Wounds"
+                "Scourge"
             ],
             "dependencies": [
                 "Twisted Tether"
@@ -17479,7 +17523,7 @@
             "effects": []
         },
         {
-            "display_name": "Bloodier II",
+            "display_name": "Bloodier",
             "desc": "Increase your maximum Blood Pool by +30 points. Increase your maximum Bleeding duration by +1.5s.",
             "archetype": "Acolyte",
             "base_abil": "Sacrificial Shrine",
@@ -17776,11 +17820,11 @@
         },
         {
             "display_name": "Blood Sorrow",
-            "desc": "Casting Uproot or Haunting Memory while holding shift will spend 70 points of Blood Pool to cast a destructive beam that chains between enemies and allies, and damages enemies every 0.2s. </br> You and any allies within the beam will receive +2% Overhealth per hit. Bonus health decays over 20s. </br> </br><span class='mc-white'>Total Damage</span>: 120% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 100%)   </br>&emsp;(<span class='wDam'>Water</span>: 20%) </br>Duration: 5s </br>Range: 24 Blocks",
+            "desc": "Casting Uproot or Haunting Memory while holding shift will spend 60 points of Blood Pool to cast a destructive beam that chains between enemies and allies, and damages enemies every 0.2s. </br> You and any allies within the beam will receive +2% Overhealth per hit. Bonus health decays over 20s. </br> </br><span class='mc-white'>Total Damage</span>: 120% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 100%)   </br>&emsp;(<span class='wDam'>Water</span>: 20%) </br>Duration: 5s </br>Range: 24 Blocks",
             "archetype": "Acolyte",
             "archetype_req": 12,
             "parents": [
-                "Bloodier II"
+                "Bloodier"
             ],
             "dependencies": [
                 "Uproot"
@@ -17918,7 +17962,7 @@
         },
         {
             "display_name": "Crystal Knives",
-            "desc": "Your Puppet's knives become stronger, and can pass through walls and enemies. (Max 2 enemies) </br> </br><span class='mc-white'>Total Damage</span>: +10% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +3%)   </br>&emsp;(<span class='eDam'>Earth</span>: +2%)",
+            "desc": "Your Puppet's knives become stronger, and can pass through walls and enemies. (Max 2 enemies) </br> </br><span class='mc-white'>Total Damage</span>: +5% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +3%)   </br>&emsp;(<span class='eDam'>Earth</span>: +2%)",
             "archetype": "Summoner",
             "archetype_req": 8,
             "base_abil": "Puppet Master",
@@ -18025,7 +18069,22 @@
                 "icon": "node_1"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 3,
+                    "behavior": "modify",
+                    "target_part": "Single Wave",
+                    "multipliers": [
+                        10,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0
+                    ]
+                }
+            ]
         },
         {
             "display_name": "Totemic Hammer",
@@ -18046,7 +18105,22 @@
                 "icon": "node_1"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "target_part": "Smash Damage",
+                    "behavior": "modify",
+                    "multipliers": [
+                        40,
+                        0,
+                        0,
+                        0,
+                        10,
+                        0
+                    ]
+                }
+            ]
         },
         {
             "display_name": "Pool of Rejuvenation",
@@ -18101,12 +18175,14 @@
         },
         {
             "display_name": "Rupture",
-            "desc": "Sacrificial Shrine boosts Aura's damage by +15%, and consumes up to 3s of Bleeding to instantly  deal the damage it would have dealt.",
+            "desc": "Sacrificial Shrine boosts Aura's damage by +15% and consumes up to 2s of Bleeding , granting +2.2 Blood Pool for each second of Bleeding consumed.",
             "archetype": "Acolyte",
             "archetype_req": 6,
             "base_abil": "Sacrificial Shrine",
             "parents": [
-                "Blood Sorrow"
+                "Imbued Totem",
+                "Eldritch Call",
+                "Bloody"
             ],
             "dependencies": [
                 "Sacrificial Shrine"
@@ -18114,8 +18190,8 @@
             "blockers": [],
             "cost": 2,
             "display": {
-                "row": 37,
-                "col": 7,
+                "row": 28,
+                "col": 6,
                 "icon": "node_2"
             },
             "properties": {},
@@ -18130,24 +18206,50 @@
                             "value": 15
                         }
                     ]
-                },
+                }
+            ]
+        },
+        {
+            "display_name": "Eldritch Transfusion",
+            "desc": "Refreshing Eldritch Call while it is already active will imbue its attacks with blood, granting it +1 stack of Transfused (Max 3). </br> For every 1 stack of Transfused Eldritch Call has, its attacks deal more damage. All stacks are lost when Eldritch Call ends. </br> </br>Effect: +7% damage to Eldritch Call (Per stack)",
+            "archetype": "Acolyte",
+            "parents": [
+                "Blood Sorrow"
+            ],
+            "dependencies": [
+                "Eldritch Call"
+            ],
+            "blockers": [],
+            "cost": 2,
+            "display": {
+                "row": 37,
+                "col": 7,
+                "icon": "node_4"
+            },
+            "properties": {},
+            "effects": [
                 {
-                    "type": "add_spell_prop",
-                    "base_spell": 9,
-                    "target_part": "Rupture Damage",
-                    "hits": {
-                        "Bleed DPS": 3.0
-                    }
+                    "type": "stat_scaling",
+                    "slider": true,
+                    "slider_name": "Transfused",
+                    "output": {
+                        "type": "stat",
+                        "name": "damMult.Transfused:11.Single Hit"
+                    },
+                    "scaling": [
+                        7
+                    ],
+                    "slider_max": 3
                 }
             ]
         },
         {
             "display_name": "Effuse",
-            "desc": "Flaming Tongue grants 1% Blood Pool per hit. (Max 5%)",
+            "desc": "Flaming Tongue grants +2.5 Blood Pool per hit.",
             "archetype": "Acolyte",
             "archetype_req": 11,
             "parents": [
-                "Rupture",
+                "Eldritch Transfusion",
                 "Repulse"
             ],
             "dependencies": [
@@ -18213,7 +18315,7 @@
             ]
         },
         {
-            "display_name": "Bloodier III",
+            "display_name": "Bloodiest",
             "desc": "Increase your maximum Blood Pool by +30 points. Increase your maximum Bleeding duration by +1.5s.",
             "archetype": "Acolyte",
             "base_abil": "Sacrificial Shrine",
@@ -18394,7 +18496,7 @@
             "archetype_req": 19,
             "parents": [
                 "Haemomagnetic",
-                "Bloodier III"
+                "Bloodiest"
             ],
             "dependencies": [],
             "blockers": [],
