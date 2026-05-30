@@ -24,7 +24,8 @@ const damageMultipliers = new Map([
     ["emboldeningcry", 0.00],
     ["fortitude",      0.40],
     ["radiance",       0.00],
-    ["eldritchcall",   0.00],
+    ["hauntingfanatic", 0.00],
+    ["hauntinglunatic", 0.00],
     ["divinehonor",    0.00],
 ]);
 

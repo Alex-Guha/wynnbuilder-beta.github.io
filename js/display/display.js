@@ -135,15 +135,6 @@ function displayBuildStats(parent_id, build, command_group, stats) {
         // id instruction
         else {
             let id = command;
-            if (id === "mr" && !stats.get(id)) {
-                let row = make_elem('div', ['row']);
-                let desc_elem = make_elem('div', ['col', 'text-start'], { textContent: "Mana Regen with Base: " });
-                let value_elem = make_elem('div', ['col', 'text-end', 'positive'], { textContent: "25/5s" });
-                row.appendChild(desc_elem);
-                row.appendChild(value_elem);
-                parent_div.appendChild(row);
-                continue;
-            }
             if (stats.get(id)) {
                 let style = null;
 
@@ -234,6 +225,26 @@ function displayBuildStats(parent_id, build, command_group, stats) {
                         });
                         value_elem.append(prefix_elem);
                         value_elem.append(number_elem);
+                        row.appendChild(value_elem);
+                        parent_div.appendChild(row);
+                    }
+                    else if (id == "mainAttackRange") {
+                        let row = make_elem('div', ['row']);
+                        let value_elem = make_elem('div', ['col', 'text-end']);
+
+                        let prefix_elem = make_elem('b', [], { textContent: "\u279C Total Range: " });
+
+                        let number_elem = make_elem('b', [style], {
+                            textContent: Math.round(atree_merge.value.get(999).properties.range * (1 + 0.01 * id_val) * 10) / 10
+                        });
+
+                        let suffix_elem = make_elem('b', [], {
+                            textContent: " Blocks"
+                        });
+
+                        value_elem.append(prefix_elem);
+                        value_elem.append(number_elem);
+                        value_elem.append(suffix_elem);
                         row.appendChild(value_elem);
                         parent_div.appendChild(row);
                     }
@@ -538,7 +549,7 @@ function displayExpandedItem(item, parent_id) {
         let powder_special = make_elem("div", ['col']);
         let powders = item.get("powders");
         let element;
-        let power_index;
+        let power_index = 0;
         for (let i = 0; i < powders.length; i++) {
             const firstPowderType = skp_elements[Math.floor(powders[i] / POWDER_TIERS)];
             const powder1_power = powders[i] % POWDER_TIERS;
@@ -546,14 +557,13 @@ function displayExpandedItem(item, parent_id) {
                 for (let j = i + 1; j < powders.length; j++) {
                     const currentPowderType = skp_elements[Math.floor(powders[j] / POWDER_TIERS)]
                     const powder2_power = powders[j] % POWDER_TIERS;
-                    if (powder2_power > 2 && firstPowderType === currentPowderType) {
+                    const current_power = powder1_power + powder2_power - 6;
+                    if (powder2_power > 2 && firstPowderType === currentPowderType && current_power > power_index) {
                         element = currentPowderType;
-                        power_index = powder1_power + powder2_power - POWDER_TIERS;
-                        break;
+                        power_index = current_power
                     }
                 }
             }
-            if (element) { break; } // terminate early if already found.
         }
         if (element) {//powder special is "[e,t,w,f,a]+[0,1,2,3,4]"
             const powderSpecial = powderSpecialStats[skp_elements.indexOf(element)];
@@ -857,9 +867,11 @@ function displayExpandedIngredient(ingred, parent_id) {
             div.classList.add("row");
             if (command === "displayName") {
                 div.classList.add("box-title");
-                let title_elem = document.createElement("div");
-                title_elem.classList.add("col-auto", "justify-content-center", "pr-1");
+                let title_elem = document.createElement("a");
+                console.log(ingred);
+                title_elem.classList.add("col-auto", "justify-content-center", "pr-1", "item-title", "mc-white");
                 title_elem.textContent = ingred.get("displayName");
+                title_elem.href = "../ingredient/#" + ingred.get("displayName");
                 div.appendChild(title_elem);
 
                 let tier = ingred.get("tier"); //tier in [0,3]
@@ -1699,8 +1711,7 @@ function initItemHoverPopups(eq_keys) {
      * which toggles every child's display:none state — so on builder the first child (linked
      * title row) ends up hidden while the previously-hidden nolink title becomes visible.
      * If we detect that collapsed state, invert each child's display so the popup shows the
-     * fully-expanded item. On solver the tooltip is never collapsed (only the container is
-     * hidden) so children are cloned as-is.
+     * fully-expanded item.
      */
     function populatePopup(eq) {
         const tooltip = document.getElementById(eq + '-tooltip');
