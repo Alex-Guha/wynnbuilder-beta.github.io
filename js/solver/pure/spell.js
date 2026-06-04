@@ -240,10 +240,21 @@ function spell_has_heal(spell) {
  * damage root whose name is "DPS" or ends with " DPS"), so it still returns
  * true when atree effects override spell.display to a non-damage label
  * (e.g. Regeneration sets Totem's display to "Heal Rate").
+ *
+ * Exception: when spell.display explicitly names a displayed damage part that
+ * is NOT itself DPS-named, the author has chosen a total-damage headline, so
+ * the spell is treated as non-DPS even if it carries an independent sibling
+ * "… DPS" part (e.g. Arrow Storm / Arrow Shield "Total Damage"). The structural
+ * fallback only kicks in when display is absent or points to a non-damage part.
  */
 function spell_is_dps(spell) {
     if (!spell) return false;
     if (spell.display === 'DPS' || spell.display?.endsWith?.(' DPS')) return true;
+    if (spell.display && spell.parts) {
+        const by_name = new Map(spell.parts.map(p => [p.name, p]));
+        const dp = by_name.get(spell.display);
+        if (dp && dp.display !== false && _part_produces_damage(dp, by_name)) return false;
+    }
     return _find_dps_root_name(spell) !== null;
 }
 
