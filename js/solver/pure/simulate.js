@@ -205,7 +205,9 @@ function compute_recast_penalties(rows) {
         const { sim_qty, spell, mana_excl } = row;
         row.recast_penalty_per_cast = 0;
         row.recast_penalties = null;
-        if (!spell || sim_qty <= 0 || mana_excl || spell.cost == null) continue;
+        // Guard against non-finite sim_qty (e.g. a field parsed to NaN mid-edit),
+        // which would otherwise throw RangeError at `new Array(sim_qty)` below.
+        if (!spell || !(sim_qty > 0) || !Number.isFinite(sim_qty) || mana_excl || spell.cost == null) continue;
         const rc_base = spell.mana_derived_from ?? spell.base_spell;
         if (rc_base === 0) continue;
 

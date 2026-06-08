@@ -153,7 +153,7 @@ class SolverComboTotalNode extends ComputeNode {
         // ── Pre-parse unrolled rows: extract DOM state for pure function ──
         const parsed_rows = [];
         for (const r of unrolled) {
-            const { qty, sim_qty, spell, boost_tokens, dom_row, is_melee_time } = r;
+            const { qty, sim_qty, spell, boost_tokens, dom_row, is_melee_time, melee_cd_override } = r;
             if (!dom_row) continue;  // safety
             const spell_id = parseInt(dom_row?.querySelector('.combo-row-spell')?.value);
             const dmg_excl = dom_row?.querySelector('.combo-dmg-toggle')
@@ -168,7 +168,7 @@ class SolverComboTotalNode extends ComputeNode {
             // DPS hits override from DOM input
             const hits_inp = dom_row?.querySelector('.combo-row-hits');
             const dps_hits_override = hits_inp ? (parseFloat(hits_inp.value) || undefined) : undefined;
-            parsed_rows.push({ qty, sim_qty, spell, boost_tokens, dmg_excl, pseudo, dps_hits_override, dom_row, is_melee_time, _orig_idx: r._orig_idx, _loop_iter: r._loop_iter });
+            parsed_rows.push({ qty, sim_qty, spell, boost_tokens, dmg_excl, pseudo, dps_hits_override, dom_row, is_melee_time, melee_cd_override, _orig_idx: r._orig_idx, _loop_iter: r._loop_iter });
         }
 
         // ── Compute damage via shared pure function ──
@@ -432,8 +432,11 @@ class SolverComboTotalNode extends ComputeNode {
             const delay = isNaN(raw_dl) ? SPELL_CAST_DELAY : raw_dl;
             const auto_delay = dl_inp ? (dl_inp.dataset.auto !== 'false') : true;
             const mcd_inp = row.querySelector('.combo-row-melee-cd');
-            const melee_cd_override = (mcd_inp && mcd_inp.dataset.auto === 'false' && mcd_inp.value !== '')
+            const raw_mcd = (mcd_inp && mcd_inp.dataset.auto === 'false' && mcd_inp.value !== '')
                 ? parseFloat(mcd_inp.value) : undefined;
+            // Only accept a finite, positive override; 0/NaN/negative (incl. the
+            // transient "0" while typing "0.5") fall back to the auto period.
+            const melee_cd_override = (Number.isFinite(raw_mcd) && raw_mcd > 0) ? raw_mcd : undefined;
             const is_melee_time = (spell_id === MELEE_TIME_SPELL_ID);
             const eff_spell = is_melee_time ? (spell_map.get(0) ?? null) : spell;
             return { qty, sim_qty: Math.round(qty), spell: eff_spell, boost_tokens, dom_row: row, cast_time, delay, auto_delay, melee_cd_override, is_melee_time };
@@ -510,7 +513,8 @@ class SolverComboTotalNode extends ComputeNode {
             if (is_melee) {
                 const mcd_inp = row.querySelector('.combo-row-melee-cd');
                 if (mcd_inp?.dataset.auto === 'false' && mcd_inp.value !== '') {
-                    melee_cd = parseFloat(mcd_inp.value);
+                    const v = parseFloat(mcd_inp.value);
+                    if (Number.isFinite(v) && v > 0) melee_cd = v;
                 }
             }
             return { qty, spell_name, boost_tokens_text: boost_parts.join(', '), mana_excl, dmg_excl, hits, cast_time, delay, melee_cd };

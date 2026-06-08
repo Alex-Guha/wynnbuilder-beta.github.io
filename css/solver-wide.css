@@ -192,15 +192,16 @@
     border-color: rgba(255, 255, 255, 0.4);
 }
 
-/* Hide number input spin buttons */
-.roll-group-input::-webkit-inner-spin-button,
-.roll-group-input::-webkit-outer-spin-button {
+/* Hide number input spin buttons (Chrome/Safari/Edge + Firefox) */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
 
-.roll-group-input {
+input[type="number"] {
     -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 .roll-group-suffix {
