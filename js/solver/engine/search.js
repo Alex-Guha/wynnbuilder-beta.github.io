@@ -206,7 +206,17 @@ function _build_solver_snapshot(restrictions) {
     const atree_raw = atree_raw_stats.value ?? new Map();
     const atree_interactive_val = atree_make_interactives.value;
     const atree_mgd = atree_merge.value;
-    const static_boosts = solver_boosts_node.value ?? new Map();
+    let static_boosts = solver_boosts_node.value ?? new Map();
+    // Raid reward buffs are flat additive stats (same shape as potion/party
+    // boosts), so fold them into static_boosts — the whole worker/scoring path
+    // already handles this map. Clone first so we never mutate the node's value.
+    const raid_buffs = solver_raid_buff_node.value;
+    if (raid_buffs && raid_buffs.size > 0) {
+        static_boosts = new Map(static_boosts);
+        for (const [stat, val] of raid_buffs) {
+            static_boosts.set(stat, val + (static_boosts.get(stat) ?? 0));
+        }
+    }
 
     let radiance_boost = 1;
     if (document.getElementById('radiance-boost')?.classList.contains('toggleOn')) radiance_boost += 0.15;

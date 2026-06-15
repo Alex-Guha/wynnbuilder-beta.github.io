@@ -24,6 +24,65 @@ let boosts_node = new (class extends ComputeNode {
     compute_func(_input_map) { return compute_boosts(); }
 })().update();
 
+let raid_buff_node = new (class extends ComputeNode {
+    constructor() { super('builder-raid-buff-input'); }
+
+    compute_func(input_map) {
+        const raids = ['notg', 'nol', 'tcc', 'tna', 'wtp'];
+        let statMap = new Map();
+        let toggledBuffs = [];
+        for (const raid of raids) {
+            for (let i = 1; i <= 3; i++) {
+                let other_tier = document.getElementById(raid + "-" + i);
+                for (let buff of other_tier.children) {
+                    if (buff.classList.contains("toggleOn")) { toggledBuffs.push(buff.id) }
+                }
+            }
+        }
+
+        for (const buff of toggledBuffs) {
+            for (const [stat, val] of raid_buff_map.get(buff)) {
+                if (statMap.has(stat)) {
+                    statMap.set(stat, val + statMap.get(stat));
+                }
+                else {
+                    statMap.set(stat, val);
+                }
+            }
+        }
+        return statMap;
+    }
+})();
+
+function updateRaidBuffs(raid, tier, buttonId) {
+    let prefix = (buttonId).split("-")[0].replace(' ', '_') + '-';
+    let elem = document.getElementById(buttonId);
+    if (elem.classList.contains("toggleOn")) { elem.classList.remove("toggleOn"); }
+    else {
+        const raids = ['notg', 'nol', 'tcc', 'tna', 'wtp'];
+        let raid_tier = document.getElementById(raid + "-" + tier);
+        for (let buff of raid_tier.children) {
+            if (buff.classList.contains("toggleOn")) { buff.classList.remove("toggleOn"); }
+        }
+
+        // shut off the buffs from other raids
+        for (const other_raid of raids) {
+            if (other_raid == raid) {
+                continue;
+            }
+            
+            for (let i = 1; i <= 3; i++) {
+                let other_tier = document.getElementById(other_raid + "-" + i);
+                for (let buff of other_tier.children) {
+                    if (buff.classList.contains("toggleOn")) { buff.classList.remove("toggleOn"); }
+                }
+            }
+        }
+        elem.classList.add("toggleOn");
+    }
+    raid_buff_node.mark_dirty().update();
+}
+
 /* Updates all spell boosts
 */
 function update_boosts(buttonId) {
@@ -416,6 +475,20 @@ class DisplayBuildWarningsNode extends ComputeNode {
                 baditem.classList.add("nocolor"); baditem.classList.add("itemp");
                 baditem.textContent = item.statMap.get("displayName") + " requires level " + item_lvl + " to use.";
                 lvlWarning.appendChild(baditem);
+            }
+            
+            let powders = item.statMap.get("powders");
+            if (powders) {
+                for (const powder of powders) {
+                    if (item_lvl < powderLevelReq[powder % POWDER_TIERS]) {
+                        if (!lvlWarning) {
+                            lvlWarning = document.createElement("p");
+                            lvlWarning.classList.add("itemp"); lvlWarning.classList.add("warning");
+                            lvlWarning.textContent = item.statMap.get("displayName") + " cannot have tier " + (powder % POWDER_TIERS + 1) + " powders. Item must be level " + powderLevelReq[powder % POWDER_TIERS] + " or higher.";
+                            break;
+                        }
+                    }
+                }
             }
         }
         if (lvlWarning) {
@@ -941,6 +1014,10 @@ function builder_graph_init(skillpoints) {
     pre_scale_agg_node.link_to(powder_special_calc, 'powder-boost');
     stat_agg_node.link_to(armor_powder_node, 'armor-powder');
     powder_special_input.update();
+
+    // Raid Buffs
+    raid_buff_node.update();
+    stat_agg_node.link_to(raid_buff_node, 'raid-buff');
 
     // Potion boost.
     stat_agg_node.link_to(boosts_node, 'potion-boost');

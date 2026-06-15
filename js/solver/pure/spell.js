@@ -56,13 +56,14 @@ function _eval_spell_parts(stats, weapon, spell, detailed) {
                 const sub = eval_part(sub_name);
                 if (!sub) continue;
                 if (!result.type) result.type = sub.type;
+                const effective_hits = part.tick_rounding ? 1.0/(Math.floor(1.0/hits*20)*0.05) : hits;
                 if (sub.type === 'damage') {
-                    result.normal_total[0] += sub.normal_total[0] * hits;
-                    result.normal_total[1] += sub.normal_total[1] * hits;
-                    result.crit_total[0] += sub.crit_total[0] * hits;
-                    result.crit_total[1] += sub.crit_total[1] * hits;
+                    result.normal_total[0] += sub.normal_total[0] * effective_hits;
+                    result.normal_total[1] += sub.normal_total[1] * effective_hits;
+                    result.crit_total[0] += sub.crit_total[0] * effective_hits;
+                    result.crit_total[1] += sub.crit_total[1] * effective_hits;
                 } else if (sub.type === 'heal') {
-                    result.heal_amount += sub.heal_amount * hits;
+                    result.heal_amount += sub.heal_amount * effective_hits;
                 }
             }
         }
@@ -348,7 +349,8 @@ function computeSpellHealingTotal(stats, spell) {
                 const sub = eval_part(sub_name);
                 if (!sub) continue;
                 if (!result.type) result.type = sub.type;
-                result.heal_amount += (sub.heal_amount ?? 0) * hits;
+                const effective_hits = part.tick_rounding ? 1.0/(Math.floor(1.0/hits*20)*0.05) : hits;
+                result.heal_amount += (sub.heal_amount ?? 0) * effective_hits;
             }
         }
         result.name = part.name;
