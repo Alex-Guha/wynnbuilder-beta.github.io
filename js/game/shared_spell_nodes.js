@@ -95,14 +95,16 @@ class SpellDamageCalcNode extends ComputeNode {
                     } else {
                         spell_result.type = sub.type;
                     }
+
+                    const effective_hits = part.tick_rounding ? 1.0/(Math.floor(1.0/hits*20)*0.05) : hits;
                     if (spell_result.type === 'damage') {
                         for (const key of dam_keys) {
                             for (let i in spell_result.normal_min) {
-                                spell_result[key][i] += sub[key][i] * hits;
+                                spell_result[key][i] += sub[key][i] * effective_hits;
                             }
                         }
                     } else {
-                        spell_result.heal_amount += sub.heal_amount * hits;
+                        spell_result.heal_amount += sub.heal_amount * effective_hits;
                     }
                 }
             }

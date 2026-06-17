@@ -51,3 +51,5 @@ let build_fields = equipment_fields.map(x => x+"-tooltip");
 
 let spell_disp = ['build-melee-stats', 'spell0-info', 'spell1-info', 'spell2-info', 'spell3-info'];
 let other_disp = ['build-order', 'set-info', 'int-info'];
+
+// raid_buff_map moved to ../shared_constants.js so the solver can reuse it.

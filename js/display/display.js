@@ -1516,6 +1516,13 @@ function displaySpellDamage(parent_elem, _overallparent_elem, stats, spell, spel
         let third = make_elem("span", [], { textContent: ")" });// " + getBaseSpellCost(stats, spellIdx, spell.cost) + " ]";
         title_elem.appendChild(third.cloneNode(true));
         title_elemavg.appendChild(third);
+
+        const uncapped_cost = getSpellCost(stats, spell, false);
+        if (uncapped_cost < 1) {
+            let uncapped_display = make_elem("span", ["mc-gray"], { textContent: " (" + uncapped_cost.toFixed(2) + ")" });
+            title_elem.appendChild(uncapped_display.cloneNode(true));
+            title_elemavg.appendChild(uncapped_display);
+        }
     }
     else {
         title_elem.textContent = spell.name;

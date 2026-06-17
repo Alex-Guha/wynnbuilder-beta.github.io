@@ -135,6 +135,35 @@ let solver_boosts_node = new (class extends ComputeNode {
     compute_func(_input_map) { return compute_boosts(); }
 })().update();
 
+// Raid reward buffs — mirrors the builder's raid_buff_node. Reads the toggle
+// state of the raid buff buttons (notg-1 .. wtp-3) and sums the active buffs
+// into a flat additive statMap (raid_buff_map lives in shared_constants.js).
+const RAID_IDS = ['notg', 'nol', 'tcc', 'tna', 'wtp'];
+let solver_raid_buff_node = new (class extends ComputeNode {
+    constructor() { super('solver-raid-buff-input'); }
+    compute_func(_input_map) {
+        let statMap = new Map();
+        let toggledBuffs = [];
+        for (const raid of RAID_IDS) {
+            for (let i = 1; i <= 3; i++) {
+                let tier = document.getElementById(raid + "-" + i);
+                if (!tier) continue;
+                for (let buff of tier.children) {
+                    if (buff.classList.contains("toggleOn")) { toggledBuffs.push(buff.id); }
+                }
+            }
+        }
+        for (const buff of toggledBuffs) {
+            const effs = raid_buff_map.get(buff);
+            if (!effs) continue;
+            for (const [stat, val] of effs) {
+                statMap.set(stat, val + (statMap.get(stat) ?? 0));
+            }
+        }
+        return statMap;
+    }
+})().update();
+
 let solver_radiance_node = new (class extends ComputeNode {
     constructor() { super('solver-radiance-node'); this.fail_cb = true; }
     compute_func(input_map) {
@@ -148,6 +177,38 @@ let solver_radiance_node = new (class extends ComputeNode {
 function update_boosts(buttonId) {
     toggleButton(buttonId);
     solver_boosts_node.mark_dirty().update();
+}
+
+// Mirrors the builder's updateRaidBuffs: buffs must come from a single raid, but
+// up to one per tier (3 total). Toggling a buff on clears the other buffs in its
+// own tier and every buff belonging to other raids — leaving this raid's other
+// tiers untouched.
+function updateRaidBuffs(raid, tier, buttonId) {
+    let elem = document.getElementById(buttonId);
+    if (elem.classList.contains("toggleOn")) {
+        elem.classList.remove("toggleOn");
+    } else {
+        // Clear the other buffs in this same tier (only one per tier).
+        let raid_tier = document.getElementById(raid + "-" + tier);
+        if (raid_tier) {
+            for (let buff of raid_tier.children) {
+                if (buff.classList.contains("toggleOn")) { buff.classList.remove("toggleOn"); }
+            }
+        }
+        // Clear every buff from other raids (buffs must all share one raid).
+        for (const r of RAID_IDS) {
+            if (r === raid) continue;
+            for (let i = 1; i <= 3; i++) {
+                let other_tier = document.getElementById(r + "-" + i);
+                if (!other_tier) continue;
+                for (let buff of other_tier.children) {
+                    if (buff.classList.contains("toggleOn")) { buff.classList.remove("toggleOn"); }
+                }
+            }
+        }
+        elem.classList.add("toggleOn");
+    }
+    solver_raid_buff_node.mark_dirty().update();
 }
 
 function update_radiance(input) {

@@ -69,8 +69,9 @@ function getUnclampedSpellCost(stats, spell) {
     return getBaseSpellCost(stats, spell) * (1 + final_pct / 100);
 }
 
-function getSpellCost(stats, spell) {
-    return Math.max(1, getUnclampedSpellCost(stats, spell));
+function getSpellCost(stats, spell, capped = true) {
+    const cost = getUnclampedSpellCost(stats, spell);
+    return capped ? Math.max(1, cost) : cost;
 }
 
 // ── Defense stat calculation ─────────────────────────────────────────────────

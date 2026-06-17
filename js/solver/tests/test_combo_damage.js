@@ -131,15 +131,16 @@ function evalSpellBuilderAvg(spell, stats, weaponSM, crit_chance, displayPartNam
                         const sub = eval_part(sub_name);
                         if (!sub) continue;
                         if (!spell_result.type) spell_result.type = sub.type;
+                        const effective_hits = part.tick_rounding ? 1.0/(Math.floor(1.0/hits*20)*0.05) : hits;
                         if (sub.type === 'damage') {
                             spell_result.type = 'damage';
-                            spell_result.normal_total[0] += sub.normal_total[0] * hits;
-                            spell_result.normal_total[1] += sub.normal_total[1] * hits;
-                            spell_result.crit_total[0]   += sub.crit_total[0]   * hits;
-                            spell_result.crit_total[1]   += sub.crit_total[1]   * hits;
+                            spell_result.normal_total[0] += sub.normal_total[0] * effective_hits;
+                            spell_result.normal_total[1] += sub.normal_total[1] * effective_hits;
+                            spell_result.crit_total[0]   += sub.crit_total[0]   * effective_hits;
+                            spell_result.crit_total[1]   += sub.crit_total[1]   * effective_hits;
                         } else if (sub.type === 'heal') {
                             spell_result.type = 'heal';
-                            spell_result.heal_amount += sub.heal_amount * hits;
+                            spell_result.heal_amount += sub.heal_amount * effective_hits;
                         }
                     }
                 }

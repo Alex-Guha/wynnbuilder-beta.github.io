@@ -116,6 +116,8 @@ function solver_graph_init() {
     stat_agg.link_to(solver_radiance_node, 'pre-scaling');
     stat_agg.link_to(atree_scaling_stats, 'atree-scaling');
     stat_agg.link_to(solver_boosts_node, 'potion-boost');
+    solver_raid_buff_node.update();
+    stat_agg.link_to(solver_raid_buff_node, 'raid-buff');
 
     // Build stats display (populates Summary and Detailed tabs in the middle column)
     new SolverBuildDisplayNode()
@@ -130,6 +132,7 @@ function solver_graph_init() {
     combo_base_stats.link_to(solver_radiance_node, 'pre-scaling');
     combo_base_stats.link_to(atree_scaling_stats, 'atree-scaling');
     combo_base_stats.link_to(solver_boosts_node, 'potion-boost');
+    combo_base_stats.link_to(solver_raid_buff_node, 'raid-buff');
 
     solver_combo_total_node = new SolverComboTotalNode()
         .link_to(solver_build_node, 'build')

@@ -1,4 +1,4 @@
-let ASPECT_DB_VERSION = 32;
+let ASPECT_DB_VERSION = 34;
 let aspects = {};
 
 // Map<className, Map<string, AspectSpec>>
@@ -15,7 +15,7 @@ class AspectLoader extends Loader {
     }
 
     get old_data_paths() {
-        return 'data/baseline/aspects';
+        return 'aspects';
     }
 
     process_remote(data, tsx, reject) {
