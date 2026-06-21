@@ -45,7 +45,7 @@ Please click CANCEL if you wish to begin the test.
 if (localStorage.getItem("testBegin") === "0" && confirm(testMessage)) {
     // Cleanup and redirect to builder
     localStorage.clear();
-    location.replace(location.origin + '/builder') 
+    location.replace(location.origin + SITE_BASE + '/builder')
 } else {
     localStorage.setItem("testBegin", 1);
 }
