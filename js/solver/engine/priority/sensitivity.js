@@ -488,6 +488,7 @@ function _apply_mana_sustainability_bonuses(result, snap) {
     }
 }
 
+// TODO Handle atkTier in the same manner we did for indirect constraints: in aggregate with MS/LS
 /**
  * atkTier mana adjustment from pool ms.
  *
@@ -628,7 +629,7 @@ function _apply_atktier_mana_adjustment(result, snap, restrictions, pools) {
 
     if (SOLVER_DEBUG_SENSITIVITY) {
         const parts = [`baseline_ms=${baseline_ms}, corrected_ms=${corrected_ms}`,
-            `mana_ratio=${ratio.toFixed(3)}, mana_bonus=${mana_bonus_adj.toFixed(2)}`];
+        `mana_ratio=${ratio.toFixed(3)}, mana_bonus=${mana_bonus_adj.toFixed(2)}`];
         if (split) {
             if (do_up) parts.push(`pos: ${old_pos.toFixed(2)} → ${(old_pos + w_up).toFixed(2)} (w_up=${w_up.toFixed(2)})`);
             if (do_down) parts.push(`neg: ${old_neg.toFixed(2)} → ${(old_neg + w_down).toFixed(2)} (w_down=${w_down.toFixed(2)})`);
