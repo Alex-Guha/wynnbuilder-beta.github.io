@@ -25,7 +25,7 @@ recipes = recipe_data["recipes"]
 
 recipe_map_path = "../data/baseline/maps/recipe_map.json"
 if os.path.exists(recipe_map_path):
-    with open(recipe_map_path, "r") as recipe_mapfile:
+    with open(recipe_map_path,"r") as recipe_mapfile:
         recipe_map = json.load(recipe_mapfile)
 else:
     recipe_map = {recipe["name"]: i for i, recipe in enumerate(recipes)}

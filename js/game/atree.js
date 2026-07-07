@@ -66,6 +66,7 @@ add_spell_prop: {
     <extra numeric>: Optional[float] // Any additional numeric key not in _ASPELL_META (e.g. hp_cost,
                                     //     corruption_rate) is additively merged onto the spell object.
                                     //     See _ASPELL_META in shared_constants.js for the set of reserved keys.
+    mana_gained:    Optional[int]   // The amount of mana gained on spell use, used for mana calculator.
 }
 
 convert_spell_conv: {
@@ -538,6 +539,29 @@ const atree_merge = new (class extends ComputeNode {
             }
             merge_abil(node.ability);
         }
+        
+        // Apply aspects. Order is redundent.
+        // Similar to major_ids, each aspect can have multiple abilities.
+        // Unlike major ids, aspects are imlemented to always be valid for the current class.
+        const aspects = input_map.get('final-aspects');
+        for (const [aspect, tier_num] of aspects) {
+            if (aspect.NONE || !aspect.tiers[tier_num - 1].abilities) {
+                continue;
+            }
+            for (const abil of aspect.tiers[tier_num - 1].abilities) {
+                if (abil.dependencies !== undefined) {
+                    let dep_satisfied = true;
+                    for (const dep_id of abil.dependencies) {
+                        if (!atree_state.get(dep_id).active) {
+                            dep_satisfied = false;
+                            break;
+                        }
+                    }
+                    if (!dep_satisfied) { continue; }
+                }
+                merge_abil(abil); 
+            }
+        }
 
         // Apply major IDs.
         const build_class = wep_to_class.get(build.weapon.statMap.get("type"));
@@ -572,29 +596,6 @@ const atree_merge = new (class extends ComputeNode {
                         merge_abil(abil);
                     }
                 }
-            }
-        }
-         
-        // Apply aspects. Order is redundent.
-        // Similar to major_ids, each aspect can have multiple abilities.
-        // Unlike major ids, aspects are imlemented to always be valid for the current class.
-        const aspects = input_map.get('final-aspects');
-        for (const [aspect, tier_num] of aspects) {
-            if (aspect.NONE || !aspect.tiers[tier_num - 1].abilities) {
-                continue;
-            }
-            for (const abil of aspect.tiers[tier_num - 1].abilities) {
-                if (abil.dependencies !== undefined) {
-                    let dep_satisfied = true;
-                    for (const dep_id of abil.dependencies) {
-                        if (!atree_state.get(dep_id).active) {
-                            dep_satisfied = false;
-                            break;
-                        }
-                    }
-                    if (!dep_satisfied) { continue; }
-                }
-                merge_abil(abil); 
             }
         }
 
@@ -918,7 +919,7 @@ const atree_collect_spells = new (class extends ComputeNode {
                     // Already handled above.
                     continue;
                 case 'add_spell_prop': {
-                    const { base_spell, target_part = null, cost = 0, behavior = 'merge'} = effect;
+                    const { base_spell, target_part = null, cost = 0, mana_gained = 0, behavior = 'merge'} = effect;
                     // Powder special targeting: PS spells are synthetic (generated
                     // later), so effects targeting them must be deferred.
                     if (base_spell === 'powder_special') {
@@ -930,12 +931,18 @@ const atree_collect_spells = new (class extends ComputeNode {
                     }
 
                     const ret_spell = ret_spells.get(base_spell);
-
                     // :enraged:
                     // NOTE to hpp: this is out here because:
                     // target_part doesn't exist for spell cost modification abilities
                     // except when it does... in which case it should apply exactly once.
                     if ('cost' in ret_spell) { ret_spell.cost += cost; }
+                    if (mana_gained) { 
+                        const val = atree_translate(atree_merged, mana_gained);
+                        ret_spell.mana_gained = ret_spell.mana_gained == null ? val : ret_spell.mana_gained + val;
+                    }
+                    if ('display' in effect) {
+                        ret_spell.display = effect.display;
+                    }
 
                     // Generic spell-level numeric fields (hp_cost, corruption_rate, etc.)
                     // Any numeric key not in _ASPELL_META is merged onto the spell object.
@@ -999,9 +1006,6 @@ const atree_collect_spells = new (class extends ComputeNode {
                             spell_part.display = false;
                         }
                         ret_spell.parts.push(spell_part);
-                    }
-                    if ('display' in effect) {
-                        ret_spell.display = effect.display;
                     }
                     continue;
                 }

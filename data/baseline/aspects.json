@@ -878,7 +878,7 @@
         },
         {
           "threshold": 5,
-          "description": "Divine Intervention will cause Guardian Angels to fire 1.8x faster instead. </br> Arrow Storm gains +1 arrow per stream. </br> Triple Shots gains +2 arrows. </br> Main Attack Damage: -15%",
+          "description": "Divine Intervention will cause Guardian Angels to fire 1.8x faster instead, and cause explosive shots to deal +5% more damage. </br> Triple Shots gains +2 arrows. </br> Main Attack Damage: -15%",
           "abilities": [
             {
               "base_abil": "Arrow Shield",
@@ -894,15 +894,19 @@
                       "value": 0.666666666668
                     }
                   ]
+                },
+                {
+                  "type": "raw_stat",
+                  "toggle": "Divine Intervention Arrow Bomb",
+                  "bonuses": [
+                    {
+                      "type": "stat",
+                      "name": "damMult.ArrowBombBoost:4.Single Shot",
+                      "value": 5
+                    }
+                  ]
                 }
               ]
-            },
-            {
-              "base_abil": "Arrow Storm",
-              "properties": {
-                "arrows_per_stream": 1
-              },
-              "effects": []
             },
             {
               "base_abil": 999,
@@ -938,7 +942,7 @@
         },
         {
           "threshold": 15,
-          "description": "Divine Intervention will cause Guardian Angels to fire 1.8x faster instead, and cause explosive shots to deal +10% more damage. </br> Arrow Storm gains +1 arrow per stream. </br> Triple Shots gains +2 arrows. </br> Main Attack Damage: -15%",
+          "description": "Divine Intervention will cause Guardian Angels to fire 1.8x faster instead, and cause explosive shots to deal +10% more damage. </br> Triple Shots gains +2 arrows. </br> Main Attack Damage: -15%",
           "abilities": [
             {
               "base_abil": "Arrow Shield",
@@ -2342,7 +2346,17 @@
             {
               "base_abil": "Blood Pact",
               "properties": {
-                "health_cost": -0.05
+                "health_cost": -0.0525
+              },
+              "effects": []
+            },
+            {
+              "base_abil": "Blood Pact",
+              "dependencies": [
+                "Haemorrhage"
+              ],
+              "properties": {
+                "health_cost": -0.01725
               },
               "effects": []
             }
@@ -2355,8 +2369,18 @@
             {
               "base_abil": "Blood Pact",
               "properties": {
-                "health_cost": -0.05,
+                "health_cost": -0.0525,
                 "damage_boost": 6.25
+              },
+              "effects": []
+            },
+            {
+              "base_abil": "Blood Pact",
+              "dependencies": [
+                "Haemorrhage"
+              ],
+              "properties": {
+                "health_cost": -0.01725
               },
               "effects": []
             }
@@ -2369,8 +2393,18 @@
             {
               "base_abil": "Blood Pact",
               "properties": {
-                "health_cost": -0.05,
+                "health_cost": -0.0525,
                 "damage_boost": 10
+              },
+              "effects": []
+            },
+            {
+              "base_abil": "Blood Pact",
+              "dependencies": [
+                "Haemorrhage"
+              ],
+              "properties": {
+                "health_cost": -0.01725
               },
               "effects": []
             }
@@ -3496,7 +3530,7 @@
             {
               "base_abil": "Heal",
               "properties": {
-                "speed_boost": 5
+                "speed_boost": 10
               },
               "effects": []
             }
@@ -3509,7 +3543,7 @@
             {
               "base_abil": "Heal",
               "properties": {
-                "speed_boost": 5
+                "speed_boost": 15
               },
               "effects": []
             }
@@ -3522,7 +3556,7 @@
             {
               "base_abil": "Heal",
               "properties": {
-                "speed_boost": 5
+                "speed_boost": 20
               },
               "effects": []
             }
@@ -3803,22 +3837,22 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Time Dilation gains +0.35 Area of Effect, and increases your speed more quickly.",
+          "description": "Time Dilation gains +1 Area of Effect.",
           "abilities": []
         },
         {
           "threshold": 5,
-          "description": "Time Dilation gains +0.6 Area of Effect, and increases your speed more quickly.",
+          "description": "Time Dilation gains +1.75 Area of Effect.",
           "abilities": []
         },
         {
           "threshold": 30,
-          "description": "Time Dilation gains +0.85 Area of Effect, and increases your speed more quickly.",
+          "description": "Time Dilation gains +2.5 Area of Effect.",
           "abilities": []
         },
         {
           "threshold": 150,
-          "description": "Time Dilation gains +1 Area of Effect, and increases your speed more quickly.",
+          "description": "Time Dilation gains +3 Area of Effect.",
           "abilities": []
         }
       ],
@@ -4224,7 +4258,8 @@
                 "Shurikens"
               ],
               "properties": {
-                "count": 3
+                "count": 3,
+                "reload": 1
               },
               "effects": [
                 {
@@ -4240,14 +4275,6 @@
                     -5,
                     0
                   ]
-                },
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 6,
-                  "hits": {
-                    "Per Shuriken": 1
-                  }
                 }
               ]
             }
@@ -4263,7 +4290,8 @@
                 "Shurikens"
               ],
               "properties": {
-                "count": 6
+                "count": 6,
+                "reload": 2
               },
               "effects": [
                 {
@@ -4279,14 +4307,6 @@
                     -9,
                     0
                   ]
-                },
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 6,
-                  "hits": {
-                    "Per Shuriken": 2
-                  }
                 }
               ]
             }
@@ -4302,7 +4322,8 @@
                 "Shurikens"
               ],
               "properties": {
-                "count": 9
+                "count": 9,
+                "reload": 3
               },
               "effects": [
                 {
@@ -4318,14 +4339,6 @@
                     -9,
                     0
                   ]
-                },
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 6,
-                  "hits": {
-                    "Per Shuriken": 3
-                  }
                 }
               ]
             }
@@ -4660,17 +4673,10 @@
           "abilities": [
             {
               "base_abil": "Multihit",
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 3,
-                  "behavior": "modify",
-                  "hits": {
-                    "Per Hit": 1
-                  }
-                }
-              ]
+              "properties": {
+                "hit_count": 1
+              },
+              "effects": []
             },
             {
               "base_abil": "Multihit",
@@ -4724,17 +4730,10 @@
           "abilities": [
             {
               "base_abil": "Multihit",
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 3,
-                  "behavior": "modify",
-                  "hits": {
-                    "Per Hit": 2
-                  }
-                }
-              ]
+              "properties": {
+                "hit_count": 2
+              },
+              "effects": []
             },
             {
               "base_abil": "Multihit",
@@ -4788,17 +4787,10 @@
           "abilities": [
             {
               "base_abil": "Multihit",
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 3,
-                  "behavior": "modify",
-                  "hits": {
-                    "Per Hit": 3
-                  }
-                }
-              ]
+              "properties": {
+                "hit_count": 3
+              },
+              "effects": []
             },
             {
               "base_abil": "Multihit",
@@ -4852,17 +4844,10 @@
           "abilities": [
             {
               "base_abil": "Multihit",
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 3,
-                  "behavior": "modify",
-                  "hits": {
-                    "Per Hit": 4
-                  }
-                }
-              ]
+              "properties": {
+                "hit_count": 4
+              },
+              "effects": []
             },
             {
               "base_abil": "Multihit",
@@ -5095,17 +5080,10 @@
               "dependencies": [
                 "Lacerate"
               ],
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 1,
-                  "behavior": "modify",
-                  "hits": {
-                    "Per Hit": 2
-                  }
-                }
-              ]
+              "properties": {
+                "hit_count": 2
+              },
+              "effects": []
             }
           ]
         },
@@ -5118,17 +5096,10 @@
               "dependencies": [
                 "Lacerate"
               ],
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 1,
-                  "behavior": "modify",
-                  "hits": {
-                    "Per Hit": 2
-                  }
-                }
-              ]
+              "properties": {
+                "hit_count": 2
+              },
+              "effects": []
             }
           ]
         },
@@ -5141,17 +5112,10 @@
               "dependencies": [
                 "Lacerate"
               ],
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "target_part": "Total Damage",
-                  "base_spell": 1,
-                  "behavior": "modify",
-                  "hits": {
-                    "Per Hit": 3
-                  }
-                }
-              ]
+              "properties": {
+                "hit_count": 3
+              },
+              "effects": []
             }
           ]
         }
@@ -5303,18 +5267,10 @@
           "abilities": [
             {
               "base_abil": "Smoke Bomb",
-              "properties": {},
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "base_spell": 4,
-                  "behavior": "modify",
-                  "target_part": "Per Bomb",
-                  "hits": {
-                    "Per Tick": 1
-                  }
-                }
-              ]
+              "properties": {
+                "duration": 0.5
+              },
+              "effects": []
             }
           ]
         },
@@ -5324,18 +5280,10 @@
           "abilities": [
             {
               "base_abil": "Smoke Bomb",
-              "properties": {},
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "base_spell": 4,
-                  "behavior": "modify",
-                  "target_part": "Per Bomb",
-                  "hits": {
-                    "Per Tick": 2
-                  }
-                }
-              ]
+              "properties": {
+                "duration": 1
+              },
+              "effects": []
             }
           ]
         },
@@ -5345,18 +5293,10 @@
           "abilities": [
             {
               "base_abil": "Smoke Bomb",
-              "properties": {},
-              "effects": [
-                {
-                  "type": "add_spell_prop",
-                  "base_spell": 4,
-                  "behavior": "modify",
-                  "target_part": "Per Bomb",
-                  "hits": {
-                    "Per Tick": 3
-                  }
-                }
-              ]
+              "properties": {
+                "duration": 1.5
+              },
+              "effects": []
             }
           ]
         }
