@@ -89,6 +89,9 @@ class Build {
 
         applySetBonuses(statMap, this.activeSetCounts, sets);
         finalizeStatmap(statMap, this.weapon.statMap, this.items.map(i => i.statMap));
+        // Builder-page mana calc (mana_calc.js) reads this even when no atree
+        // ability contributes a manaMult entry; the solver path doesn't use it.
+        statMap.set('manaMult', new Map());
 
         this.statMap = statMap;
     }

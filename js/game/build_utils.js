@@ -415,8 +415,8 @@ function finalizeStatmap(sm, weapon_sm, all_equip_sms, scratch) {
  */
 const nonstacking_stats = ['Potion', 'Vulnerability', 'Mask']
 function merge_stat(stats, name, value) {
-    const [start, end] = name.split('.', 2);
-    if (start === 'damMult' || start === 'defMult' || start === 'healMult') {
+    const [start, end] = name.split('.', limit=2);
+    if (start === 'damMult' || start === 'defMult' || start === 'healMult' || start === 'manaMult') {
         if (!stats.has(start)) {
             stats.set(start, new Map());
         }

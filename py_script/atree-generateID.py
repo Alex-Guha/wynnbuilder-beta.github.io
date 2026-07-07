@@ -4,7 +4,7 @@ Generate a minified JSON Ability Tree [atree_constants_min.json] AND a minified 
  - Extra JSON File with Class: [Original name as key and Assigned IDs as value].
 given [atree_constants.js] .js form of the Ability Tree with reference as string.
 """
-import json
+import json, os
 
 def translate_spell_part(id_data, part):
     if 'hits' in part:    # Translate parametrized hits...
@@ -15,6 +15,11 @@ def translate_spell_part(id_data, part):
             if isinstance(v, str):
                 abil_id, propname = v.split('.')
                 hits_mapping[k] = str(id_data[abil_id])+'.'+propname
+    if 'mana_gained' in part:    # Translate parametrized hits...
+        val = part['mana_gained']
+        if isinstance(val, str):
+            abil_id, propname = val.split('.')
+            part['mana_gained'] = str(id_data[abil_id])+'.'+propname
 
 def translate_effect(id_data, effect):
     if effect["type"] == "raw_stat":
@@ -290,6 +295,7 @@ def main():
                 abilDict[classType][abil["display_name"]] = _id
                 _id += 1
 
+        os.makedirs(os.path.dirname("../data/temp/atree_ids.json"), exist_ok=True)
         with open("../data/temp/atree_ids.json", "w", encoding='utf-8') as id_dest:
             json.dump(abilDict, id_dest, ensure_ascii=False, indent=4)
 
@@ -314,7 +320,7 @@ def main():
                             translate_abil(abilDict[clazz], abil, tree=False)
             with open("../data/temp/aspects_min.json", "w", encoding='utf-8') as aspects_out:
                 json.dump(aspect_dat, aspects_out, ensure_ascii=False, separators=(',', ':'))
-
+        
         with open('../data/temp/atree_constants_min.json', 'w', encoding='utf-8') as json_dest:
             json.dump(data, json_dest, ensure_ascii=False, separators=(',', ':'))
 

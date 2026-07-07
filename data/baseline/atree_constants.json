@@ -14,7 +14,8 @@
             },
             "properties": {
                 "aoe": 4.5,
-                "range": 26
+                "range": 26,
+                "bounce_mult": 1
             },
             "effects": [
                 {
@@ -270,7 +271,7 @@
         },
         {
             "display_name": "Arrow Storm",
-            "desc": "Click Combo: LEFT-RIGHT-LEFT </br> Shoots a stream of 8 arrows, dealing significant damage to close mobs and pushing them away. </br> Mana Cost: 35 </br><span class='mc-white'>Total Damage</span>: 40% (of your DPS, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: 30%)   </br>&emsp;(<span class='tDam'>Thunder</span>: 10%) </br>Range: 16 Blocks",
+            "desc": "Click Combo: LEFT-RIGHT-LEFT </br> Shoots a stream of 8 arrows, dealing significant damage to close mobs and pushing them away. </br> Mana Cost: 35 </br><span class='mc-white'>Total Damage</span>: 40% (of your DPS, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: 35%)   </br>&emsp;(<span class='tDam'>Thunder</span>: 5%) </br>Range: 16 Blocks",
             "parents": [
                 "Double Shots",
                 "Cheaper Escape I"
@@ -301,9 +302,9 @@
                         {
                             "name": "Single Arrow",
                             "multipliers": [
-                                30,
+                                35,
                                 0,
-                                10,
+                                5,
                                 0,
                                 0,
                                 0
@@ -666,37 +667,52 @@
         },
         {
             "display_name": "Nimble String",
-            "desc": "Doubles the speed of Arrow Storm and shoots +6 arrows per stream. </br> </br><span class='mc-white'>Total Damage</span>: -10% (of your DPS, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: -5%)   </br>&emsp;(<span class='tDam'>Thunder</span>: -5%)",
+            "desc": "Doubles the speed of Arrow Storm and shoots +6 arrows per stream. </br> </br>Phantom Ray hits twice as fast but lasts half as long.</br> </br><span class='mc-white'>Total Damage</span>: -10% (of your DPS, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: -10%)",
             "base_abil": "Arrow Storm",
             "parents": [
                 "Thunder Mastery",
-                "Buckshot"
+                "Air Mastery"
             ],
             "dependencies": [
                 "Arrow Storm"
             ],
-            "blockers": [
-                "Phantom Ray"
-            ],
+            "blockers": [],
             "cost": 2,
             "display": {
                 "row": 15,
-                "col": 2,
+                "col": 1,
                 "icon": "node_2"
             },
             "properties": {
                 "arrows_per_stream": 6,
-                "attack_frequency": 10
+                "attack_frequency": 10,
+                "ray_duration": -0.6,
+                "ray_rate": 10
             },
             "effects": [
                 {
                     "type": "add_spell_prop",
                     "base_spell": 1,
+                    "behavior": "modify",
                     "target_part": "Single Arrow",
                     "multipliers": [
-                        -5,
+                        -10,
                         0,
-                        -5,
+                        0,
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "behavior": "modify",
+                    "target_part": "Single Tick",
+                    "multipliers": [
+                        -10,
+                        0,
+                        0,
                         0,
                         0,
                         0
@@ -708,9 +724,10 @@
             "display_name": "Buckshot",
             "desc": "When Arrow Shield loses its last charge, spew 75 piercing arrows forth from your bow. </br> </br><span class='mc-white'>Total Damage</span>: 4% (of your DPS, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: 3%)   </br>&emsp;(<span class='aDam'>Air</span>: 1%)",
             "base_abil": "Arrow Shield",
+            "archetype": "Boltslinger",
             "parents": [
                 "Nimble String",
-                "Air Mastery"
+                "Triple Shots"
             ],
             "dependencies": [
                 "Arrow Shield"
@@ -718,7 +735,7 @@
             "blockers": [],
             "cost": 1,
             "display": {
-                "row": 15,
+                "row": 16,
                 "col": 0,
                 "icon": "node_1"
             },
@@ -755,7 +772,8 @@
             "archetype_req": 1,
             "parents": [
                 "Fire Creep",
-                "Earth Mastery"
+                "Earth Mastery",
+                "Triple Shots"
             ],
             "dependencies": [
                 "Arrow Storm"
@@ -855,7 +873,6 @@
             ],
             "blockers": [
                 "Windstorm",
-                "Nimble String",
                 "Arrow Hurricane"
             ],
             "cost": 2,
@@ -866,7 +883,8 @@
             },
             "properties": {
                 "range": 16,
-                "ray_duration": 1.2
+                "ray_duration": 1.2,
+                "ray_rate": 10
             },
             "effects": [
                 {
@@ -892,7 +910,7 @@
                             "name": "DPS",
                             "type": "total",
                             "hits": {
-                                "Single Tick": 10
+                                "Single Tick": "Arrow Storm.ray_rate"
                             }
                         },
                         {
@@ -919,7 +937,8 @@
             "base_abil": 999,
             "parents": [
                 "Nimble String",
-                "Frenzy"
+                "Buckshot",
+                "Bryophyte Roots"
             ],
             "dependencies": [
                 "Double Shots"
@@ -927,7 +946,7 @@
             "blockers": [],
             "cost": 1,
             "display": {
-                "row": 17,
+                "row": 16,
                 "col": 2,
                 "icon": "node_1"
             },
@@ -963,14 +982,14 @@
             "archetype": "Boltslinger",
             "archetype_req": 0,
             "parents": [
-                "Triple Shots",
-                "Buckshot"
+                "Windstorm",
+                "Shrapnel Bomb"
             ],
             "dependencies": [],
             "blockers": [],
             "cost": 2,
             "display": {
-                "row": 17,
+                "row": 26,
                 "col": 0,
                 "icon": "node_2"
             },
@@ -1000,7 +1019,7 @@
             "base_abil": "Arrow Shield",
             "parents": [
                 "Triple Shots",
-                "Frenzy"
+                "Buckshot"
             ],
             "dependencies": [
                 "Arrow Shield"
@@ -1172,8 +1191,8 @@
             "desc": "Arrow Storm will shoot +1 stream of arrows and +2 extra arrows per stream. </br> Arrow Storm gains recoil while midair. </br> </br><span class='mc-white'>Total Damage</span>: -10% (of your DPS, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: -9%)   </br>&emsp;(<span class='tDam'>Thunder</span>: -3%)   </br>&emsp;(<span class='aDam'>Air</span>: +2%)",
             "base_abil": "Arrow Storm",
             "parents": [
-                "Guardian Angels",
-                "Cheaper Arrow Storm I"
+                "Leap",
+                "Grape Bomb"
             ],
             "dependencies": [],
             "blockers": [
@@ -1181,7 +1200,7 @@
             ],
             "cost": 2,
             "display": {
-                "row": 21,
+                "row": 25,
                 "col": 1,
                 "icon": "node_4"
             },
@@ -1211,7 +1230,7 @@
             "base_abil": "Arrow Storm",
             "parents": [
                 "Implosion",
-                "Windstorm",
+                "Leap",
                 "Basaltic Trap"
             ],
             "dependencies": [],
@@ -1484,7 +1503,7 @@
             "archetype": "Boltslinger",
             "base_abil": "Escape",
             "parents": [
-                "Windstorm"
+                "Divine Intervention"
             ],
             "dependencies": [
                 "Windy Feet"
@@ -1492,7 +1511,7 @@
             "blockers": [],
             "cost": 1,
             "display": {
-                "row": 22,
+                "row": 29,
                 "col": 0,
                 "icon": "node_1"
             },
@@ -1505,15 +1524,14 @@
             "display_name": "Arsenal Synergy",
             "desc": "For every 16 arrows shot by Arrow Storm recently, your Main Attacks will additionally fire a flint arrow that damages enemies. (Max 5 flints per main attack) </br> </br><span class='mc-white'>Total Damage</span>: 25% (Main Attack Damage, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: 25%) </br>Duration: 6s",
             "parents": [
-                "Windstorm",
-                "Cheaper Arrow Storm I"
+                "Leap"
             ],
             "dependencies": [],
             "blockers": [],
             "cost": 1,
             "display": {
                 "row": 22,
-                "col": 2,
+                "col": 0,
                 "icon": "node_1"
             },
             "properties": {
@@ -1550,7 +1568,7 @@
                         "name": "nConvBase:0.Flint Arrows"
                     },
                     "scaling": [
-                        25
+                        20
                     ],
                     "slider_step": 1,
                     "slider_max": 5
@@ -1559,7 +1577,7 @@
         },
         {
             "display_name": "Murder Flock",
-            "desc": "Basaltic Trap summons a Crow upon detonation that will peck at aggressive enemies every 0.9s. (Max 2) Damaged enemies will be distracted for 0.2s. </br> </br><span class='mc-white'>Total Damage</span>: 60% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 60%) </br>Effect: Blindness to Enemies </br>Vision: 18 Blocks (Circle-Shaped) </br>Duration: 12s",
+            "desc": "Basaltic Trap summons a Crow upon detonation that will peck at aggressive enemies every 0.9s. (Max 2) Damaged enemies will be distracted for 0.2s. </br> </br><span class='mc-white'>Total Damage</span>: 80% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 80%) </br>Effect: Blindness to Enemies </br>Vision: 18 Blocks (Circle-Shaped) </br>Duration: 12s",
             "archetype": "Trapper",
             "archetype_req": 0,
             "base_abil": "Arrow Shield",
@@ -1590,7 +1608,7 @@
                         {
                             "name": "Single Hit",
                             "multipliers": [
-                                60,
+                                80,
                                 0,
                                 0,
                                 0,
@@ -1616,18 +1634,18 @@
         },
         {
             "display_name": "Leap",
-            "desc": "Leap in the direction of your movement when you double jump. </br> The distance scales with your Walk Speed. </br> </br>Cooldown: 4s",
+            "desc": "Leap in the direction of your movement when you double jump. </br> The distance scales with your Walk Speed. </br> </br>Cooldown: 2s",
             "archetype": "Boltslinger",
             "archetype_req": 4,
             "parents": [
-                "Grape Bomb",
-                "Windstorm"
+                "Cheaper Arrow Storm I",
+                "Guardian Angels"
             ],
             "dependencies": [],
             "blockers": [],
             "cost": 2,
             "display": {
-                "row": 25,
+                "row": 21,
                 "col": 1,
                 "icon": "node_2"
             },
@@ -1654,12 +1672,14 @@
                 "col": 2,
                 "icon": "node_2"
             },
-            "properties": {},
+            "properties": {
+                "bounce_mult": 1
+            },
             "effects": []
         },
         {
             "display_name": "Ivyroot Mamba",
-            "desc": "Bryophyte Roots summons a Snake after disappearing that will spit weakening venom at aggressive enemies every 1s. (Max 1) Enemies will be weakened for 1.5s. </br> </br><span class='mc-white'>Total Damage</span>: 100% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 80%)   </br>&emsp;(<span class='eDam'>Earth</span>: 20%) </br>Effects: -15% Damage Bonus to Enemies </br>Vision: 12 Blocks (Circle-Shaped) </br>Duration: 18s",
+            "desc": "Bryophyte Roots summons a Snake after disappearing that will spit weakening venom at aggressive enemies every 1s. (Max 1) Enemies will be weakened for 1.5s. </br> </br><span class='mc-white'>Total Damage</span>: 120% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 90%)   </br>&emsp;(<span class='eDam'>Earth</span>: 30%) </br>Effects: -15% Damage Bonus to Enemies </br>Vision: 12 Blocks (Circle-Shaped) </br>Duration: 18s",
             "archetype": "Trapper",
             "archetype_req": 3,
             "base_abil": "Arrow Storm",
@@ -1691,8 +1711,8 @@
                         {
                             "name": "Single Hit",
                             "multipliers": [
-                                80,
-                                20,
+                                90,
+                                30,
                                 0,
                                 0,
                                 0,
@@ -1857,7 +1877,7 @@
             "base_abil": "Basaltic Trap",
             "parents": [
                 "Grape Bomb",
-                "Leap"
+                "Windstorm"
             ],
             "dependencies": [
                 "Basaltic Trap"
@@ -1892,7 +1912,7 @@
             "base_abil": "Arrow Shield",
             "parents": [
                 "Shrapnel Bomb",
-                "Fierce Stomp",
+                "Frenzy",
                 "Cheaper Arrow Shield I"
             ],
             "dependencies": [
@@ -1934,7 +1954,7 @@
                         {
                             "type": "stat",
                             "name": "damMult.ArrowBombBoost:4.Single Shot",
-                            "value": 20
+                            "value": 25
                         }
                     ]
                 }
@@ -1948,14 +1968,13 @@
             "base_abil": "Escape",
             "parents": [
                 "Leap",
-                "Shrapnel Bomb",
-                "Grape Bomb"
+                "Cheaper Arrow Storm I"
             ],
             "dependencies": [],
             "blockers": [],
             "cost": 1,
             "display": {
-                "row": 26,
+                "row": 22,
                 "col": 2,
                 "icon": "node_1"
             },
@@ -2017,7 +2036,7 @@
         },
         {
             "display_name": "Honed Shield",
-            "desc": "Arrow Shield's radius, knockback, and damage is increased. </br> Guardian Angels' damage is increased. </br> </br><span class='mc-white'>Total Damage</span>: +30% (of your DPS, for Arrow Shield)   </br>&emsp;(<span class='nDam'>Damage</span>: +30%) </br>Area of Effect: +1 Blocks (Circle-Shaped) </br> </br><span class='mc-white'>Total Damage</span>: +15% (of your DPS, for Guardian Angels, per shot)   </br>&emsp;(<span class='nDam'>Damage</span>: +15%)",
+            "desc": "Arrow Shield's radius, knockback, and damage is increased. </br> Guardian Angels' damage is increased. </br> </br><span class='mc-white'>Total Damage</span>: +30% (of your DPS, for Arrow Shield)   </br>&emsp;(<span class='nDam'>Damage</span>: +30%) </br>Area of Effect: +1 Blocks (Circle-Shaped) </br> </br><span class='mc-white'>Total Damage</span>: +10% (of your DPS, for Guardian Angels, per shot)   </br>&emsp;(<span class='nDam'>Damage</span>: +10%)",
             "base_abil": "Arrow Shield",
             "parents": [
                 "Ivyroot Mamba",
@@ -2069,7 +2088,7 @@
                     "base_spell": 4,
                     "target_part": "Single Shot",
                     "multipliers": [
-                        15,
+                        10,
                         0,
                         0,
                         0,
@@ -2121,7 +2140,7 @@
         },
         {
             "display_name": "Bounding Stride",
-            "desc": "Reduce Leap's cooldown by 2s.",
+            "desc": "Double Leap's horizontal velocity.",
             "archetype": "Boltslinger",
             "archetype_req": 0,
             "base_abil": "Leap",
@@ -2218,6 +2237,51 @@
                             "value": 1
                         }
                     ]
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 3,
+                    "mana_gained": "Basaltic Trap.explosionMana"
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Arrow Bomb",
+                            "name": "bounce_mult"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Basaltic Trap",
+                        "name": "explosionMana",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Arrow Bomb",
+                            "name": "grapes"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Basaltic Trap",
+                        "name": "explosionMana",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
                 }
             ]
         },
@@ -2283,7 +2347,7 @@
         },
         {
             "display_name": "Vigilant Sentinels",
-            "desc": "Increase Guardian Angels' range and damage. </br> Casting Arrow Shield while Guardian Angels are active will also cast Buckshot. Increase Buckshot's damage. </br> </br><span class='mc-white'>Total Damage</span>: +25% (of your DPS, for Guardian Angels, per shot)   </br>&emsp;(<span class='nDam'>Damage</span>: +20%)   </br>&emsp;(<span class='fDam'>Fire</span>: +5%) </br>Range: +3 Blocks </br> </br><span class='mc-white'>Total Damage</span>: +3% (of your DPS, for Buckshot, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: +3%)",
+            "desc": "Increase Guardian Angels' range and damage. </br> Casting Arrow Shield while Guardian Angels are active will also cast Buckshot. Increase Buckshot's damage. </br> </br><span class='mc-white'>Total Damage</span>: +30% (of your DPS, for Guardian Angels, per shot)   </br>&emsp;(<span class='nDam'>Damage</span>: +25%)   </br>&emsp;(<span class='fDam'>Fire</span>: +5%) </br>Range: +3 Blocks </br> </br><span class='mc-white'>Total Damage</span>: +3% (of your DPS, for Buckshot, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: +3%)",
             "archetype": "Boltslinger",
             "archetype_req": 0,
             "base_abil": "Arrow Shield",
@@ -2310,7 +2374,7 @@
                     "base_spell": 4,
                     "target_part": "Single Shot",
                     "multipliers": [
-                        20,
+                        25,
                         0,
                         0,
                         0,
@@ -2547,8 +2611,87 @@
                 "col": 1,
                 "icon": "node_2"
             },
-            "properties": {},
-            "effects": []
+            "properties": {
+                "arrow_storm_mult": 0.08,
+                "arrow_bomb_mult": 0.08
+            },
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "mana_gained": "Recycling.arrow_storm_mult"
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 3,
+                    "mana_gained": "Recycling.arrow_bomb_mult"
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 4,
+                    "mana_gained": 6
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Arrow Storm",
+                            "name": "arrows_per_stream"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Recycling",
+                        "name": "arrow_storm_mult",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Arrow Storm",
+                            "name": "arrow_streams"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Recycling",
+                        "name": "arrow_storm_mult",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Arrow Bomb",
+                            "name": "bombs"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Recycling",
+                        "name": "arrow_bomb_mult",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
+                }
+            ]
         },
         {
             "display_name": "Shrapnel Bomb",
@@ -2557,15 +2700,16 @@
             "archetype_req": 2,
             "base_abil": "Arrow Bomb",
             "parents": [
-                "Leap",
-                "Fierce Stomp"
+                "Windstorm",
+                "Grape Bomb",
+                "Frenzy"
             ],
             "dependencies": [],
             "blockers": [],
             "cost": 2,
             "display": {
                 "row": 26,
-                "col": 0,
+                "col": 2,
                 "icon": "node_2"
             },
             "properties": {
@@ -2669,7 +2813,7 @@
             "base_abil": "Escape",
             "parents": [
                 "Cheaper Arrow Storm II",
-                "Bouncing Bomb"
+                "Cheaper Arrow Shield II"
             ],
             "dependencies": [
                 "Grappling Hook"
@@ -2678,7 +2822,7 @@
             "cost": 1,
             "display": {
                 "row": 35,
-                "col": 3,
+                "col": 6,
                 "icon": "node_0"
             },
             "properties": {
@@ -2699,8 +2843,8 @@
             "blockers": [],
             "cost": 2,
             "display": {
-                "row": 35,
-                "col": 8,
+                "row": 37,
+                "col": 7,
                 "icon": "node_4"
             },
             "properties": {
@@ -2867,7 +3011,7 @@
             "archetype": "Sharpshooter",
             "archetype_req": 10,
             "parents": [
-                "Cheaper Arrow Shield II"
+                "Coursing Restraints"
             ],
             "dependencies": [
                 "Arrow Storm"
@@ -3163,8 +3307,7 @@
             "archetype_req": 0,
             "base_abil": "Focus",
             "parents": [
-                "Cheaper Arrow Shield II",
-                "Cheaper Arrow Storm II"
+                "Cheaper Arrow Shield II"
             ],
             "dependencies": [
                 "Twain's Arc"
@@ -3173,7 +3316,7 @@
             "cost": 2,
             "display": {
                 "row": 35,
-                "col": 6,
+                "col": 8,
                 "icon": "node_4"
             },
             "properties": {},
@@ -3203,7 +3346,7 @@
             "desc": "Arrow Bomb will throw 2 additional smaller bombs when exploding. </br> </br><span class='mc-white'>Total Damage</span>: 65% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 50%)   </br>&emsp;(<span class='fDam'>Fire</span>: 15%) </br>Area of Effect: 2 Blocks (Circle-Shaped)",
             "base_abil": "Arrow Bomb",
             "parents": [
-                "Leap",
+                "Windstorm",
                 "Ivyroot Mamba",
                 "Patient Hunter"
             ],
@@ -3217,7 +3360,7 @@
             },
             "properties": {
                 "aoe": 2,
-                "grapes": 2
+                "grapes": 3
             },
             "effects": [
                 {
@@ -3285,7 +3428,7 @@
         },
         {
             "display_name": "Feedback Loop",
-            "desc": "Hitting 1 flint arrow will make your next Arrow Storm shoot +1 arrow per stream.",
+            "desc": "Hitting 1 flint arrow will make your next Arrow Storm shoot +1 arrow per stream. (Max 40)",
             "base_abil": "Arrow Storm",
             "archetype": "Boltslinger",
             "parents": [
@@ -3304,17 +3447,9 @@
             "properties": {},
             "effects": [
                 {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Flint Arrows",
-                    "output": {
-                        "type": "prop",
-                        "abil": "Arrow Storm",
-                        "name": "arrows_per_stream"
-                    },
-                    "scaling": [
-                        1
-                    ]
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "display": "Arrow Storm DPS"
                 }
             ]
         },
@@ -3641,6 +3776,7 @@
             "display_name": "Shrieking Arrows",
             "desc": "Arrow Storm and Phantom Ray will deal additional damage. </br> </br><span class='mc-white'>Total Damage</span>: +8% (of your DPS, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: +6%)   </br>&emsp;(<span class='tDam'>Thunder</span>: +1%)   </br>&emsp;(<span class='aDam'>Air</span>: +1%) </br> </br><span class='mc-white'>Total Damage</span>: +6% (of your DPS, per ray)   </br>&emsp;(<span class='nDam'>Damage</span>: +4%)   </br>&emsp;(<span class='wDam'>Water</span>: +2%)",
             "archetype": "Boltslinger",
+            "base_abil": "Arrow Storm",
             "parents": [
                 "Overgrowth",
                 "Transience",
@@ -4608,7 +4744,7 @@
         },
         {
             "display_name": "Final Crush",
-            "desc": "Bash's last hit is delayed, but deals +40% damage and has +50% radius.",
+            "desc": "Bash's last hit is delayed, but deals +100% damage and has +50% radius.",
             "archetype": "Fallen",
             "base_abil": "Bash",
             "parents": [
@@ -4625,7 +4761,7 @@
             },
             "properties": {
                 "hits": -1,
-                "crush_mult": 1.4 
+                "crush_mult": 2 
             },
             "effects": [
                 {
@@ -4897,7 +5033,18 @@
                 "icon": "node_3"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "raw_stat",
+                    "bonuses": [
+                        {
+                            "type": "stat",
+                            "name": "activateGeneralist",
+                            "value": 1
+                        }
+                    ]
+                }
+            ]
         },
         {
             "display_name": "Air Shout",
@@ -5237,6 +5384,24 @@
                     "scaling": [
                         1
                     ]
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Blood Pact",
+                            "name": "health_cost"
+                        }
+                    ],
+                    "output": {
+                        "type": "stat",
+                        "name": "bloodPactCost"
+                    },
+                    "scaling": [
+                        100
+                    ]
                 }
             ]
         },
@@ -5412,7 +5577,9 @@
                 "col": 1,
                 "icon": "node_4"
             },
-            "properties": {},
+            "properties": {
+                "max_damage_bonus": 55
+            },
             "effects": [
                 {
                     "type": "stat_scaling",
@@ -5422,7 +5589,7 @@
                         "type": "stat",
                         "name": "damMult.Enraged"
                     },
-                    "max": 55,
+                    "max": "Bak'al's Grasp.max_damage_bonus",
                     "scaling": [
                         1.5
                     ]
@@ -5963,7 +6130,7 @@
         },
         {
             "display_name": "Armour Breaker",
-            "desc": "Gaining 40% Corrupted will make your next Uppercut give you a damage boost. </br> </br>Effect: +30% Damage Bonus to Self </br>Duration: 8s </br>Cooldown: 16s",
+            "desc": "Gaining 40% Corrupted will make your next Uppercut give you a damage boost. </br> </br>Effect: +30% Damage Bonus to Self </br>Duration: 12s </br>Cooldown: 16s",
             "archetype": "Fallen",
             "archetype_req": 0,
             "base_abil": "Uppercut",
@@ -5984,7 +6151,7 @@
                 "icon": "node_4"
             },
             "properties": {
-                "duration": 8,
+                "duration": 12,
                 "potency": 30
             },
             "effects": [
@@ -6465,35 +6632,10 @@
                 "col": 2,
                 "icon": "node_0"
             },
-            "properties": {},
-            "effects": [
-                {
-                    "type": "stat_scaling",
-                    "slider_name": "Corrupted",
-                    "slider": true,
-                    "output": {
-                        "type": "stat",
-                        "name": "damMult.Enraged"
-                    },
-                    "max": -65,
-                    "scaling": [
-                        -1.5
-                    ]
-                },
-                {
-                    "type": "stat_scaling",
-                    "slider_name": "Corrupted",
-                    "slider": true,
-                    "output": {
-                        "type": "stat",
-                        "name": "damMult.Enraged"
-                    },
-                    "max": 95,
-                    "scaling": [
-                        1.5
-                    ]
-                }
-            ]
+            "properties": {
+                "max_damage_bonus": 30
+            },
+            "effects": []
         },
         {
             "display_name": "Discombobulate",
@@ -6892,20 +7034,10 @@
                 "col": 0,
                 "icon": "node_0"
             },
-            "properties": {},
-            "effects": [
-                {
-                    "type": "raw_stat",
-                    "bonuses": [
-                        {
-                            "type": "prop",
-                            "abil": "Blood Pact",
-                            "name": "health_cost",
-                            "value": -0.115
-                        }
-                    ]
-                }
-            ]
+            "properties": {
+                "health_cost": -0.115
+            },
+            "effects": []
         },
         {
             "display_name": "Freestream Flow",
@@ -7125,7 +7257,7 @@
                         "name": "damMult.Rumble:1.Single Hit"
                     },
                     "scaling": [
-                        4
+                        5
                     ]
                 },
                 {
@@ -7144,7 +7276,7 @@
                         "name": "crush_mult"
                     },
                     "scaling": [
-                        0.02
+                        0.025
                     ]                    
                 },
                 {
@@ -7157,9 +7289,9 @@
                         "name": "crush_mult"
                     },
                     "scaling": [
-                        0.08
+                        0.1
                     ],
-                    "max": 0.1828
+                    "max": 0.2285
                 },
                 {
                     "type": "stat_scaling",
@@ -7170,9 +7302,9 @@
                         "name": "damMult.Rumble:1.Single Hit"
                     },
                     "scaling": [
-                        0.16
+                        0.2
                     ],
-                    "max": 6.4
+                    "max": 8
                 },
                 {
                     "type": "stat_scaling",
@@ -7189,7 +7321,7 @@
                         "name": "damMult.Rumble:1.Thunderclap Bonus"
                     },
                     "scaling": [
-                        4
+                        5
                     ]
                 }
             ]
@@ -7259,6 +7391,7 @@
         {
             "display_name": "Ecstasy",
             "desc": "Increase the cap of Enraged Blow by +25%. </br> Increase Bloodlust's bonus damage per 1% Corrupted by +2%.",
+            "base_abil": "Bak'al's Grasp",
             "parents": [
                 "Rumble"
             ],
@@ -7270,7 +7403,9 @@
                 "col": 0,
                 "icon": "node_0"
             },
-            "properties": {},
+            "properties": {
+                "max_damage_bonus": 25
+            },
             "effects": [
                 {
                     "type": "stat_scaling",
@@ -7284,32 +7419,6 @@
                     "scaling": [
                         2.0
                     ]
-                },
-                {
-                    "type": "stat_scaling",
-                    "slider_name": "Corrupted",
-                    "slider": true,
-                    "output": {
-                        "type": "stat",
-                        "name": "damMult.Enraged"
-                    },
-                    "max": -65,
-                    "scaling": [
-                        -1.5
-                    ]
-                },
-                {
-                    "type": "stat_scaling",
-                    "slider_name": "Corrupted",
-                    "slider": true,
-                    "output": {
-                        "type": "stat",
-                        "name": "damMult.Enraged"
-                    },
-                    "max": 90,
-                    "scaling": [
-                        1.5
-                    ]
                 }
             ]
         },
@@ -7320,7 +7429,9 @@
             "parents": [
                 "Ecstasy"
             ],
-            "dependencies": [],
+            "dependencies": [
+                "Fireworks"
+            ],
             "blockers": [],
             "cost": 1,
             "display": {
@@ -7430,7 +7541,6 @@
                     "type": "stat_scaling",
                     "slider": true,
                     "slider_name": "Acceleration",
-                    "behavior": "modify",
                     "output": {
                         "type": "stat",
                         "name": "damMult.Acceleration:2.Flying Kick"
@@ -8738,7 +8848,6 @@
                 "Heal"
             ],
             "blockers": [
-                "Larger Heal",
                 "Orphion's Pulse",
                 "Paradox"
             ],
@@ -8749,7 +8858,8 @@
                 "icon": "node_3"
             },
             "properties": {
-                "bank": 90
+                "bank": 90,
+                "bank_per_hit": 13
             },
             "effects": [
                 {
@@ -8759,6 +8869,16 @@
                     "cost": null,
                     "parts": [],
                     "display": ""
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 3,
+                    "mana_gained": "Arcane Transfer.bank_per_hit"
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 4,
+                    "mana_gained": "Arcane Transfer.bank_per_hit"
                 }
             ]
         },
@@ -8938,9 +9058,7 @@
             "dependencies": [
                 "Heal"
             ],
-            "blockers": [
-                "Arcane Transfer"
-            ],
+            "blockers": [],
             "cost": 1,
             "display": {
                 "row": 18,
@@ -9078,7 +9196,7 @@
             "archetype": "Arcanist",
             "archetype_req": 4,
             "parents": [
-                "Sentient Snake",
+                "Larger Mana Bank",
                 "Cheaper Ice Snake"
             ],
             "dependencies": [
@@ -9328,7 +9446,8 @@
                 "Distortion"
             ],
             "blockers": [
-                "Ophanim"
+                "Ophanim",
+                "Thunderstorm"
             ],
             "cost": 2,
             "display": {
@@ -9886,11 +10005,27 @@
                 "icon": "node_3"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "mana_gained": "Arcane Transfer.bank_per_hit"
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "mana_gained": "Arcane Transfer.bank_per_hit"
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "mana_gained": "Arcane Transfer.bank_per_hit"
+                }
+            ]
         },
         {
             "display_name": "Time Dilation",
-            "desc": "Creates an area of effect when sprinting that increases the walk speed of all allies the longer they run in it. (You lose 20% Speed Bonus every second once you stop running) </br> </br>Effect: +10% Walk Speed to Allies (per 1s, +200% Max) </br>Area of Effect: 2 Blocks (Circle-Shaped)",
+            "desc": "Creates an area of effect when sprinting that increases the walk speed of all allies the longer they run in it. (You lose 20% Speed Bonus every second once you stop running) </br> </br>Effect: +10% Walk Speed to Allies (per 1s, +140% Max) </br>Area of Effect: 4 Blocks (Circle-Shaped)",
             "archetype": "Riftwalker",
             "archetype_req": 5,
             "parents": [
@@ -9912,13 +10047,13 @@
                     "type": "stat_scaling",
                     "slider": true,
                     "slider_name": "Time Dilated",
-                    "slider_max": 20,
+                    "slider_max": 14,
                     "output": {
                         "type": "stat",
                         "name": "spd"
                     },
                     "scaling": [
-                        10
+                        7
                     ]
                 }
             ]
@@ -10119,12 +10254,14 @@
                 "col": 6,
                 "icon": "node_1"
             },
-            "properties": {},
+            "properties": {
+                "bank_per_hit": 8
+            },
             "effects": []
         },
         {
             "display_name": "Influx Shift",
-            "desc": "Increase the amount of Distortion generated by +20% and effects gained from it by +25%.",
+            "desc": "Increase the effects from Distortion by +25%.",
             "base_abil": "Distortion",
             "archetype": "Riftwalker",
             "archetype_req": 10,
@@ -10144,12 +10281,6 @@
             },
             "properties": {},
             "effects": [
-                {
-                    "type": "stat_scaling",
-                    "slider": true,
-                    "slider_name": "Distortion",
-                    "slider_max": 100
-                },
                 {
                     "type": "stat_scaling",
                     "slider": true,
@@ -10604,7 +10735,23 @@
                 "icon": "node_2"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 2,
+                    "mana_gained": 5
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 3,
+                    "mana_gained": 5
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 4,
+                    "mana_gained": 5
+                }
+            ]
         },
         {
             "display_name": "Memory Recollection",
@@ -10624,7 +10771,18 @@
                 "icon": "node_0"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "mana_gained": "Arcane Transfer.bank_per_hit"
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "mana_gained": "Arcane Transfer.bank_per_hit"
+                }
+            ]
         },
         {
             "display_name": "Interweave",
@@ -10957,7 +11115,7 @@
         },
         {
             "display_name": "Time Vortex",
-            "desc": "Casting Frozen Tornado inside your Dimensional Tear infuses it with otherworldly energies, turning it into a Time Vortex. </br> Time Vortex deals damage 25% faster, lasts longer and grants +1.5 Distortion every time it deals damage to an enemy. </br> </br>Tornado Duration: +3s",
+            "desc": "Casting Frozen Tornado inside your Dimensional Tear infuses it with otherworldly energies, turning it into a Time Vortex. </br> Time Vortex deals damage 25% faster, lasts longer and grants +1.25 Distortion every time it deals damage to an enemy. </br> </br>Tornado Duration: +3s",
             "archetype": "Riftwalker",
             "archetype_req": 12,
             "parents": [
@@ -11018,7 +11176,18 @@
                 "icon": "node_4"
             },
             "properties": {},
-            "effects": []
+            "effects": [
+                {
+                    "type": "raw_stat",
+                    "bonuses": [
+                        {
+                            "type": "stat",
+                            "name": "manaMult.Paradox",
+                            "value": 34
+                        }
+                    ]
+                }
+            ]
         },
         {
             "display_name": "Gravitational Collapse",
@@ -11187,6 +11356,11 @@
                     "hits": {
                         "Lightning Damage": 1
                     }
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 3,
+                    "mana_gained": 8
                 }
             ]
         },
@@ -11660,7 +11834,9 @@
                 "col": 6,
                 "icon": "node_assassin"
             },
-            "properties": {},
+            "properties": {
+                "hit_count": 8
+            },
             "effects": [
                 {
                     "type": "replace_spell",
@@ -11684,7 +11860,7 @@
                             "name": "Total Damage",
                             "type": "total",
                             "hits": {
-                                "Per Hit": 8
+                                "Per Hit": "Multihit.hit_count"
                             }
                         }
                     ]
@@ -12256,6 +12432,9 @@
                 "col": 7,
                 "icon": "node_3"
             },
+            "properties": {
+                "hit_count": 3
+            },
             "effects": [
                 {
                     "type": "replace_spell",
@@ -12279,7 +12458,7 @@
                             "name": "Total Damage",
                             "type": "total",
                             "hits": {
-                                "Per Hit": 3
+                                "Per Hit": "Spin Attack.hit_count"
                             }
                         }
                     ]
@@ -12567,8 +12746,71 @@
                 "col": 7,
                 "icon": "node_4"
             },
-            "properties": {},
-            "effects": []
+            "properties": {
+                "smoke_mult": 1
+            },
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 1,
+                    "mana_gained": "Spin Attack.hit_count"
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 2,
+                    "mana_gained": "Dash.reload"
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 3,
+                    "mana_gained": "Multihit.hit_count"
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 4,
+                    "mana_gained": "Weightless.smoke_mult"
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Smoke Bomb",
+                            "name": "duration"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Weightless",
+                        "name": "smoke_mult",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Smoke Bomb",
+                            "name": "ticksPerSecond"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Weightless",
+                        "name": "smoke_mult",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
+                }
+            ]
         },
         {
             "display_name": "Black Hole",
@@ -12732,16 +12974,10 @@
                 "col": 6,
                 "icon": "node_0"
             },
-            "properties": {},
+            "properties": {
+                "hit_count": 3
+            },
             "effects": [
-                {
-                    "type": "add_spell_prop",
-                    "base_spell": 3,
-                    "target_part": "Total Damage",
-                    "hits": {
-                        "Per Hit": 3
-                    }
-                },
                 {
                     "type": "add_spell_prop",
                     "base_spell": 3,
@@ -12937,7 +13173,8 @@
             },
             "properties": {
                 "range": 50,
-                "count": 9
+                "count": 9,
+                "reload": 3
             },
             "effects": [
                 {
@@ -12962,7 +13199,7 @@
                             "name": "Total Damage",
                             "type": "total",
                             "hits": {
-                                "Per Shuriken": 3
+                                "Per Shuriken": "Dash.reload"
                             }
                         },
                         {
@@ -13320,7 +13557,9 @@
                 "col": 7,
                 "icon": "node_0"
             },
-            "properties": {},
+            "properties": {
+                "hit_count": 1
+            },
             "effects": [
                 {
                     "type": "add_spell_prop",
@@ -13335,14 +13574,6 @@
                         0,
                         0
                     ]
-                },
-                {
-                    "type": "add_spell_prop",
-                    "base_spell": 1,
-                    "target_part": "Total Damage",
-                    "hits": {
-                        "Per Hit": 1
-                    }
                 }
             ]
         },
@@ -13720,7 +13951,7 @@
                 "Paranoia"
             ],
             "dependencies": [
-                "Swan Dive"
+                "Jasmine Bloom"
             ],
             "blockers": [],
             "cost": 1,
@@ -14430,7 +14661,8 @@
             "archetype": "Trickster",
             "base_abil": "Mirror Image",
             "parents": [
-                "Noxious Haze"
+                "Noxious Haze",
+                "Celerity"
             ],
             "dependencies": [
                 "Mirror Image"
@@ -14561,7 +14793,8 @@
             "archetype": "Acrobat",
             "base_abil": "Swan Dive",
             "parents": [
-                "Jasmine Bloom"
+                "Jasmine Bloom",
+                "Doppelganger"
             ],
             "dependencies": [
                 "Dash"
@@ -15133,7 +15366,8 @@
             },
             "properties": {
                 "range": 16,
-                "num_totems": 1
+                "num_totems": 1,
+                "waves": 1
             },
             "effects": [
                 {
@@ -15584,7 +15818,9 @@
                 "col": 8,
                 "icon": "node_2"
             },
-            "properties": {},
+            "properties": {
+                "ftongue_rate": 2.85714285714
+            },
             "effects": [
                 {
                     "type": "add_spell_prop",
@@ -15606,6 +15842,15 @@
                     "hits": {
                         "Single Hit": 2
                     }
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 4,
+                    "target_part": "Flaming Tongue DPS",
+                    "hits": {
+                        "Single Hit": "Uproot.ftongue_rate"
+                    },
+                    "display": "Flaming Tongue DPS"
                 }
             ]
         },
@@ -15927,7 +16172,9 @@
                 "col": 7,
                 "icon": "node_4"
             },
-            "properties": {},
+            "properties": {
+                "waves": 1
+            },
             "effects": [
                 {
                     "type": "add_spell_prop",
@@ -16432,11 +16679,14 @@
                 "col": 5,
                 "icon": "node_1"
             },
-            "properties": {
-                "switch_count": 2,
-                "mana_gain": 30
-            },
-            "effects": []
+            "properties": {},
+            "effects": [
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 4,
+                    "mana_gained": 15
+                }
+            ]
         },
         {
             "display_name": "Double Totem",
@@ -16870,27 +17120,15 @@
             "properties": {},
             "effects": [
                 {
-                    "type": "raw_stat",
-                    "bonuses": [
-                        {
-                            "type": "prop",
-                            "abil": "Uproot",
-                            "name": "switch_count",
-                            "value": -1
-                        },
-                        {
-                            "type": "prop",
-                            "abil": "Uproot",
-                            "name": "mana_gain",
-                            "value": -10
-                        }
-                    ]
+                    "type": "add_spell_prop",
+                    "base_spell": 4,
+                    "mana_gained": 5
                 }
             ]
         },
         {
             "display_name": "Crimson Effigy",
-            "desc": "Totem will summon an Effigy that will attack enemies and push them towards the nearest Totem every 0.5s. The Effigy will live for as long as its Totem does. </br> Each Totem will summon its own Effigy. Each additional Effigy summoned will decrease all Effigy damage by 0.8x. </br> </br><span class='mc-white'>Total Damage</span>: 100% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 75%)   </br>&emsp;(<span class='fDam'>Fire</span>: 25%) </br>Vision: 18 Blocks (Circle-Shaped)",
+            "desc": "Totem will summon an Effigy that will attack enemies and push them towards the nearest Totem every 0.5s. The Effigy will live for as long as its Totem does. </br> Each Totem will summon its own Effigy. Each additional Effigy summoned will decrease all Effigy damage by 0.8x. </br> </br><span class='mc-white'>Total Damage</span>: 115% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: 90%)   </br>&emsp;(<span class='fDam'>Fire</span>: 25%) </br>Vision: 18 Blocks (Circle-Shaped)",
             "archetype": "Summoner",
             "archetype_req": 6,
             "parents": [
@@ -16922,7 +17160,7 @@
                         {
                             "name": "Effigy Hit",
                             "multipliers": [
-                                75,
+                                90,
                                 0,
                                 0,
                                 0,
@@ -17155,7 +17393,9 @@
                 "col": 7,
                 "icon": "node_1"
             },
-            "properties": {},
+            "properties": {
+                "ftongue_rate": 1.14285714286
+            },
             "effects": [
                 {
                     "type": "add_spell_prop",
@@ -17412,7 +17652,8 @@
             },
             "properties": {
                 "TODO": "Make this not multiply base damage...",
-                "duration": 2.5
+                "duration": 2.5,
+                "mana_per_wave": 3
             },
             "effects": [
                 {
@@ -17456,6 +17697,51 @@
                             "value": 0.171428571429
                         }
                     ]
+                },
+                {
+                    "type": "add_spell_prop",
+                    "base_spell": 3,
+                    "mana_gained": "Invigorating Wave.mana_per_wave"
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Aura",
+                            "name": "waves"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Invigorating Wave",
+                        "name": "mana_per_wave",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Totem",
+                            "name": "num_totems"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Invigorating Wave",
+                        "name": "mana_per_wave",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
                 }
             ]
         },
@@ -17577,7 +17863,7 @@
         },
         {
             "display_name": "Shepherd",
-            "desc": "When you or your Summons kill an enemy, or when you kill a Puppet with Friendly Fire, gain +1 Max Puppets for 15s. (Max +8)",
+            "desc": "When you or your Summons kill an enemy, or when you kill a Puppet with Friendly Fire, gain +1 Max Puppets for 15s. (Max +4)",
             "archetype": "Summoner",
             "base_abil": "Puppet Master",
             "parents": [
@@ -17601,7 +17887,7 @@
                     "type": "stat_scaling",
                     "slider": true,
                     "slider_name": "Active Puppets",
-                    "slider_max": 8,
+                    "slider_max": 4,
                     "output": [
                         {
                             "type": "prop",
@@ -17617,7 +17903,7 @@
         },
         {
             "display_name": "Commander",
-            "desc": "Casting Aura while holding shift will rally all active Puppets to your side, granting them increased attack speed and accuracy. </br> Your Main Attack deals 5% more damage for each rallied Puppet. </br> While not rallied, your Summons' attacks will build up the duration of this ability by +0.1s per attack. (Max 30s) </br> </br>Effect: +25% Attack Speed to Puppets",
+            "desc": "Casting Aura while holding shift will rally all active Puppets to your side, granting them increased attack speed and accuracy. </br> Your Main Attack deals 6% more damage for each rallied Puppet. </br> While not rallied, your Summons' attacks will build up the duration of this ability by +0.1s per attack. (Max 30s) </br> </br>Effect: +25% Attack Speed to Puppets",
             "archetype": "Summoner",
             "archetype_req": 4,
             "parents": [
@@ -17668,7 +17954,7 @@
                         "name": "damMult.Commander:0.Single Beam"
                     },
                     "scaling": [
-                        5
+                        6
                     ]
                 }
             ]
@@ -17745,7 +18031,7 @@
                         {
                             "name": "Hummingbird Hit",
                             "multipliers": [
-                                20,
+                                25,
                                 0,
                                 5,
                                 0,
@@ -18301,6 +18587,7 @@
             "desc": "Once Aura rebounds, it will radiate back out and deal its effects a third time. </br> Sacrificial Shrine will heal 50% less health.",
             "archetype": "Acolyte",
             "archetype_req": 5,
+            "base_abil": "Aura",
             "parents": [
                 "Freestyle",
                 "Effuse"
@@ -18315,7 +18602,9 @@
                 "col": 6,
                 "icon": "node_2"
             },
-            "properties": {},
+            "properties": {
+                "waves": 1
+            },
             "effects": [
                 {
                     "type": "add_spell_prop",
@@ -18491,10 +18780,10 @@
                             "name": "Thundercloud Hit",
                             "type": "damage",
                             "multipliers": [
-                                1500,
+                                1600,
                                 0,
-                                375,
-                                375,
+                                400,
+                                400,
                                 0,
                                 0
                             ]
