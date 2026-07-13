@@ -297,7 +297,7 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Grape Bomb gains +25% neutral damage.",
+          "description": "Grape Bomb deals additional damage. </br> </br><span class='mc-white'>Total Damage</span>: +25% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +25%)",
           "abilities": [
             {
               "base_abil": "Arrow Bomb",
@@ -323,7 +323,7 @@
         },
         {
           "threshold": 15,
-          "description": "Grape Bomb gains +25% neutral damage. </br> Grape Bomb gains +1 grape.",
+          "description": "Grape Bomb deals additional damage. </br> Grape Bomb gains +1 grape. </br> </br><span class='mc-white'>Total Damage</span>: +25% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +25%)",
           "abilities": [
             {
               "base_abil": "Arrow Bomb",
@@ -351,7 +351,7 @@
         },
         {
           "threshold": 75,
-          "description": "Grape Bomb gains +45% neutral damage. </br> Grape Bomb gains +1 grape.",
+          "description": "Grape Bomb deals additional damage. </br> Grape Bomb gains +1 grape. </br> </br><span class='mc-white'>Total Damage</span>: +45% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: +45%)",
           "abilities": [
             {
               "base_abil": "Arrow Bomb",
@@ -536,7 +536,7 @@
           "description": "Shrapnel Bomb gains +8 shrapnel.",
           "abilities": [
             {
-              "base_abil": "Shrapnel Bomb",
+              "base_abil": "Arrow Bomb",
               "properties": {
                 "bombs": 8
               },
@@ -549,7 +549,7 @@
           "description": "Shrapnel Bomb gains +14 shrapnel.",
           "abilities": [
             {
-              "base_abil": "Shrapnel Bomb",
+              "base_abil": "Arrow Bomb",
               "properties": {
                 "bombs": 14
               },
@@ -562,7 +562,7 @@
           "description": "Shrapnel Bomb gains +18 shrapnel.",
           "abilities": [
             {
-              "base_abil": "Shrapnel Bomb",
+              "base_abil": "Arrow Bomb",
               "properties": {
                 "bombs": 18
               },
@@ -575,7 +575,7 @@
           "description": "Shrapnel Bomb gains +22 shrapnel.",
           "abilities": [
             {
-              "base_abil": "Shrapnel Bomb",
+              "base_abil": "Arrow Bomb",
               "properties": {
                 "bombs": 22
               },
@@ -878,7 +878,7 @@
         },
         {
           "threshold": 5,
-          "description": "Divine Intervention will cause Guardian Angels to fire 1.8x faster instead, and cause explosive shots to deal +5% more damage. </br> Triple Shots gains +2 arrows. </br> Main Attack Damage: -15%",
+          "description": "Divine Intervention will cause Guardian Angels to fire 1.8x faster instead. </br> Triple Shots gains +2 arrows. </br> Main Attack Damage: -15%",
           "abilities": [
             {
               "base_abil": "Arrow Shield",
@@ -971,13 +971,6 @@
                   ]
                 }
               ]
-            },
-            {
-              "base_abil": "Arrow Storm",
-              "properties": {
-                "arrows_per_stream": 1
-              },
-              "effects": []
             },
             {
               "base_abil": 999,
@@ -1454,7 +1447,7 @@
           "description": "Increase your maximum Flint Arrows by +1. </br> </br><span class='mc-white'>Total Damage</span>: -1% (Main Attack Damage, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: -1%)",
           "abilities": [
             {
-              "base_abil": 999,
+              "base_abil": "Arsenal Synergy",
               "effects": [
                 {
                   "type": "stat_scaling",
@@ -1478,7 +1471,7 @@
           "description": "Increase your maximum Flint Arrows by +2. </br> </br><span class='mc-white'>Total Damage</span>: -2% (Main Attack Damage, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: -2%)",
           "abilities": [
             {
-              "base_abil": 999,
+              "base_abil": "Arsenal Synergy",
               "effects": [
                 {
                   "type": "stat_scaling",
@@ -1502,7 +1495,7 @@
           "description": "Increase your maximum Flint Arrows by +3. </br> </br><span class='mc-white'>Total Damage</span>: -3% (Main Attack Damage, per arrow)   </br>&emsp;(<span class='nDam'>Damage</span>: -3%)",
           "abilities": [
             {
-              "base_abil": 999,
+              "base_abil": "Arsenal Synergy",
               "effects": [
                 {
                   "type": "stat_scaling",
@@ -1563,12 +1556,12 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Your Ultimate charges 10% faster.",
+          "description": "Your Ultimate charges 20% faster.",
           "abilities": []
         },
         {
           "threshold": 5,
-          "description": "Your Ultimate charges 10% faster. </br> Ascension lasts +20% longer. Extinction Event spawns +20% bombs. Twilight Zone's mark cap is +20% higher.",
+          "description": "Your Ultimate charges 20% faster. </br> Ascension lasts +20% longer. Extinction Event spawns +30% bombs. Twilight Zone's mark cap is +20% higher.",
           "abilities": [
             {
               "base_abil": "The Twilight Zone",
@@ -1588,7 +1581,7 @@
         },
         {
           "threshold": 15,
-          "description": "Your Ultimate charges 15% faster. </br> Ascension lasts +20% longer. Extinction Event spawns +20% bombs. Twilight Zone's mark cap is +20% higher.",
+          "description": "Your Ultimate charges 25% faster. </br> Ascension lasts +20% longer. Extinction Event spawns +30% bombs. Twilight Zone's mark cap is +20% higher.",
           "abilities": [
             {
               "base_abil": "The Twilight Zone",
@@ -1717,7 +1710,7 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Heavy Impact, Flying Kick and Collide gain +0.65 Area of Effect.",
+          "description": "Flyby Slam's landing, Flying Kick and Collide gain +0.65 Area of Effect.",
           "abilities": [
             {
               "base_abil": "Charge",
@@ -1730,7 +1723,7 @@
         },
         {
           "threshold": 5,
-          "description": "Heavy Impact, Flying Kick and Collide gain +1.15 Area of Effect.",
+          "description": "Flyby Slam's landing, Flying Kick and Collide gain +1.15 Area of Effect.",
           "abilities": [
             {
               "base_abil": "Charge",
@@ -1743,7 +1736,7 @@
         },
         {
           "threshold": 30,
-          "description": "Heavy Impact, Flying Kick and Collide gain +1.65 Area of Effect.",
+          "description": "Flyby Slam's landing, Flying Kick and Collide gain +1.65 Area of Effect.",
           "abilities": [
             {
               "base_abil": "Charge",
@@ -1756,7 +1749,7 @@
         },
         {
           "threshold": 150,
-          "description": "Heavy Impact, Flying Kick and Collide gain +2 Area of Effect.",
+          "description": "Flyby Slam's landing, Flying Kick and Collide gain +2 Area of Effect.",
           "abilities": [
             {
               "base_abil": "Charge",
@@ -2364,13 +2357,13 @@
         },
         {
           "threshold": 5,
-          "description": "Blood Pact's health cost is reduced by 15%. Blood Pact adds +4% to +6.25% more damage when using health.",
+          "description": "Blood Pact's health cost is reduced by 15%. Blood Pact adds +4% to +6.65% more damage when using health.",
           "abilities": [
             {
               "base_abil": "Blood Pact",
               "properties": {
                 "health_cost": -0.0525,
-                "damage_boost": 6.25
+                "damage_boost": 6.65
               },
               "effects": []
             },
@@ -2454,13 +2447,28 @@
           "abilities": [
             {
               "base_abil": "War Scream",
+              "dependencies": [
+                "Pressure"
+              ],
               "properties": {
                 "pressure_rainbow_uppercut": 10,
                 "pressure_neutral_uppercut": 70,
                 "pressure_bash_hits": 0.5,
                 "pressure_scream_boost": 4
               },
-              "effects": []
+              "effects": [
+                {
+                  "type": "raw_stat",
+                  "toggle": "Activate Pressure",
+                  "bonuses": [
+                    {
+                      "type": "stat",
+                      "name": "tConvBase:1.Single Hit",
+                      "value": 5
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
@@ -2837,11 +2845,11 @@
                   "slider": true,
                   "slider_name": "Harmony",
                   "output": {
-                      "type": "stat",
-                      "name": "damMult.Harmony"
+                    "type": "stat",
+                    "name": "damMult.Harmony"
                   },
                   "scaling": [
-                      0.8
+                    0.8
                   ]
                 }
               ]
@@ -2863,11 +2871,11 @@
                   "slider": true,
                   "slider_name": "Harmony",
                   "output": {
-                      "type": "stat",
-                      "name": "damMult.Harmony"
+                    "type": "stat",
+                    "name": "damMult.Harmony"
                   },
                   "scaling": [
-                      1
+                    1
                   ]
                 }
               ]
@@ -2889,11 +2897,11 @@
                   "slider": true,
                   "slider_name": "Harmony",
                   "output": {
-                      "type": "stat",
-                      "name": "damMult.Harmony"
+                    "type": "stat",
+                    "name": "damMult.Harmony"
                   },
                   "scaling": [
-                      1.2
+                    1.2
                   ]
                 }
               ]
@@ -2942,12 +2950,12 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Your Ultimate charges 10% faster.",
+          "description": "Your Ultimate charges 20% faster.",
           "abilities": []
         },
         {
           "threshold": 5,
-          "description": "Your Ultimate charges 10% faster. </br> Beyond Salvation spawns +2 spikes. Zenith Stance lasts +2s longer. Judgement lasts +20% longer.",
+          "description": "Your Ultimate charges 20% faster. </br> Beyond Salvation spawns +3 spikes. Zenith Stance lasts +3s longer. Judgement lasts +20% longer.",
           "abilities": [
             {
               "base_abil": "Beyond Salvation",
@@ -2969,7 +2977,7 @@
         },
         {
           "threshold": 15,
-          "description": "Your Ultimate charges 15% faster. </br> Beyond Salvation spawns +2 spikes. Zenith Stance lasts +2s longer. Judgement lasts +20% longer.",
+          "description": "Your Ultimate charges 25% faster. </br> Beyond Salvation spawns +3 spikes. Zenith Stance lasts +3s longer. Judgement lasts +20% longer.",
           "abilities": [
             {
               "base_abil": "Beyond Salvation",
@@ -3837,22 +3845,22 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Time Dilation gains +1 Area of Effect.",
+          "description": "Time Dilation gains +0.35 Area of Effect.",
           "abilities": []
         },
         {
           "threshold": 5,
-          "description": "Time Dilation gains +1.75 Area of Effect.",
+          "description": "Time Dilation gains +0.6 Area of Effect.",
           "abilities": []
         },
         {
           "threshold": 30,
-          "description": "Time Dilation gains +2.5 Area of Effect.",
+          "description": "Time Dilation gains +0.85 Area of Effect.",
           "abilities": []
         },
         {
           "threshold": 150,
-          "description": "Time Dilation gains +3 Area of Effect.",
+          "description": "Time Dilation gains +1 Area of Effect.",
           "abilities": []
         }
       ],
@@ -3927,17 +3935,17 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Increase your maximum Mana Bank and your maximum Overflow Mana by +17%.",
+          "description": "Increase your maximum Arcane Overflow Mana by +17%.",
           "abilities": []
         },
         {
           "threshold": 15,
-          "description": "Increase your maximum Mana Bank and your maximum Overflow Mana by +25%.",
+          "description": "Increase your maximum Arcane Overflow  Mana by +25%.",
           "abilities": []
         },
         {
           "threshold": 75,
-          "description": "Increase your maximum Mana Bank and your maximum Overflow Mana by +33%.",
+          "description": "Increase your maximum Arcane Overflow  Mana by +33%.",
           "abilities": []
         }
       ],
@@ -3996,7 +4004,7 @@
         },
         {
           "threshold": 75,
-          "description": "Increase your Riftspawn's attack speed by +50%. </br> Riftspawn gains +3 Vision.",
+          "description": "Increase your Riftspawn's attack speed by +40%. </br> Riftspawn gains +3 Vision.",
           "abilities": [
             {
               "base_abil": "Portal to the Beyond",
@@ -4079,7 +4087,7 @@
         },
         {
           "threshold": 5,
-          "description": "Vacuokinesis gains +12 Damage from Distortion.",
+          "description": "Vacuokinesis gains +12% Damage from Distortion.",
           "abilities": [
             {
               "base_abil": "Distortion",
@@ -4133,7 +4141,7 @@
           "threshold": 150,
           "description": "Vacuokinesis gains +20% Damage from Distortion.",
           "abilities": [
-                      {
+            {
               "base_abil": "Distortion",
               "dependencies": [
                 "Vacuokinesis"
@@ -4167,12 +4175,12 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Your Ultimate charges 10% faster.",
+          "description": "Your Ultimate charges 20% faster.",
           "abilities": []
         },
         {
           "threshold": 5,
-          "description": "Your Ultimate charges 10% faster. </br> Dawn spawns +20% more wisps. Gravitational Collapse lasts +1.6s longer. Tangled Origin attacks +10% faster.",
+          "description": "Your Ultimate charges 20% faster. </br> Dawn spawns +30% more wisps. Gravitational Collapse lasts +2.5s longer. Tangled Origin attacks +15% faster.",
           "abilities": [
             {
               "base_abil": "Tangled Origin",
@@ -4189,12 +4197,22 @@
                   }
                 }
               ]
+            },
+            {
+              "base_abil": "Dawn",
+              "dependencies": [
+                "Dawn"
+              ],
+              "properties": {
+                "wisp_count": 150
+              },
+              "effects": []
             }
           ]
         },
         {
           "threshold": 15,
-          "description": "Your Ultimate charges 15% faster. </br> Dawn spawns +20% more wisps. Gravitational Collapse lasts +1.6s longer. Tangled Origin attacks +10% faster.",
+          "description": "Your Ultimate charges 25% faster. </br> Dawn spawns +30% more wisps. Gravitational Collapse lasts +2.5s longer. Tangled Origin attacks +15% faster.",
           "abilities": [
             {
               "base_abil": "Tangled Origin",
@@ -4211,6 +4229,16 @@
                   }
                 }
               ]
+            },
+            {
+              "base_abil": "Dawn",
+              "dependencies": [
+                "Dawn"
+              ],
+              "properties": {
+                "wisp_count": 150
+              },
+              "effects": []
             }
           ]
         }
@@ -5047,7 +5075,7 @@
         },
         {
           "threshold": 5,
-          "description": "Multihit gains +0.85 Range. Backstab gains 1.71 Range.",
+          "description": "Multihit gains +0.85 Range. Backstab gains +1.7 Range.",
           "abilities": []
         },
         {
@@ -5636,17 +5664,17 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Your Ultimate charges 10% faster.",
+          "description": "Your Ultimate charges 20% faster.",
           "abilities": []
         },
         {
           "threshold": 5,
-          "description": "Your Ultimate charges 10% faster. </br> Pierce the Veil lasts +3s longer. Another Self has +20% more health. Serpent's Garden builds momentum +5% faster.",
+          "description": "Your Ultimate charges 20% faster. </br> Pierce the Veil lasts +4s longer. Another Self has +30% more health. Serpent's Garden lasts +4s longer.",
           "abilities": []
         },
         {
           "threshold": 15,
-          "description": "Your Ultimate charges 15% faster. </br> Pierce the Veil lasts +3s longer. Another Self has +20% more health. Serpent's Garden builds momentum +5% faster.",
+          "description": "Your Ultimate charges 25% faster. </br> Pierce the Veil lasts +4s longer. Another Self has +30% more health. Serpent's Garden lasts +4s longer.",
           "abilities": []
         }
       ]
@@ -5903,7 +5931,7 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Puppet Master gains +1 Puppets. </br><span class='mc-white'>Total Damage</span>: -1% (of your DPS)   </br>&emsp;(<span class='eDam'>Earth</span>: -1%)",
+          "description": "Puppet Master gains +1 Puppets. </br><span class='mc-white'>Total Damage</span>: -2% (of your DPS)   </br>&emsp;(<span class='eDam'>Earth</span>: -1%)",
           "abilities": [
             {
               "base_abil": "Puppet Master",
@@ -5939,7 +5967,7 @@
         },
         {
           "threshold": 15,
-          "description": "Puppet Master gains +2 Puppets. </br><span class='mc-white'>Total Damage</span>: -2% (of your DPS)   </br>&emsp;(<span class='aDam'>Air</span>: -1%)   </br>&emsp;(<span class='eDam'>Earth</span>: -1%)",
+          "description": "Puppet Master gains +2 Puppets. </br><span class='mc-white'>Total Damage</span>: -4% (of your DPS)   </br>&emsp;(<span class='aDam'>Air</span>: -1%)   </br>&emsp;(<span class='eDam'>Earth</span>: -1%)",
           "abilities": [
             {
               "base_abil": "Puppet Master",
@@ -5975,7 +6003,7 @@
         },
         {
           "threshold": 75,
-          "description": "Puppet Master gains +3 Puppets. </br><span class='mc-white'>Total Damage</span>: -3% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: -1%)   </br>&emsp;(<span class='aDam'>Air</span>: -1%)   </br>&emsp;(<span class='eDam'>Earth</span>: -1%)",
+          "description": "Puppet Master gains +3 Puppets. </br><span class='mc-white'>Total Damage</span>: -6% (of your DPS)   </br>&emsp;(<span class='nDam'>Damage</span>: -1%)   </br>&emsp;(<span class='aDam'>Air</span>: -1%)   </br>&emsp;(<span class='eDam'>Earth</span>: -1%)",
           "abilities": [
             {
               "base_abil": "Puppet Master",
@@ -6964,12 +6992,12 @@
       "tiers": [
         {
           "threshold": 1,
-          "description": "Your Ultimate charges 10% faster.",
+          "description": "Your Ultimate charges 20% faster.",
           "abilities": []
         },
         {
           "threshold": 5,
-          "description": "Your Ultimate charges 10% faster. </br> Patchwork Abomination lasts +4s longer. Sundered Skies' delay between lightning strikes is -0.2s shorter. Monument to Gloom lasts +20% longer.",
+          "description": "Your Ultimate charges 20% faster. </br> Patchwork Abomination lasts +6s longer. Sundered Skies' delay between lightning strikes is -0.3s shorter. Monument to Gloom lasts +30% longer.",
           "abilities": [
             {
               "base_abil": "Sundered Skies",
@@ -6991,7 +7019,7 @@
         },
         {
           "threshold": 15,
-          "description": "Your Ultimate charges 15% faster. </br> Patchwork Abomination lasts +4s longer. Sundered Skies' delay between lightning strikes is -0.2s shorter. Monument to Gloom lasts +20% longer.",
+          "description": "Your Ultimate charges 25% faster. </br> Patchwork Abomination lasts +6s longer. Sundered Skies' delay between lightning strikes is -0.3s shorter. Monument to Gloom lasts +30% longer.",
           "abilities": [
             {
               "base_abil": "Sundered Skies",

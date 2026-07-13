@@ -15,7 +15,8 @@
             "properties": {
                 "aoe": 4.5,
                 "range": 26,
-                "bounce_mult": 1
+                "bounce_mult": 1,
+                "bombs": 1
             },
             "effects": [
                 {
@@ -686,7 +687,6 @@
             "properties": {
                 "arrows_per_stream": 6,
                 "attack_frequency": 10,
-                "ray_duration": -0.6,
                 "ray_rate": 10
             },
             "effects": [
@@ -716,6 +716,18 @@
                         0,
                         0,
                         0
+                    ]
+                },
+                {
+                    "type": "raw_stat",
+                    "bonuses": [
+                        {
+                            "type": "prop",
+                            "abil": "Arrow Storm",
+                            "name": "ray_duration",
+                            "mult": true,
+                            "value": 0.5
+                        }
                     ]
                 }
             ]
@@ -1636,7 +1648,7 @@
             "display_name": "Leap",
             "desc": "Leap in the direction of your movement when you double jump. </br> The distance scales with your Walk Speed. </br> </br>Cooldown: 2s",
             "archetype": "Boltslinger",
-            "archetype_req": 4,
+            "archetype_req": 3,
             "parents": [
                 "Cheaper Arrow Storm I",
                 "Guardian Angels"
@@ -2679,6 +2691,26 @@
                             "type": "prop",
                             "abil": "Arrow Bomb",
                             "name": "bombs"
+                        }
+                    ],
+                    "output": {
+                        "type": "prop",
+                        "abil": "Recycling",
+                        "name": "arrow_bomb_mult",
+                        "mult": true
+                    },
+                    "scaling": [
+                        1.0
+                    ]                    
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": false,
+                    "inputs": [
+                        {
+                            "type": "prop",
+                            "abil": "Arrow Bomb",
+                            "name": "bounce_mult"
                         }
                     ],
                     "output": {
@@ -10565,6 +10597,7 @@
                     "name": "Judrajim",
                     "base_spell": 10,
                     "display": "Total Damage",
+                    "cost": 2,
                     "parts": [
                         {
                             "name": "Damage per Tick",
@@ -10663,6 +10696,19 @@
                     "output": {
                         "type": "stat",
                         "name": "damMult.Judrajim:10.Scaled Tick"
+                    },
+                    "scaling": [
+                        20
+                    ]
+                },
+                {
+                    "type": "stat_scaling",
+                    "slider": true,
+                    "slider_name": "Subsequent Judrajim Hits",
+                    "multiplicative": true,
+                    "output": {
+                        "type": "stat",
+                        "name": "spPct10Final"
                     },
                     "scaling": [
                         20
@@ -10975,7 +11021,9 @@
                 "col": 1,
                 "icon": "node_3"
             },
-            "properties": {},
+            "properties": {
+                "wisp_count": 500
+            },
             "effects": [
                 {
                     "type": "replace_spell",
@@ -10994,6 +11042,16 @@
                                 100,
                                 0
                             ]
+                        },
+                        {
+                            "name": "Maximum Damage Dealt",
+                            "hits": {
+                                "Wisp Damage": "Dawn.wisp_count"
+                            }
+                        },
+                        {
+                            "name": "Wisp Heal",
+                            "max_hp_heal_pct": 0.1
                         }
                     ]
                 }
