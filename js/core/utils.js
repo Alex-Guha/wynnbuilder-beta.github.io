@@ -1,11 +1,13 @@
 let getUrl, url_base, SITE_BASE;
 if (typeof window !== 'undefined') {
     getUrl = window.location;
-    url_base = getUrl.protocol + "//" + getUrl.host + "/" + getUrl.pathname.split('/')[1];
     // Base path prefix for GitHub Pages project sites (e.g. username.github.io/repo-name/).
     // On localhost or user sites (no prefix), this is empty.
     const pathPrefix = window.location.pathname.match(/^\/(wynnbuilder(?:-beta)?\.github\.io)\//);
-    SITE_BASE = pathPrefix ? '/' + pathPrefix[1] : '';
+    const projectBase = pathPrefix ? '/' + pathPrefix[1] : '';
+    const previewPrefix = window.location.pathname.match(new RegExp('^' + projectBase.replace(/\./g, '\\.') + '(\/_preview\/[^/]+)\/'));
+    SITE_BASE = projectBase + (previewPrefix ? previewPrefix[1] : '');
+    url_base = getUrl.protocol + "//" + getUrl.host + SITE_BASE;
 } else {
     getUrl = null;
     url_base = '';

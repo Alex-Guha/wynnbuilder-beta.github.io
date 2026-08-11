@@ -257,10 +257,10 @@ function pullguilds() {
 
                 let locObj = L.marker(latlng, {icon: L.icon({
                     //iconUrl: '/media/icons/' + (newIcons ? "new/" : "old/" ) + loc.icon,
-                    iconUrl: '/media/icons/locations/' + loc.icon,
-                    iconSize: [24,24], 
-                    iconAnchor: [12,12], 
-                    shadowUrl: '/media/icons/' + (newIcons ? "new/" : "old/" ) + 'shadow.png',
+                    iconUrl: SITE_BASE + '/media/icons/locations/' + loc.icon,
+                    iconSize: [24,24],
+                    iconAnchor: [12,12],
+                    shadowUrl: SITE_BASE + '/media/icons/' + (newIcons ? "new/" : "old/" ) + 'shadow.png',
                     shadowSize: [1,1],
                     shadowAnchor: [12,12],
                     className: "marker"
