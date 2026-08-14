@@ -364,6 +364,14 @@ function applySetBonuses(sm, activeSetCounts, sets_map) {
         const bonus = setData.bonuses[count - 1];
         if (!bonus) continue;
         for (const id in bonus) {
+            if (id === "majorIds") {
+                // Set bonuses can grant major IDs; stash them on the statMap
+                // for finalizeStatmap to fold into activeMajorIDs.
+                let set_mids = sm.get("setMajorIds");
+                if (!set_mids) { set_mids = new Set(); sm.set("setMajorIds", set_mids); }
+                for (const mid of bonus[id]) set_mids.add(mid);
+                continue;
+            }
             if (skp_order.includes(id)) continue;
             sm.set(id, (sm.get(id) || 0) + bonus[id]);
         }
@@ -402,10 +410,15 @@ function finalizeStatmap(sm, weapon_sm, all_equip_sms, scratch) {
         const mids = item_sm.get("majorIds");
         if (mids) for (const mid of mids) major_ids.add(mid);
     }
+    const set_mids = sm.get("setMajorIds");
+    if (set_mids) {
+        for (const mid of set_mids) major_ids.add(mid);
+        sm.delete("setMajorIds");
+    }
     sm.set("activeMajorIDs", major_ids);
 
     sm.set("poisonPct", 0);
-    healMult.set('item', sm.get('healPct') || 0);
+    // healPct is applied in the spell heal calc directly (not via healMult).
     sm.set("healMult", healMult);
     sm.set("atkSpd", weapon_sm.get("atkSpd"));
 }

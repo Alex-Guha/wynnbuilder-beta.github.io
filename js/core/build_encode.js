@@ -406,6 +406,41 @@ function decodeAtree(atree, bits) {
     return ret;
 }
 
+function copyTreeHash(atree) {
+    if (!atree || !atree_state_node) return;
+    useCopyButton("copy-tree-hash", encodeAtree(atree, atree_state_node.value).toB64(), "Copy Tree");
+}
+
+async function pasteTreeHash(atree) {
+    if (!atree || !atree_state_node) return;
+    const text = new BitVector(await navigator.clipboard.readText());
+    const active_nodes = decodeAtree(atree, text);
+
+    for (const node of atree_state_node.value.values()) {
+        if (node.active){
+            atree_set_state(node, false);
+        }
+    }
+    for (const node of active_nodes) {
+        const state_node = atree_state_node.value.get(node.ability.id);
+        if (!state_node.active){
+            atree_set_state(state_node, true);
+        }
+    }
+    atree_state_node.mark_dirty().update();
+}
+
+function clearTree(atree) {
+    if (!atree || !atree_state_node) return;
+
+    for (const node of atree_state_node.value.values()) {
+        if (node.active){
+            atree_set_state(node, false);
+        }
+    }
+    atree_state_node.mark_dirty().update();
+}
+
 // ── Utility functions ────────────────────────────────────────────────────────
 
 function getFullURL() {

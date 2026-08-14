@@ -185,7 +185,7 @@ function _apply_radiance_scale(statMap, boost) {
         if (reversedIDs.includes(id)) {
             if (val < 0) ret.set(id, Math.floor(val * boost));
         } else {
-            if (val > 0) ret.set(id, Math.floor(val * boost));
+            if (val > 0) ret.set(id, Math.floor(1e-9 + val * boost));
         }
     }
     return ret;
@@ -199,7 +199,7 @@ function _apply_radiance_scale_inplace(statMap, boost) {
         if (reversedIDs.includes(id)) {
             if (val < 0) statMap.set(id, Math.floor(val * boost));
         } else {
-            if (val > 0) statMap.set(id, Math.floor(val * boost));
+            if (val > 0) statMap.set(id, Math.floor(1e-9 + val * boost));
         }
     }
 }

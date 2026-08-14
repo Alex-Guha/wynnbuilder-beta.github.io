@@ -273,6 +273,7 @@ const atree_render = new (class extends ComputeNode {
         super('atree-render');
         this.UI_elem = document.getElementById("atree-ui");
         this.list_elem = document.getElementById("atree-header");
+        this.hash_elem = document.getElementById("atree-hash");
     }
 
     compute_func(input_map) {
@@ -282,9 +283,10 @@ const atree_render = new (class extends ComputeNode {
         //for some reason we have to cast to string 
         this.list_elem.innerHTML = ""; //reset all atree actives - should be done in a more general way later
         this.UI_elem.innerHTML = ""; //reset the atree in the DOM
+        this.hash_elem.innerHTML = ""; //reset the atree hash
 
         let ret = null;
-        if (atree) { ret = render_AT(this.UI_elem, this.list_elem, atree); }
+        if (atree) { ret = render_AT(this.UI_elem, this.list_elem, this.hash_elem, atree); }
 
         //Toggle on, previously was toggled off
         if (typeof ensureSolverPanel === 'function') {
@@ -565,7 +567,9 @@ const atree_merge = new (class extends ComputeNode {
 
         // Apply major IDs.
         const build_class = wep_to_class.get(build.weapon.statMap.get("type"));
-        for (const major_id_name of build.statMap.get("activeMajorIDs")) {
+        const raid_buffs = input_map.get('raid-buffs');
+        const active_major_ids = raid_buffs ? raid_buffs.get('activeMajorIDs') : build.statMap.get("activeMajorIDs");
+        for (const major_id_name of active_major_ids) {
 
             // Sometimes, something silly happens and we haven't implemented a major ID that
             //   exists. This makes sure we don't try to apply unimplemented major IDs.
@@ -1094,9 +1098,10 @@ const atree_raw_stats = new (class extends ComputeNode {
  * 
  * @param {Element} UI_elem - the DOM element to draw the atree within.
  * @param {Element} list_elem - the DOM element to list selected abilities within.
+ * @param {Element} hash_elem - the DOM element to display the tree hash within.
  * @param {*} tree - the ability tree to work with.
  */
-function render_AT(UI_elem, list_elem, tree) {
+function render_AT(UI_elem, list_elem, hash_elem, tree) {
     console.log("constructing ability tree UI");
 
     // increase padding, since images are larger than the space provided
@@ -1121,6 +1126,15 @@ function render_AT(UI_elem, list_elem, tree) {
 
     active_row.append(active_word, active_AP_container);
     list_elem.append(active_row);
+
+    // add hash copy & paste buttons to atree
+    const hash_row = make_elem("div", ["row", "item-title", "mx-auto", "my-2", "justify-content-center", "flex-nowrap"]);
+    const copy_hash_button = make_elem("button", ["col-auto", "mx-2", "px-1", "btn", "scaled-font", "btn-outline-light"], {id: "copy-tree-hash", textContent: "Copy Tree", onclick: () => copyTreeHash(tree)});
+    const paste_hash_button = make_elem("button", ["col-auto", "mx-2", "px-1", "btn", "scaled-font", "btn-outline-light"], {id: "paste-tree-hash", textContent: "Paste Tree", onclick: () => pasteTreeHash(tree)});
+    const clear_tree_button = make_elem("button", ["col-auto", "mx-2", "px-1", "btn", "scaled-font", "btn-outline-light"], {id: "clear-tree", textContent: "Clear Tree", onclick: () => clearTree(tree)});
+
+    hash_row.append(copy_hash_button, paste_hash_button, clear_tree_button);
+    list_elem.append(hash_row);
 
     const atree_map = new Map();
     const atree_connectors_map = new Map()

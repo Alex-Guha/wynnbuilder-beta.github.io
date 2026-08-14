@@ -70,6 +70,7 @@ class SpellDamageCalcNode extends ComputeNode {
                     if (k.includes(':') && k.split(':')[1] !== part_id) continue;
                     heal_mult *= (1 + v / 100);
                 }
+                heal_mult *= (1 + stats.get('healPct') / 100);
                 spell_result = {
                     type: 'heal',
                     heal_amount: part.max_hp_heal_pct * getDefenseStats(stats)[0] * heal_mult,

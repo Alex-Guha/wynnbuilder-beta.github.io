@@ -29,7 +29,9 @@ let raid_buff_node = new (class extends ComputeNode {
 
     compute_func(input_map) {
         const raids = ['notg', 'nol', 'tcc', 'tna', 'wtp'];
-        let statMap = new Map();
+        const statMap = new Map(input_map.get('stats'));
+        const activeMajorIDs = new Set(statMap.get('activeMajorIDs'));
+        statMap.set('activeMajorIDs', activeMajorIDs);
         let toggledBuffs = [];
         for (const raid of raids) {
             for (let i = 1; i <= 3; i++) {
@@ -42,11 +44,13 @@ let raid_buff_node = new (class extends ComputeNode {
 
         for (const buff of toggledBuffs) {
             for (const [stat, val] of raid_buff_map.get(buff)) {
-                if (statMap.has(stat)) {
-                    statMap.set(stat, val + statMap.get(stat));
+                if (stat == 'majorIds') {
+                    for (const major_id of val) {
+                        activeMajorIDs.add(major_id);
+                    }
                 }
                 else {
-                    statMap.set(stat, val);
+                    statMap.set(stat, val + statMap.get(stat));
                 }
             }
         }
@@ -577,10 +581,16 @@ class EditableIDSetterNode extends ComputeNode {
     compute_func(input_map) {
         if (input_map.size !== 1) { throw "EditableIDSetterNode accepts exactly one input (build)"; }
         const [build] = input_map.values();  // Extract values, pattern match it into size one list and bind to first element
-        for (const id of editable_item_fields) {
+        for (const id of var_stats_map.keys()) {
+            if (!build.statMap.has(id))
+                continue;
+
             const val = build.statMap.get(id);
-            document.getElementById(id).value = val;
-            document.getElementById(id + '-base').textContent = 'Original Value: ' + val;
+            const val_elem = document.getElementById(id);
+            if (val_elem) {
+                val_elem.value = val;
+                document.getElementById(id + '-base').textContent = 'Original: ' + val;
+            }
         }
     }
 
@@ -909,14 +919,7 @@ function builder_graph_init(skillpoints) {
     stat_agg_node = new AggregateStatsNode('final-stats');
     edit_agg_node = new AggregateEditableIDNode();
     edit_agg_node.link_to(build_node, 'build');
-    for (const field of editable_item_fields) {
-        // Create nodes that listens to each editable id input, the node name should match the "id"
-        const elem = document.getElementById(field);
-        const node = new SumNumberInputNode('builder-' + field + '-input', elem);
-
-        edit_agg_node.link_to(node, field);
-        edit_input_nodes.push(node);
-    }
+    
     // Edit IDs setter declared up here to set ids so they will be populated by default.
     edit_id_output = new EditableIDSetterNode(edit_input_nodes);    // Makes shallow copy of list.
     edit_id_output.link_to(build_node);
@@ -931,7 +934,11 @@ function builder_graph_init(skillpoints) {
         edit_input_nodes.push(node);
         skp_inputs.push(node);
     }
-    pre_scale_agg_node.link_to(edit_agg_node);
+
+    // Raid buffs before atree scaling
+    raid_buff_node.link_to(edit_agg_node, 'stats');
+
+    pre_scale_agg_node.link_to(raid_buff_node);
 
     // Phase 3/3: Set up atree and aspect stuff.
 
@@ -939,8 +946,8 @@ function builder_graph_init(skillpoints) {
     // These two are defined in `game/atree.js`
     atree_node.link_to(class_node, 'player-class');
     atree_merge.link_to(class_node, 'player-class');
+    atree_merge.link_to(raid_buff_node, 'raid-buffs');
     pre_scale_agg_node.link_to(atree_raw_stats, 'atree-raw-stats');
-    pre_scale_agg_node.link_to(raid_buff_node, 'raid-buff');
     radiance_node.link_to(pre_scale_agg_node, 'stats');
     atree_scaling.link_to(radiance_node, 'scale-stats');
     stat_agg_node.link_to(radiance_node, 'pre-scaling');
