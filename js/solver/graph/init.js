@@ -88,17 +88,22 @@ function solver_graph_init() {
     }
 
     // ── Phase 3: Ability tree ────────────────────────────────────────────────
+    // Raid buffs can grant major IDs; atree_merge's 'raid-buffs' input carries
+    // the build ∪ raid activeMajorIDs union (same contract as the builder).
+    solver_raid_majorid_node.link_to(solver_build_node, 'build');
     atree_node.link_to(class_node, 'player-class');
     atree_merge.link_to(solver_build_node, 'build');
     atree_merge.link_to(class_node, 'player-class');
     atree_merge.link_to(aspect_agg_node);
+    atree_merge.link_to(solver_raid_majorid_node, 'raid-buffs');
     atree_validate.link_to(level_input, 'level');
 
     // ── Phase 3: Stat aggregation pipeline ───────────────────────────────────
 
     // Extract build.statMap into a plain StatMap for aggregation
     const build_stat_node = new SolverBuildStatExtractNode()
-        .link_to(solver_build_node, 'build');
+        .link_to(solver_build_node, 'build')
+        .link_to(solver_raid_majorid_node, 'raid-major-ids');
 
     // Pre-scale aggregation: build stats + atree raw stat bonuses
     const pre_scale_agg = new AggregateStatsNode('solver-pre-scale-stats');

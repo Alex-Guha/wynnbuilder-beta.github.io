@@ -343,9 +343,14 @@ function _build_solver_snapshot(restrictions) {
 
     const weapon_sm = weapon?.statMap ?? new Map();
 
+    // Major IDs granted by toggled raid buffs (e.g. ARCANES from Lightbearer-III)
+    // can't ride in static_boosts (not additive); union them into each leaf's
+    // activeMajorIDs during finalize instead.
+    const raid_major_ids = Array.from(_solver_raid_major_ids());
+
     return {
         weapon, weapon_sm, level, tomes, atree_raw, atree_mgd,
-        static_boosts, radiance_boost, sp_budget,
+        static_boosts, radiance_boost, sp_budget, raid_major_ids,
         guild_tome_item, spell_map, boost_registry, parsed_combo,
         restrictions, button_states, slider_states, scoring_target, custom_weights,
         combo_time, allow_downtime, hp_casting, has_dynamic_sliders, health_config, auto_slider_names: [...auto_slider_names], spell_base_costs,
@@ -1048,6 +1053,7 @@ function _build_worker_init_msg(snap, pools_ser, locked_ser, ring_pool_ser, part
         slider_states: snap.slider_states,
         radiance_boost: snap.radiance_boost,
         static_boosts: snap.static_boosts,
+        raid_major_ids: snap.raid_major_ids,
         // Combo
         parsed_combo: snap.parsed_combo,
         boost_registry: snap.boost_registry,

@@ -32,6 +32,11 @@ class SolverBuildStatExtractNode extends ComputeNode {
         if (weaponType) {
             stats.set('classDef', classDefenseMultipliers.get(weaponType) || 1.0);
         }
+        // Raid buffs can grant major IDs; use the build ∪ raid union when wired.
+        const raid_mids = input_map.get('raid-major-ids');
+        if (raid_mids?.get('activeMajorIDs')) {
+            stats.set('activeMajorIDs', raid_mids.get('activeMajorIDs'));
+        }
         return stats;
     }
 }
@@ -132,31 +137,66 @@ let solver_boosts_node = new (class extends ComputeNode {
 // Raid reward buffs — mirrors the builder's raid_buff_node. Reads the toggle
 // state of the raid buff buttons (notg-1 .. wtp-3) and sums the active buffs
 // into a flat additive statMap (raid_buff_map lives in shared_constants.js).
+// Major IDs granted by raid buffs are excluded here (they aren't additive
+// numbers) — they're collected separately by _solver_raid_major_ids().
 const RAID_IDS = ['notg', 'nol', 'tcc', 'tna', 'wtp'];
+
+function _solver_toggled_raid_buffs() {
+    const toggledBuffs = [];
+    for (const raid of RAID_IDS) {
+        for (let i = 1; i <= 3; i++) {
+            let tier = document.getElementById(raid + "-" + i);
+            if (!tier) continue;
+            for (let buff of tier.children) {
+                if (buff.classList.contains("toggleOn")) { toggledBuffs.push(buff.id); }
+            }
+        }
+    }
+    return toggledBuffs;
+}
+
+/** Set of major IDs granted by the currently toggled raid buffs. */
+function _solver_raid_major_ids() {
+    const major_ids = new Set();
+    for (const buff of _solver_toggled_raid_buffs()) {
+        const effs = raid_buff_map.get(buff);
+        if (!effs) continue;
+        for (const [stat, val] of effs) {
+            if (stat === 'majorIds') for (const mid of val) major_ids.add(mid);
+        }
+    }
+    return major_ids;
+}
+
 let solver_raid_buff_node = new (class extends ComputeNode {
     constructor() { super('solver-raid-buff-input'); }
     compute_func(_input_map) {
         let statMap = new Map();
-        let toggledBuffs = [];
-        for (const raid of RAID_IDS) {
-            for (let i = 1; i <= 3; i++) {
-                let tier = document.getElementById(raid + "-" + i);
-                if (!tier) continue;
-                for (let buff of tier.children) {
-                    if (buff.classList.contains("toggleOn")) { toggledBuffs.push(buff.id); }
-                }
-            }
-        }
-        for (const buff of toggledBuffs) {
+        for (const buff of _solver_toggled_raid_buffs()) {
             const effs = raid_buff_map.get(buff);
             if (!effs) continue;
             for (const [stat, val] of effs) {
+                if (stat === 'majorIds') continue;
                 statMap.set(stat, val + (statMap.get(stat) ?? 0));
             }
         }
         return statMap;
     }
 })().update();
+
+// Union of the build's activeMajorIDs (items + sets) and raid-buff-granted
+// major IDs. Feeds atree_merge's 'raid-buffs' input (same contract as the
+// builder's raid_buff_node) and SolverBuildStatExtractNode, so raid major IDs
+// flow into atree effects and the display/combo stat pipeline.
+let solver_raid_majorid_node = new (class extends ComputeNode {
+    constructor() { super('solver-raid-majorid'); this.fail_cb = true; }
+    compute_func(input_map) {
+        const build = input_map.get('build');
+        const active = new Set(build?.statMap?.get('activeMajorIDs'));
+        for (const mid of _solver_raid_major_ids()) active.add(mid);
+        return new Map([['activeMajorIDs', active]]);
+    }
+})();
 
 let solver_radiance_node = new (class extends ComputeNode {
     constructor() { super('solver-radiance-node'); this.fail_cb = true; }
@@ -203,6 +243,7 @@ function updateRaidBuffs(raid, tier, buttonId) {
         elem.classList.add("toggleOn");
     }
     solver_raid_buff_node.mark_dirty().update();
+    solver_raid_majorid_node.mark_dirty().update();
 }
 
 function update_radiance(input) {

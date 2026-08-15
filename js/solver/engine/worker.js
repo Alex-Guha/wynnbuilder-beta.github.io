@@ -717,7 +717,7 @@ function _run_level_enum() {
         for (let i = 0; i < 8; i++) _scratch_all_equip[i] = _scratch_equip_8[i];
         for (let i = 0; i < tome_sms.length; i++) _scratch_all_equip[8 + i] = tome_sms[i];
         _scratch_all_equip[8 + tome_sms.length] = weapon_sm;
-        const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, _scratch_all_equip, _scratch_finalize, _scratch_finalize_inner);
+        const build_sm = _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets, _scratch_all_equip, _scratch_finalize, _scratch_finalize_inner, _cfg.raid_major_ids);
 
         // Greedily assign any remaining SP budget to maximise the scoring target
         let final_assigned = _greedy_allocate_sp(build_sm, base_sp, total_sp, assigned_sp, weapon_sm);

@@ -201,7 +201,7 @@ function _build_baseline_statmap(snap, locked) {
     }
 
     // all_equip_sms = fixed_item_sms (weapon + tomes + locked items) — used for majorID extraction
-    return _finalize_leaf_statmap(running_sm, snap.weapon_sm, activeSetCounts, sets, fixed_item_sms);
+    return _finalize_leaf_statmap(running_sm, snap.weapon_sm, activeSetCounts, sets, fixed_item_sms, undefined, undefined, snap.raid_major_ids);
 }
 
 // ── Step 5: Main-thread combo assembly ──────────────────────────────────────

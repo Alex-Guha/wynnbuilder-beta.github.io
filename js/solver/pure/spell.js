@@ -49,6 +49,8 @@ function _eval_spell_parts(stats, weapon, spell, detailed) {
             for (const [k, v] of mult_map.entries()) {
                 if (!k.includes(':') || k.split(':')[1] === part_id) heal_mult *= (1 + v / 100);
             }
+            // healPct applies directly to healing (no longer folded into healMult)
+            heal_mult *= (1 + (stats.get('healPct') || 0) / 100);
             result = { type: 'heal', heal_amount: part.max_hp_heal_pct * getDefenseStats(stats)[0] * heal_mult };
         } else {
             result = { type: null, normal_total: [0, 0], crit_total: [0, 0], heal_amount: 0 };
@@ -340,6 +342,8 @@ function computeSpellHealingTotal(stats, spell) {
             for (const [k, v] of mult_map.entries()) {
                 if (!k.includes(':') || k.split(':')[1] === part_id) heal_mult *= (1 + v / 100);
             }
+            // healPct applies directly to healing (no longer folded into healMult)
+            heal_mult *= (1 + (stats.get('healPct') || 0) / 100);
             result = { type: 'heal', heal_amount: part.max_hp_heal_pct * getDefenseStats(stats)[0] * heal_mult };
         } else if ('multipliers' in part) {
             result = { type: 'damage', heal_amount: 0 };

@@ -22,7 +22,9 @@
  *           has_transcendence }.
  */
 function simulate_spell_by_spell(rows, base_stats, aug_spell_map, registry, health_config, build) {
-    const has_transcendence = build.statMap.get('activeMajorIDs')?.has('ARCANES') ?? false;
+    // base_stats' activeMajorIDs includes raid-buff-granted IDs (build ∪ raid);
+    // fall back to the build's own set if absent.
+    const has_transcendence = (base_stats.get('activeMajorIDs') ?? build.statMap.get('activeMajorIDs'))?.has('ARCANES') ?? false;
 
     // ── Pre-pass: serialize DOM state into pure rows ──
     const pure_rows = [];

@@ -83,8 +83,11 @@ function _init_running_statmap(level, fixed_item_sms) {
  * Finalize a leaf statMap from the running accumulated stats.
  * Applies set bonuses, sets up damMult/defMult/healMult/majorIDs.
  * Finalizes all stats at the leaf level of the search tree.
+ *
+ * extra_major_ids: optional iterable of major IDs granted outside the build
+ * itself (raid reward buffs) — unioned into activeMajorIDs.
  */
-function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map, all_equip_sms, target, inner_scratch) {
+function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map, all_equip_sms, target, inner_scratch, extra_major_ids) {
     let sm;
     if (target) {
         sm = target;
@@ -96,6 +99,10 @@ function _finalize_leaf_statmap(running_sm, weapon_sm, activeSetCounts, sets_map
 
     applySetBonuses(sm, activeSetCounts, sets_map);
     finalizeStatmap(sm, weapon_sm, all_equip_sms, inner_scratch);
+    if (extra_major_ids) {
+        const active = sm.get('activeMajorIDs');
+        for (const mid of extra_major_ids) active.add(mid);
+    }
 
     return sm;
 }
